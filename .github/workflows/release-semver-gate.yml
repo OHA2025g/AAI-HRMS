@@ -1,0 +1,28 @@
+# M0 — gate release tags with the same checks as local quality (no Docker image in-repo).
+name: Release tag gate
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Backend unit tests (release gate)
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pytest -q tests/test_phase1_unit.py tests/test_migrations_manifest.py tests/test_ranking_regression.py tests/test_m2_lifecycle.py tests/test_m9_analytics.py
+
+      - name: RBAC static audit
+        working-directory: backend
+        run: python scripts/rbac_audit.py --strict

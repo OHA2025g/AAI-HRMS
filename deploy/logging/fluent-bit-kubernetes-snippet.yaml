@@ -1,0 +1,32 @@
+# Snippet: ship container logs to your log backend (M0 remaining — ops-applied).
+# Replace OUTPUT with your vendor (OpenSearch, CloudWatch, Datadog, etc.).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: logging
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        1
+        Daemon       Off
+        Log_Level    info
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        Parser            docker
+        Tag               kube.*
+        Mem_Buf_Limit     50MB
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Merge_Log           On
+
+    # [OUTPUT]
+    #   Name  es
+    #   Match *
+    #   Host  your-opensearch
+    #   Port  443
+    #   TLS   On

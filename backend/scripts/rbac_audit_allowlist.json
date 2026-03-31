@@ -1,0 +1,9 @@
+{
+  "description": "Routes intentionally reachable without Bearer auth (review when adding endpoints).",
+  "public_routes": [
+    { "method": "GET", "path": "/" },
+    { "method": "GET", "path": "/health" },
+    { "method": "POST", "path": "/auth/register" },
+    { "method": "POST", "path": "/auth/login" }
+  ]
+}
