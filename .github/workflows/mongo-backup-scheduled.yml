@@ -1,0 +1,155 @@
+# Scheduled MongoDB backup (M0).
+#
+# Requires repository secrets (Settings → Secrets and variables → Actions):
+#   MONGO_BACKUP_URL   — full MongoDB connection URI (same role as MONGO_URL)
+#   MONGO_BACKUP_DB_NAME — database name (same role as DB_NAME)
+#
+# Produces tarball + .meta.txt and uploads as a workflow artifact (default retention below).
+#
+# Optional — copy to AWS S3 after backup (choose one auth path):
+#
+# A) OIDC (recommended): secrets S3_BACKUP_BUCKET + AWS_ROLE_TO_ASSUME
+#    (+ optional AWS_REGION, S3_BACKUP_PREFIX). Job: upload-s3-oidc
+#
+# B) Static keys: secrets S3_BACKUP_BUCKET + AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+#    (+ optional AWS_REGION, S3_BACKUP_PREFIX). Job: upload-s3-static
+#    (skipped if AWS_ROLE_TO_ASSUME is set — OIDC takes precedence)
+
+name: MongoDB Backup (scheduled)
+
+on:
+  schedule:
+    # Weekly: Monday 03:15 UTC (adjust as needed)
+    - cron: "15 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: mongo-backup-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-22.04
+    outputs:
+      artifact_name: mongo-backup-${{ github.run_id }}-${{ github.run_attempt }}
+    permissions:
+      contents: read
+    env:
+      MONGO_URL: ${{ secrets.MONGO_BACKUP_URL }}
+      DB_NAME: ${{ secrets.MONGO_BACKUP_DB_NAME }}
+      # Pin tools bundle to ubuntu2204 runner; bump when upgrading runner OS.
+      MDB_TOOLS_VERSION: "100.10.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify backup secrets
+        run: |
+          if [ -z "${MONGO_URL:-}" ] || [ -z "${DB_NAME:-}" ]; then
+            echo "::error::Configure secrets MONGO_BACKUP_URL and MONGO_BACKUP_DB_NAME to run this workflow."
+            exit 1
+          fi
+
+      - name: Install MongoDB Database Tools
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-${MDB_TOOLS_VERSION}.tgz" \
+            -o /tmp/mdb-tools.tgz
+          tar -xzf /tmp/mdb-tools.tgz -C /tmp
+          sudo mv /tmp/mongodb-database-tools-ubuntu2204-x86_64-*/bin/* /usr/local/bin/
+          mongodump --version
+
+      - name: Run mongo_backup.sh
+        run: |
+          chmod +x backend/scripts/mongo_backup.sh
+          export BACKUP_ROOT="${GITHUB_WORKSPACE}/backups/mongo"
+          backend/scripts/mongo_backup.sh
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: backups/mongo/
+          if-no-files-found: error
+          retention-days: 14
+
+  # Optional durable storage (OIDC — preferred when AWS_ROLE_TO_ASSUME is set).
+  upload-s3-oidc:
+    needs: backup
+    if: ${{ secrets.S3_BACKUP_BUCKET != '' && secrets.AWS_ROLE_TO_ASSUME != '' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.backup.outputs.artifact_name }}
+          path: backup-files
+
+      - name: Resolve AWS region
+        id: aws_region
+        run: |
+          R="${{ secrets.AWS_REGION }}"
+          if [ -z "${R}" ]; then R="us-east-1"; fi
+          echo "region=${R}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ steps.aws_region.outputs.region }}
+
+      - name: Upload to S3
+        env:
+          BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+          PREFIX: ${{ secrets.S3_BACKUP_PREFIX }}
+        run: |
+          set -euo pipefail
+          export AWS_DEFAULT_REGION="${{ steps.aws_region.outputs.region }}"
+          DEST_PREFIX="${PREFIX:-aai-hrms/mongo}/${{ github.ref_name }}/${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "Syncing to s3://${BUCKET}/${DEST_PREFIX}/ (OIDC)"
+          aws s3 sync backup-files/ "s3://${BUCKET}/${DEST_PREFIX}/" --only-show-errors
+          echo "S3 upload complete."
+
+  # Optional durable storage (static IAM user keys — use only if OIDC is not available).
+  upload-s3-static:
+    needs: backup
+    if: ${{ secrets.S3_BACKUP_BUCKET != '' && secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && secrets.AWS_ROLE_TO_ASSUME == '' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Download backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.backup.outputs.artifact_name }}
+          path: backup-files
+
+      - name: Resolve AWS region
+        id: aws_region
+        run: |
+          R="${{ secrets.AWS_REGION }}"
+          if [ -z "${R}" ]; then R="us-east-1"; fi
+          echo "region=${R}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials (access keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ steps.aws_region.outputs.region }}
+
+      - name: Upload to S3
+        env:
+          BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+          PREFIX: ${{ secrets.S3_BACKUP_PREFIX }}
+        run: |
+          set -euo pipefail
+          export AWS_DEFAULT_REGION="${{ steps.aws_region.outputs.region }}"
+          DEST_PREFIX="${PREFIX:-aai-hrms/mongo}/${{ github.ref_name }}/${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "Syncing to s3://${BUCKET}/${DEST_PREFIX}/ (static keys)"
+          aws s3 sync backup-files/ "s3://${BUCKET}/${DEST_PREFIX}/" --only-show-errors
+          echo "S3 upload complete."

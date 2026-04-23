@@ -1,0 +1,79 @@
+# Example CronJob: MongoDB logical backup for AAI-HRMS (M0).
+#
+# Before apply:
+#   1. Create Secret with connection string and DB name:
+#        kubectl create secret generic aai-hrms-mongo-backup \
+#          --from-literal=MONGO_URL='mongodb://user:pass@host:27017/?authSource=admin' \
+#          --from-literal=DB_NAME='aai_hrms'
+#   2. Add durable storage: mount a PVC at /backups OR use a sidecar / Job step to upload
+#      /tmp/*.tar.gz to S3/GCS (this example only creates the archive inside the container).
+#
+# Adjust schedule, namespace, and image/tool versions for your cluster policy.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aai-hrms-mongo-backup
+  namespace: default
+spec:
+  schedule: "30 2 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mongo-backup
+              image: ubuntu:22.04
+              env:
+                - name: MONGO_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: aai-hrms-mongo-backup
+                      key: MONGO_URL
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: aai-hrms-mongo-backup
+                      key: DB_NAME
+                - name: MDB_TOOLS_VERSION
+                  value: "100.10.0"
+              command: ["/bin/bash", "-lc"]
+              args:
+                - |
+                  set -euo pipefail
+                  apt-get update -qq
+                  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates tar
+                  curl -fsSL \
+                    "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2204-x86_64-${MDB_TOOLS_VERSION}.tgz" \
+                    -o /tmp/mdb-tools.tgz
+                  tar -xzf /tmp/mdb-tools.tgz -C /tmp
+                  export PATH="/tmp/mongodb-database-tools-ubuntu2204-x86_64-${MDB_TOOLS_VERSION}/bin:${PATH}"
+                  TS="$(date -u +%Y%m%dT%H%M%SZ)"
+                  STAGE="/tmp/stage-${TS}"
+                  mkdir -p "${STAGE}"
+                  mongodump --uri "${MONGO_URL}" --db "${DB_NAME}" --out "${STAGE}"
+                  tar -czf "/tmp/${DB_NAME}-${TS}.tar.gz" -C "${STAGE}" "${DB_NAME}"
+                  rm -rf "${STAGE}"
+                  ls -la "/tmp/${DB_NAME}-${TS}.tar.gz"
+                  echo "Backup created at /tmp/${DB_NAME}-${TS}.tar.gz — copy to PVC or object storage."
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+          # Optional: persist backups
+          # volumes:
+          #   - name: backup-pvc
+          #     persistentVolumeClaim:
+          #       claimName: aai-hrms-mongo-backups
+          # volumeMounts on container:
+          #   - name: backup-pvc
+          #     mountPath: /backups
+          # Then write archive to /backups/ instead of /tmp.

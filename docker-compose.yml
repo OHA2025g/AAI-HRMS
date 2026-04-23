@@ -1,0 +1,76 @@
+# Full stack: MongoDB + FastAPI + React (nginx)
+#
+#   docker compose up --build
+#
+# UI:  http://localhost:3001 (host 3001 → nginx 80; change mapping if free)
+# API (host port from API_HOST_PORT, default 8000): http://localhost:${API_HOST_PORT:-8000}/api/health
+# Docs: http://localhost:${API_HOST_PORT:-8000}/docs
+#
+# QA login (after seed): qa_admin@aai-hrms.local / QA_Seed_ChangeMe!
+#
+# LCD50 demo: api entrypoint runs seed_employees_lifecycle_demo.py after QA seed.
+# Inserts 50 employees on first run; on later runs re-syncs cross-module data without duplicating employees.
+# Full wipe + re-seed: LCD50_SEED_REPLACE=1 docker compose up -d (or set in .env)
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # No host port — use `docker compose exec mongo mongosh` if needed (avoids clashes with local MongoDB)
+    volumes:
+      - aai_hrms_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })", "--quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 180s
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: aai_hrms
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001
+      JWT_SECRET: ${JWT_SECRET:-docker_dev_jwt_change_me}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRY_HOURS: "24"
+      # Optional: set in .env next to this file (repo root — not backend/.env; that file is not used by Compose)
+      EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      HF_MODEL: ${HF_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+      # LCD50 seed (see docker-entrypoint.sh): 1 = delete prior LCD50 demo rows and re-seed on this start
+      LCD50_SEED_REPLACE: ${LCD50_SEED_REPLACE:-0}
+      LCD50_SKIP_CROSS: ${LCD50_SKIP_CROSS:-0}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Empty => SPA calls same-origin /api (nginx proxies to api:8000)
+        REACT_APP_BACKEND_URL: ""
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  aai_hrms_mongo_data:

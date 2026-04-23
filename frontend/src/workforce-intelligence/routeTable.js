@@ -1,0 +1,47 @@
+export const WFI_ROUTES = [
+  { path: '/workforce-intelligence/dashboard', kind: 'dashboard' },
+  { path: '/workforce-intelligence/master-visibility', kind: 'legacy_link', legacyPath: '/employees' },
+  { path: '/workforce-intelligence/headcount', kind: 'list', apiPath: 'headcount' },
+  { path: '/workforce-intelligence/demographics', kind: 'list', apiPath: 'demographics' },
+  { path: '/workforce-intelligence/status-movement', kind: 'list', apiPath: 'status-movement' },
+  { path: '/workforce-intelligence/skills-capability', kind: 'list', apiPath: 'skills-capability' },
+  { path: '/workforce-intelligence/availability-utilization', kind: 'list', apiPath: 'availability-utilization' },
+  { path: '/workforce-intelligence/attendance-leave-workpatterns', kind: 'list', apiPath: 'attendance-leave-workpatterns' },
+  { path: '/workforce-intelligence/performance-productivity', kind: 'list', apiPath: 'performance-productivity' },
+  { path: '/workforce-intelligence/engagement-experience', kind: 'list', apiPath: 'engagement-experience' },
+  { path: '/workforce-intelligence/compliance-documents-policy', kind: 'list', apiPath: 'compliance-documents-policy' },
+  { path: '/workforce-intelligence/cost-compensation', kind: 'list', apiPath: 'cost-compensation' },
+
+  { path: '/workforce-intelligence/workforce-planning', kind: 'list', apiPath: 'workforce-planning' },
+  { path: '/workforce-intelligence/demand-supply', kind: 'list', apiPath: 'demand-supply' },
+  { path: '/workforce-intelligence/resource-optimization', kind: 'legacy_link', legacyPath: '/resource-optimization' },
+  { path: '/workforce-intelligence/capacity-planning', kind: 'list', apiPath: 'capacity-planning' },
+  { path: '/workforce-intelligence/mobility-movement', kind: 'list', apiPath: 'mobility-movement' },
+  { path: '/workforce-intelligence/career-progression', kind: 'list', apiPath: 'career-progression' },
+  { path: '/workforce-intelligence/learning-capability', kind: 'legacy_link', legacyPath: '/training-development/dashboard' },
+  { path: '/workforce-intelligence/succession-continuity', kind: 'list', apiPath: 'succession-continuity' },
+  { path: '/workforce-intelligence/retention-stability', kind: 'legacy_link', legacyPath: '/high-skill-talent-retention/dashboard' },
+  { path: '/workforce-intelligence/cost-optimization', kind: 'list', apiPath: 'cost-optimization' },
+  { path: '/workforce-intelligence/org-design', kind: 'list', apiPath: 'org-design' },
+  { path: '/workforce-intelligence/manager-effectiveness', kind: 'list', apiPath: 'manager-effectiveness' },
+  { path: '/workforce-intelligence/experience-decision-support', kind: 'list', apiPath: 'experience-decision-support' },
+  { path: '/workforce-intelligence/scenario-modeling', kind: 'list', apiPath: 'scenario-modeling' },
+
+  { path: '/workforce-intelligence/forecasting', kind: 'list', apiPath: 'forecasting' },
+  { path: '/workforce-intelligence/attrition-flight-risk', kind: 'list', apiPath: 'attrition-flight-risk' },
+  { path: '/workforce-intelligence/burnout-wellbeing-risk', kind: 'list', apiPath: 'burnout-wellbeing-risk' },
+  { path: '/workforce-intelligence/skill-risk-capability-gap', kind: 'list', apiPath: 'skill-risk-capability-gap' },
+  { path: '/workforce-intelligence/productivity-performance-risk', kind: 'list', apiPath: 'productivity-performance-risk' },
+  { path: '/workforce-intelligence/cost-risk-budget', kind: 'list', apiPath: 'cost-risk-budget' },
+  { path: '/workforce-intelligence/compliance-audit-risk', kind: 'list', apiPath: 'compliance-audit-risk' },
+  { path: '/workforce-intelligence/ai-recommendations', kind: 'list', apiPath: 'ai-recommendations' },
+  { path: '/workforce-intelligence/ai-copilot', kind: 'copilot' },
+  { path: '/workforce-intelligence/strategic-risk-intelligence', kind: 'list', apiPath: 'strategic-risk-intelligence' },
+  { path: '/workforce-intelligence/strategic-opportunity-intelligence', kind: 'list', apiPath: 'strategic-opportunity-intelligence' },
+  { path: '/workforce-intelligence/executive-intelligence', kind: 'executive' },
+
+  { path: '/workforce-intelligence/legacy-demand-supply', kind: 'legacy_component' },
+];
+
+export const getWfiRouteConfig = (path) => WFI_ROUTES.find((r) => r.path === path);
+

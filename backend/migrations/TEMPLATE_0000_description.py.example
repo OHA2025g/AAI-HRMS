@@ -1,0 +1,11 @@
+"""
+TEMPLATE — copy to NNNN_meaningful_name.py (do not commit .example files as active migrations).
+
+async def up(db) -> None:
+    # Motor database: create_index, update_many, etc.
+    await db["collection_name"].create_index([("field", 1)], name="ix_collection_field")
+
+# Optional rollback reference (not executed automatically):
+# async def down(db) -> None:
+#     await db["collection_name"].drop_index("ix_collection_field")
+"""
