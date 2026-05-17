@@ -1,17 +1,15 @@
 # AAI-HRMS Web — CRA build + nginx (same-origin /api proxy in nginx.conf)
-# Build: docker compose build web   |   REACT_APP_BACKEND_URL build-arg for split deploy
 FROM node:20-bookworm AS build
 
 WORKDIR /app
 
-# CRA / craco
 COPY package.json yarn.lock ./
-# Long timeout for slow / flaky registry (corporate proxies, CI)
-RUN yarn config set network-timeout 600000 -g && yarn install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.yarn \
+    yarn config set network-timeout 600000 -g \
+    && yarn install --frozen-lockfile
 
 COPY . .
 
-# Empty = same-origin /api (nginx proxies to api service). Override for remote API hosts.
 ARG REACT_APP_BACKEND_URL=
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
 
@@ -24,8 +22,6 @@ LABEL org.opencontainers.image.title="aai-hrms-web" \
 
 RUN apk add --no-cache wget
 
-# Use nginx's built-in envsubst support (docker-entrypoint.d/20-envsubst-on-templates.sh)
-# Default works with docker-compose.yml service name `api`; override in EasyPanel via API_UPSTREAM=backend:8000.
 ENV API_UPSTREAM=api:8000
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /app/build /usr/share/nginx/html

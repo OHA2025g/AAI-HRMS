@@ -1,6 +1,10 @@
 # Full stack: MongoDB + FastAPI + React (nginx)
 #
-#   docker compose up --build
+# Fast rebuild (use layer cache — avoid --no-cache unless dependencies changed):
+#   export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
+#   docker compose up --build -d
+#
+# Demo seeds run once per Mongo volume; restarts skip them (see DEMO_SEEDS_FORCE in .env.example).
 #
 # UI:  http://localhost:3001 (host 3001 → nginx 80; change mapping if free)
 # API (host port from API_HOST_PORT, default 8000): http://localhost:${API_HOST_PORT:-8000}/api/health
@@ -20,11 +24,16 @@ services:
     volumes:
       - aai_hrms_mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand({ ping: 1 })", "--quiet"]
+      # Use explicit localhost + forced exit so the check never hangs.
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --host 127.0.0.1 --quiet --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 2)'",
+        ]
       interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
+      timeout: 30s
+      retries: 20
+      start_period: 90s
 
   api:
     build:
@@ -38,7 +47,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 180s
+      start_period: 120s
     environment:
       MONGO_URL: mongodb://mongo:27017
       DB_NAME: aai_hrms
@@ -54,6 +63,15 @@ services:
       # LCD50 seed (see docker-entrypoint.sh): 1 = delete prior LCD50 demo rows and re-seed on this start
       LCD50_SEED_REPLACE: ${LCD50_SEED_REPLACE:-0}
       LCD50_SKIP_CROSS: ${LCD50_SKIP_CROSS:-0}
+      LCD50_FORCE_CROSS_SYNC: ${LCD50_FORCE_CROSS_SYNC:-0}
+      DEMO_SEEDS_FORCE: ${DEMO_SEEDS_FORCE:-0}
+      SKIP_DEMO_SEEDS: ${SKIP_DEMO_SEEDS:-0}
+      AUTO_IMPORT_EXCEL: ${AUTO_IMPORT_EXCEL:-1}
+      CANDIDATES_EXCEL_PATH: ${CANDIDATES_EXCEL_PATH:-/data/excel/Candidates 1.xlsx}
+      EXCEL_PATH: ${EXCEL_PATH:-/data/excel/Job Descriptions 1.xlsx}
+    volumes:
+      - ./Candidates 1.xlsx:/data/excel/Candidates 1.xlsx:ro
+      - ./Job Descriptions 1.xlsx:/data/excel/Job Descriptions 1.xlsx:ro
     depends_on:
       mongo:
         condition: service_healthy

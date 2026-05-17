@@ -1,8 +1,12 @@
 __pycache__
+**/__pycache__
 *.py[cod]
 .pytest_cache
 .mypy_cache
 .ruff_cache
+htmlcov/
+.coverage
+coverage/
 venv/
 .venv/
 .venv_fresh/
@@ -15,3 +19,9 @@ venv/
 *.log
 .git
 .gitignore
+.DS_Store
+**/.DS_Store
+tests/
+docs/
+*.md
+!README.md

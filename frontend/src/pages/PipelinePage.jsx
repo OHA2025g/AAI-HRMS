@@ -18,6 +18,7 @@ import { BUSINESS_ORG_PILLARS, getDepartmentsForPillar } from '../data/businessO
 import { FitScoreCard } from '../components/FitScore';
 import { Loader2, Users, Eye, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCandidateCardBadge } from '../lib/candidateSource';
 
 const TAB_KEYS = {
   SOURCED: 'SOURCED',
@@ -283,7 +284,9 @@ const PipelinePage = () => {
             {/* 1) SOURCED */}
             <TabsContent value={TAB_KEYS.SOURCED} className="mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {appsForStages(['SOURCED']).map((app) => (
+                {appsForStages(['SOURCED']).map((app) => {
+                  const sourcedBadge = getCandidateCardBadge(app.candidate, 'SOURCED', STAGE_BADGE);
+                  return (
                   <Card key={app.id} className="card-hover">
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between gap-3">
@@ -291,7 +294,7 @@ const PipelinePage = () => {
                           <p className="font-semibold text-slate-900 truncate">{app.candidate?.full_name || 'Candidate'}</p>
                           <p className="text-sm text-slate-500 truncate">{app.candidate?.headline || app.candidate?.email || ''}</p>
                         </div>
-                        <Badge className={STAGE_BADGE.SOURCED}>SOURCED</Badge>
+                        <Badge className={sourcedBadge.className}>{sourcedBadge.label}</Badge>
                       </div>
 
                       <div className="mt-4">
@@ -314,7 +317,8 @@ const PipelinePage = () => {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
 
               {appsForStages(['SOURCED']).length === 0 && (

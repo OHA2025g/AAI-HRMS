@@ -17,7 +17,8 @@ Env:
   LCD50_SEED_REPLACE=1   Delete existing LCD50-* demo rows (incl. training, engagement, M8, M4 project) then re-seed
   LCD50_COUNT=50         Number of employees (default 50, max 200)
   LCD50_SKIP_CROSS=1     Skip cross-module seed/sync (employees/lifecycle only)
-  (no replace)           If LCD50 employees already exist: still runs cross-module sync (M4–M8) on each run
+  LCD50_FORCE_CROSS_SYNC=1  Re-run cross-module sync even if already applied
+  (no replace)           If LCD50 employees exist: cross-module sync runs once unless LCD50_FORCE_CROSS_SYNC=1
 
 Run from repo:
   cd backend && python scripts/seed_employees_lifecycle_demo.py
@@ -38,6 +39,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 EMP_PREFIX = "LCD50"
+CROSS_SYNC_MARKER_COLLECTION = "_lcd50_cross_sync"
+CROSS_SYNC_VERSION = 1
 COMPLIANCE_COLLECTION = "employee_compliance_documents"
 AUDIT_COLLECTION = "employee_lifecycle_audit_logs"
 EVENTS_COLLECTION = "employee_lifecycle_events"
@@ -461,6 +464,26 @@ async def _seed_lcd50_cross_module(
         )
     print(f"Upserted {len(wf_specs)} workforce_skills rows (LCD50 demo)")
 
+    await db[CROSS_SYNC_MARKER_COLLECTION].update_one(
+        {"_id": "v1"},
+        {
+            "$set": {
+                "version": CROSS_SYNC_VERSION,
+                "synced_at": now_iso,
+                "employee_count": len(rows),
+            }
+        },
+        upsert=True,
+    )
+
+
+async def _lcd50_cross_already_synced(db) -> bool:
+    doc = await db[CROSS_SYNC_MARKER_COLLECTION].find_one(
+        {"_id": "v1", "version": CROSS_SYNC_VERSION},
+        {"_id": 1},
+    )
+    return doc is not None
+
 
 def default_sla_due(uploaded_at_iso: str, days: int = 14) -> str:
     try:
@@ -493,7 +516,10 @@ async def main() -> int:
     now_iso = now.isoformat()
     prefix_re = re.compile(f"^{re.escape(EMP_PREFIX)}-")
 
+    force_cross = os.environ.get("LCD50_FORCE_CROSS_SYNC", "").strip().lower() in ("1", "true", "yes")
+
     if replace:
+        await db[CROSS_SYNC_MARKER_COLLECTION].delete_many({})
         await _lcd50_replace_related(db, prefix_re)
         r0 = await db.employees.delete_many({"employee_code": prefix_re})
         r1 = await db[EVENTS_COLLECTION].delete_many({"employee_code": prefix_re})
@@ -518,10 +544,15 @@ async def main() -> int:
         rows_existing = (
             await db.employees.find({"employee_code": prefix_re}, {"_id": 0}).sort("employee_code", 1).to_list(500)
         )
-        if not skip_cross and rows_existing:
-            await _seed_lcd50_cross_module(db, rows_existing, admin_id=admin_id, now=now, now_iso=now_iso)
-        elif skip_cross:
+        if skip_cross:
             print("LCD50_SKIP_CROSS=1 — skipped cross-module sync for existing cohort")
+        elif await _lcd50_cross_already_synced(db) and not force_cross:
+            print(
+                "LCD50 cross-module already synced for this database. "
+                "Use LCD50_FORCE_CROSS_SYNC=1 to re-run training/engagement/M4/M8 sync."
+            )
+        elif rows_existing:
+            await _seed_lcd50_cross_module(db, rows_existing, admin_id=admin_id, now=now, now_iso=now_iso)
         return 0
 
     admin = await db.users.find_one({"role": "admin"}, {"_id": 0, "id": 1})

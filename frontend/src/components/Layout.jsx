@@ -703,7 +703,7 @@ const Layout = ({ children }) => {
               {pageTitle}
             </h1>
 
-            {/* Global placement filters (apply across the whole app); show in header for wide screens */}
+            {/* Placement filters (Pipeline & job-scoped views); Jobs/Candidates lists stay unfiltered */}
             <div className="hidden xl:flex items-center gap-2 min-w-0 ml-2">
                 <Select
                   value={pillarId || ALL}

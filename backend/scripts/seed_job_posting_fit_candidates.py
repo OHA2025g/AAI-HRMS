@@ -53,7 +53,7 @@ def _load_env() -> None:
 
 
 SEED_MARKER = "job_posting_fit_candidates_v1"
-SEED_SOURCE = "FIT_SEED"
+SEED_SOURCE = "LINKEDIN"
 
 
 def _weights(job: Dict[str, Any]) -> Dict[str, float]:

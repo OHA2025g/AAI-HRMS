@@ -1,6 +1,6 @@
 # AAI-HRMS API (FastAPI + MongoDB)
-# Build: docker compose build api   |   Run: docker compose up -d
-# Entrypoint: migrations → QA seed → LCD50 (50 employees + E2E demo data) → uvicorn
+# Build: DOCKER_BUILDKIT=1 docker compose build api
+# Entrypoint: migrations → QA seed → demo seeds (once) → uvicorn
 FROM python:3.11-slim-bookworm
 
 LABEL org.opencontainers.image.title="aai-hrms-api" \
@@ -12,15 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Slim runtime deps (no pytest/black/mypy) — see requirements-docker.txt
+COPY requirements-docker.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements-docker.txt
 
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
-# Matches /api/health (entrypoint waits for Mongo before uvicorn binds)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
 

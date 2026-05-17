@@ -23,6 +23,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCandidateCardBadge } from '../lib/candidateSource';
 
 const JOB_DETAIL_STAGE_BADGE = {
   SOURCED: 'bg-slate-100 text-slate-600',
@@ -48,12 +49,6 @@ const NEXT_PIPELINE_STEP = {
   HR_ROUND: { next: 'OFFER', label: 'Select for Assessment Round' },
   OFFER: { next: 'JOINED', label: 'Mark Joined' },
 };
-
-function stageBadgeLabel(stage) {
-  if (!stage) return '—';
-  if (stage === 'ASSESSMENT_SENT') return 'ASSESSMENT';
-  return String(stage).replace(/_/g, ' ');
-}
 
 const JobDetailPage = () => {
   const { jobId } = useParams();
@@ -412,8 +407,11 @@ const JobDetailPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {applications.map((app) => {
                 const step = NEXT_PIPELINE_STEP[app.stage];
-                const stageClass =
-                  JOB_DETAIL_STAGE_BADGE[app.stage] || 'bg-slate-100 text-slate-700';
+                const cardBadge = getCandidateCardBadge(
+                  app.candidate,
+                  app.stage,
+                  JOB_DETAIL_STAGE_BADGE
+                );
 
                 return (
                   <Card key={app.id} className="card-hover h-full bg-white border border-slate-200">
@@ -430,8 +428,8 @@ const JobDetailPage = () => {
                             {app.candidate?.email || app.candidate?.headline || ''}
                           </p>
                         </div>
-                        <Badge className={`shrink-0 text-xs ${stageClass}`}>
-                          {stageBadgeLabel(app.stage)}
+                        <Badge className={`shrink-0 text-xs ${cardBadge.className}`}>
+                          {cardBadge.label}
                         </Badge>
                       </div>
 

@@ -17,13 +17,32 @@
 docker compose up --build
 ```
 
-**Clean rebuild (no layer cache):**
+**Fast rebuild (recommended — uses BuildKit layer + pip/yarn caches):**
+
+```bash
+export DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1
+docker compose up --build -d
+```
+
+Avoid `docker compose build --no-cache` unless `requirements.txt` / `yarn.lock` changed — it forces ~3–15+ minutes of `pip`/`yarn` on every build.
+
+**Clean rebuild (only when dependencies changed):**
 
 ```bash
 docker compose down
 docker compose build --no-cache
 docker compose up -d
 ```
+
+### Why builds felt slow (~30 min)
+
+| Cause | Fix |
+|-------|-----|
+| `--no-cache` on every build | Use `docker compose up --build` (cached layers) |
+| macOS Docker context sync (~10 min for tiny contexts) | Move repo to a short path **without spaces** (e.g. `~/projects/aai-hrms`); keep Docker Desktop updated |
+| Full `pip` + `yarn` every rebuild | BuildKit cache mounts in Dockerfiles; slim `requirements-docker.txt` for API image |
+| 10+ demo seeds on **every** API restart | Demo seeds run **once per Mongo volume** (`_docker_bootstrap` marker); set `DEMO_SEEDS_FORCE=1` to re-run |
+| LCD50 cross-module sync on every restart | Skipped when `_lcd50_cross_sync` marker exists (`LCD50_FORCE_CROSS_SYNC=1` to override) |
 
 **Test in browser**
 

@@ -37,6 +37,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Plus, Search, Users, Loader2, Filter, Upload, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  formatSourceLabel,
+  getCandidateCardBadge,
+  getSourceBadgeClass,
+} from '../lib/candidateSource';
 
 const STAGE_BADGE = {
   SOURCED: 'bg-sky-100 text-sky-800',
@@ -63,12 +68,6 @@ const NEXT_PIPELINE_STEP = {
   HR_ROUND: { next: 'OFFER', label: 'Select for Assessment Round' },
   OFFER: { next: 'JOINED', label: 'Mark Joined' },
 };
-
-function stageBadgeLabel(stage) {
-  if (!stage) return 'TALENT POOL';
-  if (stage === 'ASSESSMENT_SENT') return 'ASSESSMENT';
-  return String(stage).replace(/_/g, ' ');
-}
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
@@ -328,17 +327,12 @@ const CandidatesPage = () => {
     }
   };
 
-  const filteredCandidates = (candidates || []).filter((c) => {
-    if (placementActive && placementCandidateIds instanceof Set) {
-      if (!placementCandidateIds.has(c?.id)) return false;
-    }
-    return true;
-  });
+  // Full candidate inventory — do not hide rows when header placement filters are set
+  // (those filters apply on Pipeline / job-scoped views only).
+  const filteredCandidates = candidates || [];
 
   const visibleCandidatesCount = filteredCandidates.length;
-  const candidatesCountLabel = placementActive
-    ? `${visibleCandidatesCount} on this page (filtered by placement)`
-    : `${totalCandidatesCount} total candidates`;
+  const candidatesCountLabel = `${totalCandidatesCount} total candidates`;
 
   const goToPage = (p) => {
     const next = Math.min(Math.max(1, p), totalPages || 1);
@@ -352,17 +346,6 @@ const CandidatesPage = () => {
     const end = Math.min(total, cur + 2);
     return { start, end, total, cur };
   }, [page, totalPages]);
-
-  const getSourceColor = (source) => {
-    switch (source) {
-      case 'LINKEDIN': return 'bg-blue-100 text-blue-700';
-      case 'REFERRAL': return 'bg-amber-100 text-amber-700';
-      case 'NAUKRI': return 'bg-purple-100 text-purple-700';
-      case 'INDEED': return 'bg-indigo-100 text-indigo-700';
-      case 'DIRECT_UPLOAD': return 'bg-slate-100 text-slate-700';
-      default: return 'bg-slate-100 text-slate-700';
-    }
-  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -416,6 +399,7 @@ const CandidatesPage = () => {
               <SelectItem value="NAUKRI">Naukri</SelectItem>
               <SelectItem value="INDEED">Indeed</SelectItem>
               <SelectItem value="REFERRAL">Referral</SelectItem>
+              <SelectItem value="TALENT_POOL">Talent Pool</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -579,6 +563,21 @@ const CandidatesPage = () => {
         </div>
       </motion.div>
 
+      {placementActive && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Header placement filters are active and only narrow the <strong>Pipeline</strong> view. This page
+          shows the full candidate list ({totalCandidatesCount} total).
+          <Button
+            type="button"
+            variant="link"
+            className="h-auto p-0 ml-1 text-amber-900 underline"
+            onClick={() => placement.clearAll()}
+          >
+            Clear placement filters
+          </Button>
+        </div>
+      )}
+
       {/* Candidates List — card layout aligned with Pipeline / AI fit view */}
       {loading || contextLoading ? (
         <div className="flex items-center justify-center h-64">
@@ -590,9 +589,7 @@ const CandidatesPage = () => {
             {filteredCandidates.map((candidate) => {
             const app = bestAppByCandidateId.get(candidate.id);
             const stage = app?.stage;
-            const badgeClass = app
-              ? STAGE_BADGE[stage] || 'bg-slate-100 text-slate-700'
-              : 'bg-slate-100 text-slate-700';
+            const cardBadge = getCandidateCardBadge(candidate, stage, STAGE_BADGE);
             const step = app ? NEXT_PIPELINE_STEP[stage] : null;
             const fitScore = app?.fit_score || null;
             const skills = topSkills(candidate?.skills);
@@ -613,7 +610,7 @@ const CandidatesPage = () => {
                           <p className="text-xs text-slate-500 mt-1 truncate">Re: {app.job.title}</p>
                         )}
                       </div>
-                      <Badge className={`shrink-0 text-xs ${badgeClass}`}>{stageBadgeLabel(stage)}</Badge>
+                      <Badge className={`shrink-0 text-xs ${cardBadge.className}`}>{cardBadge.label}</Badge>
                     </div>
 
                     <div className="mt-4">
@@ -632,8 +629,8 @@ const CandidatesPage = () => {
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <p className="text-xs font-medium text-slate-600">Skills</p>
                             {candidate.source && (
-                              <Badge className={`text-xs ${getSourceColor(candidate.source)}`}>
-                                {(candidate.source || 'OTHER').replace(/_/g, ' ')}
+                              <Badge className={`text-xs ${getSourceBadgeClass(candidate.source)}`}>
+                                {formatSourceLabel(candidate.source)}
                               </Badge>
                             )}
                           </div>

@@ -10,6 +10,10 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FitScoreCard, FitScoreRing } from '../components/FitScore';
+import { getCandidateDisplaySource } from '../lib/candidateSource';
+import { hasResumeDisplayContent } from '../lib/resumeContent';
+import { ResumeContentView } from '../components/ResumeContentView';
+import { normalizeExperienceList } from '../lib/experienceParser';
 import { 
   ArrowLeft,
   Mail,
@@ -115,7 +119,7 @@ const CandidateProfilePage = () => {
   };
 
   const deriveCurrentRole = (p) => {
-    const exp = Array.isArray(p?.experience) ? p.experience : [];
+    const exp = normalizeExperienceList(p?.experience);
     if (!exp.length) {
       return {
         title: p?.headline || null,
@@ -123,7 +127,6 @@ const CandidateProfilePage = () => {
       };
     }
 
-    // Prefer current role: missing end_date OR contains "present"
     const norm = (v) => String(v || '').trim();
     const isPresent = (v) => {
       const s = norm(v).toLowerCase();
@@ -135,17 +138,6 @@ const CandidateProfilePage = () => {
       title: norm(current?.title) || p?.headline || null,
       company: norm(current?.company) || null,
     };
-  };
-
-  const getSourceColor = (source) => {
-    switch (source) {
-      case 'LINKEDIN': return 'bg-blue-100 text-blue-700';
-      case 'REFERRAL': return 'bg-amber-100 text-amber-700';
-      case 'NAUKRI': return 'bg-purple-100 text-purple-700';
-      case 'INDEED': return 'bg-indigo-100 text-indigo-700';
-      case 'DIRECT_UPLOAD': return 'bg-slate-100 text-slate-700';
-      default: return 'bg-slate-100 text-slate-700';
-    }
   };
 
   const getStageColor = (stage) => {
@@ -186,7 +178,7 @@ const CandidateProfilePage = () => {
   }
 
   const currentRole = deriveCurrentRole(profile);
-
+  const profileSourceBadge = getCandidateDisplaySource(profile);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -208,9 +200,9 @@ const CandidateProfilePage = () => {
                 <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
                   {profile.full_name}
                 </h1>
-                <Badge className={getSourceColor(profile.source)}>
-                  {profile.source.replace(/_/g, ' ')}
-                </Badge>
+                {profileSourceBadge && (
+                  <Badge className={profileSourceBadge.className}>{profileSourceBadge.label}</Badge>
+                )}
               </div>
               {profile.headline && (
                 <p className="text-slate-600 mt-1">{profile.headline}</p>
@@ -436,7 +428,7 @@ const CandidateProfilePage = () => {
           )}
 
           {/* Resume Text */}
-          {profile.resume_text && (
+          {hasResumeDisplayContent(profile) && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ fontFamily: 'Outfit' }}>
@@ -445,10 +437,8 @@ const CandidateProfilePage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-slate-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans">
-                    {profile.resume_text}
-                  </pre>
+                <div className="bg-slate-50 rounded-lg p-4 max-h-[32rem] overflow-y-auto">
+                  <ResumeContentView profile={profile} />
                 </div>
               </CardContent>
             </Card>
@@ -524,9 +514,9 @@ const CandidateProfilePage = () => {
 
         {/* Experience Tab */}
         <TabsContent value="experience" className="mt-6">
-          {profile.experience?.length > 0 ? (
+          {normalizeExperienceList(profile.experience).length > 0 ? (
             <div className="space-y-4">
-              {profile.experience.map((exp, i) => (
+              {normalizeExperienceList(profile.experience).map((exp, i) => (
                 <Card key={i}>
                   <CardContent className="p-5">
                     <div className="flex items-start gap-4">

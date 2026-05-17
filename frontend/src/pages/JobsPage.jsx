@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { jobsApi } from '../lib/api';
-import { usePlacementFilters } from '../context/PlacementFiltersContext';
-import { BUSINESS_ORG_PILLARS, getDepartmentsForPillar } from '../data/businessOrgHierarchy';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -41,7 +39,6 @@ import { toast } from 'sonner';
 
 const JobsPage = () => {
   const navigate = useNavigate();
-  const placement = usePlacementFilters();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,26 +77,11 @@ const JobsPage = () => {
       .join(' ')
       .toLowerCase();
 
-  const pillarLabel = BUSINESS_ORG_PILLARS.find((p) => p.id === placement.pillarId)?.label || '';
-  const deptLabel =
-    placement.pillarId && placement.departmentId
-      ? getDepartmentsForPillar(placement.pillarId).find((d) => d.id === placement.departmentId)?.label || ''
-      : '';
-
-  const matchesPlacement = (job) => {
-    if (pillarLabel && (job?.business_pillar || '') !== pillarLabel) return false;
-    if (deptLabel && (job?.business_department || '') !== deptLabel) return false;
-    if (placement.subDepartment && (job?.business_sub_department || '') !== placement.subDepartment) return false;
-    if (placement.projectId && (job?.project_id || '') !== placement.projectId) return false;
-    return true;
-  };
-
   const filteredJobs = (jobs || []).filter((job) => {
     const title = (job?.title || '').toLowerCase();
     const location = (job?.location || '').toLowerCase();
     const q = (searchQuery || '').toLowerCase();
-    const matchesSearch = title.includes(q) || location.includes(q) || orgSearchBlob(job).includes(q);
-    return matchesSearch && matchesPlacement(job);
+    return title.includes(q) || location.includes(q) || orgSearchBlob(job).includes(q);
   });
 
   const totalJobsCount = jobs.length;

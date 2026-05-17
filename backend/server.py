@@ -765,6 +765,7 @@ class JobResponse(BaseModel):
     skills: List[Dict[str, Any]] = []
     activities: List[Dict[str, Any]] = []
     scoring_rubric: Optional[Dict[str, Any]] = None
+    pin_rank: Optional[int] = None  # higher = listed first (e.g. Excel JD imports)
     created_by: str
     created_at: str
     candidate_count: int = 0
@@ -814,6 +815,9 @@ class CandidateResponse(BaseModel):
     skills: List[Dict[str, Any]] = []
     source: str
     experience: List[Dict[str, Any]] = []
+    pin_rank: Optional[int] = None  # higher = listed first (e.g. Excel imports)
+    seed_marker: Optional[str] = None
+    import_source_file: Optional[str] = None
     created_at: str
 
 class CandidateUpdate(BaseModel):
@@ -2576,7 +2580,7 @@ async def company_db_search_candidates(job: Dict[str, Any], limit: int = 500) ->
         return normalized
 
     # Default: pull from this app's Mongo `candidates`.
-    return await db.candidates.find({}, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+    return await db.candidates.find({}, {"_id": 0}).sort([("pin_rank", -1), ("created_at", -1)]).limit(limit).to_list(limit)
 
 def _normalize_connector_skills(raw_skills: Any) -> List[Dict[str, Any]]:
     """
@@ -3517,7 +3521,7 @@ async def list_jobs(status: Optional[str] = None, current_user: dict = Depends(g
     if status:
         query["status"] = status
     
-    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    jobs = await db.jobs.find(query, {"_id": 0}).sort([("pin_rank", -1), ("created_at", -1)]).to_list(1000)
     
     # Get candidate counts
     for job in jobs:
@@ -3626,7 +3630,7 @@ async def list_candidates(
     if skill:
         query["skills.skill_name"] = {"$regex": skill, "$options": "i"}
     
-    candidates = await db.candidates.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
+    candidates = await db.candidates.find(query, {"_id": 0}).sort([("pin_rank", -1), ("created_at", -1)]).to_list(1000)
     return [CandidateResponse(**c) for c in candidates]
 
 # Must be registered BEFORE /candidates/{candidate_id} or \"paged\" is captured as a candidate_id (404).
@@ -3662,7 +3666,7 @@ async def list_candidates_paged(
 
     cursor = (
         db.candidates.find(query, {"_id": 0})
-        .sort("created_at", -1)
+        .sort([("pin_rank", -1), ("created_at", -1)])
         .skip((page - 1) * page_size)
         .limit(page_size)
     )
