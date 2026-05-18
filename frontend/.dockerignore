@@ -1,0 +1,16 @@
+node_modules
+build
+.git
+.env
+.env.*
+!.env.example
+coverage
+*.log
+.DS_Store
+**/.DS_Store
+README.md
+e2e/
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+**/*.spec.jsx

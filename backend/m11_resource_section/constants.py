@@ -1,0 +1,26 @@
+"""Mongo collections for Resource Section (extends employees master, does not replace it)."""
+
+COL_PROFILES = "resource_section_profiles"
+COL_CLASSIFICATIONS = "resource_section_classifications"
+COL_SKILL_RECORDS = "resource_section_skill_records"
+COL_AVAILABILITY = "resource_section_availability"
+COL_UTIL_SNAPSHOTS = "resource_section_utilization_snapshots"
+COL_BENCH_RECORDS = "resource_section_bench_records"
+COL_READINESS = "resource_section_readiness_scores"
+COL_DEMAND_MATCHES = "resource_section_demand_matches"
+COL_MOBILITY = "resource_section_mobility_history"
+COL_CAREER = "resource_section_career_preferences"
+COL_LEARNING = "resource_section_learning_records"
+COL_CERTIFICATIONS = "resource_section_certifications"
+COL_COST_PROFILES = "resource_section_cost_profiles"
+COL_ATTENDANCE_IMPACT = "resource_section_attendance_impact"
+COL_DOCUMENTS = "resource_section_documents"
+COL_COMPLIANCE = "resource_section_compliance_records"
+COL_NOTES = "resource_section_notes"
+COL_ACTIVITY = "resource_section_activity_logs"
+COL_APPROVALS = "resource_section_approvals"
+COL_FORECASTS = "resource_section_forecasts"
+COL_AI_INSIGHTS = "resource_section_ai_insights"
+
+EMPLOYMENT_TYPES = ["PERMANENT", "CONTRACT", "INTERN", "CONSULTANT"]
+BILLABLE_CLASS = ["BILLABLE", "NON_BILLABLE", "MIXED"]
