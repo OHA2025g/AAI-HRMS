@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -9,6 +9,7 @@ import { Loader2, ArrowRight, ExternalLink } from 'lucide-react';
 import { employeeSatisfactionEngagementApi } from '../lib/api';
 import { getEseRouteConfig } from './routeTable';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { normalizeSentimentParam, sentimentLabelMatches } from '../lib/drillQueryParams';
 
 /** ESE mirrors WFI data for context; canonical predictive views live in WFI. */
 const WFI_OPEN_IN = {
@@ -45,6 +46,8 @@ const inferColumns = (rows) => {
 
 export default function EseWorkspacePage() {
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const sentimentDrill = normalizeSentimentParam(searchParams.get('sentiment'));
   const cfg = useMemo(() => getEseRouteConfig(pathname), [pathname]);
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
@@ -92,7 +95,12 @@ export default function EseWorkspacePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  const columns = useMemo(() => inferColumns(rows), [rows]);
+  const displayRows = useMemo(() => {
+    if (cfg?.segment !== 'sentiment' || !sentimentDrill) return rows;
+    return (rows || []).filter((r) => sentimentLabelMatches(r.sentiment_label, sentimentDrill));
+  }, [rows, cfg?.segment, sentimentDrill]);
+
+  const columns = useMemo(() => inferColumns(displayRows), [displayRows]);
   const title = useMemo(() => cfg?.path?.split('/').slice(-1)[0]?.replace(/-/g, ' ') || 'Workspace', [cfg]);
   const wfiLink = cfg?.kind ? WFI_OPEN_IN[cfg.kind] : null;
   const showElmGrievanceLink = cfg?.kind === 'elm_grievances';
@@ -148,6 +156,21 @@ export default function EseWorkspacePage() {
         </Alert>
       ) : null}
 
+      {sentimentDrill && cfg?.segment === 'sentiment' ? (
+        <Alert className="border-indigo-200 bg-indigo-50/80" data-testid="ese-sentiment-drill-banner">
+          <AlertTitle className="text-indigo-900">Drill-down from Executive KPIs</AlertTitle>
+          <AlertDescription className="text-indigo-900/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <span>
+              Showing sentiment records labeled <strong>{sentimentDrill}</strong>. Clear the filter or return to the
+              executive dashboard.
+            </span>
+            <Button asChild size="sm" variant="default" className="shrink-0">
+              <Link to="/executive-kpis">Executive KPIs</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {showElmGrievanceLink ? (
         <Alert className="border-amber-200 bg-amber-50/80">
           <AlertTitle>Source of truth: Employee Lifecycle</AlertTitle>
@@ -165,7 +188,10 @@ export default function EseWorkspacePage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle>Records</CardTitle>
-          <CardDescription>{rows.length} rows</CardDescription>
+          <CardDescription>
+            {displayRows.length} rows
+            {sentimentDrill && cfg?.segment === 'sentiment' ? ` (filtered: ${sentimentDrill})` : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {cfg?.kind === 'list' || cfg?.kind?.startsWith('wfi_') || cfg?.kind === 'elm_grievances' || cfg?.kind === 'executive' ? (
@@ -192,7 +218,7 @@ export default function EseWorkspacePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(rows || []).slice(0, 200).map((r, idx) => (
+                  {(displayRows || []).slice(0, 200).map((r, idx) => (
                     <TableRow key={r.id || idx}>
                       {columns.map((c) => (
                         <TableCell key={c} className="max-w-[240px] truncate">
@@ -201,7 +227,7 @@ export default function EseWorkspacePage() {
                       ))}
                     </TableRow>
                   ))}
-                  {rows.length === 0 ? (
+                  {displayRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={Math.max(1, columns.length)} className="text-muted-foreground">
                         No rows yet — run the ESE seed script or add records.

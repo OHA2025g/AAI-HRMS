@@ -1,0 +1,25 @@
+name: Assessment email dispatch
+
+on:
+  schedule:
+  - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  dispatch-assessment-emails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch queued invites and reminders
+        env:
+          ASSESSMENT_EMAIL_CRON_TOKEN: ${{ secrets.ASSESSMENT_EMAIL_CRON_TOKEN }}
+          ASSESSMENT_EMAIL_BASE_URL: ${{ secrets.ASSESSMENT_EMAIL_BASE_URL }}
+        run: |
+          if [[ -z "${ASSESSMENT_EMAIL_CRON_TOKEN}" || -z "${ASSESSMENT_EMAIL_BASE_URL}" ]]; then
+            echo "::warning::Assessment email cron skipped. Set repository secrets ASSESSMENT_EMAIL_CRON_TOKEN and ASSESSMENT_EMAIL_BASE_URL to enable dispatch."
+            exit 0
+          fi
+          bash backend/scripts/assessment_email_dispatch_cron.sh

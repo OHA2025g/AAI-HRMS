@@ -156,12 +156,21 @@ def main() -> None:
     db_name = os.environ.get("DB_NAME", "aai_hrms")
     n_emp = int(os.environ.get("BULK_SEED_EMPLOYEES", "1000"))
     n_cand = int(os.environ.get("BULK_SEED_CANDIDATES", "10000"))
+    min_existing = int(os.environ.get("BULK_SEED_MIN_EXISTING", "500"))
     run_id = int(time.time())
 
     client = MongoClient(mongo_url)
     db = client[db_name]
     employees = db.employees
     candidates = db.candidates
+
+    existing_bulk = candidates.count_documents({"source": "BULK_SEED"})
+    if existing_bulk >= min_existing:
+        print(
+            f"Skip bulk seed: {existing_bulk} BULK_SEED candidates "
+            f"(>= {min_existing} BULK_SEED_MIN_EXISTING)."
+        )
+        return
 
     # First employee becomes org root for manager_id chain
     root_doc = build_employee(run_id, 0, root_manager_id="")

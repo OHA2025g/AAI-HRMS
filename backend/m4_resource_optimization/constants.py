@@ -1,11 +1,10 @@
-"""Mongo collection names and singleton ids for M4 resource optimization."""
+"""M4 resource optimization collection names and default settings singleton."""
 
-COL_ALLOCATION_SETTINGS = "allocation_optimization_settings"
-COL_ALLOCATION_SCENARIOS = "allocation_optimization_scenarios"
-
+COL_ALLOCATION_SCENARIOS = "allocation_scenarios"
+COL_ALLOCATION_SETTINGS = "allocation_settings"
 SETTINGS_DOC_ID = "default"
 
-DEFAULT_SETTINGS: dict = {
+DEFAULT_SETTINGS = {
     "_id": SETTINGS_DOC_ID,
     "max_projects_per_employee": 3,
     "max_seats_per_employee_per_project": 1,

@@ -9,7 +9,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
-from typing import List, Optional, Dict, Any, Union, Literal, Set
+from typing import List, Optional, Dict, Any, Union, Literal, Set, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -30,6 +30,59 @@ from collections import defaultdict
 
 from talent_acquisition.connector_fetch import fetch_connector_candidates
 from talent_acquisition.ingestion_queue import INGESTION_JOBS_COLLECTION, run_unified_ingestion
+from talent_acquisition.candidate_source import (
+    all_talent_pool_mongo_filter,
+    display_channel_mongo_filter,
+    is_linkedin_sourced_candidate,
+    is_talent_pool_candidate,
+)
+from talent_acquisition.candidate_fit_filter import candidate_ids_matching_fit_range
+from talent_acquisition.match_candidate_pool import (
+    applied_ids_excluding_fit_seeds,
+    gather_job_match_candidates,
+    load_persisted_fit_score,
+    merge_fit_with_seed_persisted,
+)
+from talent_acquisition.match_ordering import (
+    DEFAULT_TOTAL_MATCH_LIMIT,
+    count_match_buckets,
+    order_job_match_results,
+)
+from talent_acquisition.hiring_analytics_events import log_find_matches_event
+from talent_acquisition.hiring_dashboard import build_hiring_dashboard_pack
+from talent_acquisition.hiring_dashboard_access import enforce_hiring_dashboard_scope
+from talent_acquisition.hiring_dashboard_perf import log_slow_hiring_pack_query
+from talent_acquisition.hiring_dashboard_schemas import (
+    HiringAlertDismissRequest,
+    HiringAlertDismissalsResponse,
+    HiringDashboardConfigResponse,
+    HiringDashboardConfigUpdate,
+    HiringDashboardPack,
+    HiringDashboardTrends,
+    HiringSnapshotHealth,
+)
+from talent_acquisition.hiring_dashboard_config import (
+    config_to_json,
+    get_hiring_dashboard_config,
+    upsert_hiring_dashboard_config,
+)
+from talent_acquisition.hiring_alert_dismissals import (
+    dismiss_alert as dismiss_hiring_alert,
+    list_dismissed_alert_ids,
+    restore_alert as restore_hiring_alert,
+)
+from talent_acquisition.hiring_pack_cache import (
+    get_cached_hiring_pack,
+    invalidate_hiring_pack_cache,
+    set_cached_hiring_pack,
+)
+from talent_acquisition.hiring_snapshots import (
+    get_hiring_dashboard_trends,
+    get_hiring_snapshot_health,
+    seed_hiring_snapshots_if_sparse,
+    write_hiring_dashboard_snapshot,
+)
+from talent_acquisition.assessments_routes import create_assessments_router
 from m2_employee_lifecycle.state_machine import (
     approval_rule_for_event,
     target_status_for_event,
@@ -173,6 +226,10 @@ from m12_training_development.constants import (
     COL_TRAINING_SESSIONS as TD_COL_TRAINING_SESSIONS,
 )
 from m13_high_skill_talent_retention.routes import create_high_skill_retention_router
+from career_trajectory.async_jobs import recover_stale_analyze_jobs
+from career_trajectory.auto_analyze import trigger_auto_analyze_if_eligible
+from career_trajectory.routes import create_career_trajectory_router
+from candidate_fit_phase2.routes import create_phase2_fit_router
 from m13_high_skill_talent_retention.constants import (
     COL_AI_FLIGHT_RISK as HSR_COL_AI_FLIGHT_RISK,
     COL_AI_RECOMMENDATIONS as HSR_COL_AI_RECOMMENDATIONS,
@@ -244,6 +301,7 @@ from m17_employee_satisfaction_engagement.routes import create_employee_satisfac
 from m17_employee_satisfaction_engagement import service as m17_ese_service
 from m9_analytics.export_packs import (
     create_full_leadership_pack_zip,
+    create_monthly_cron_snapshots,
     create_monthly_snapshot_and_deliver,
     deliver_snapshot_webhook,
     format_snapshot_csv,
@@ -253,7 +311,14 @@ from m9_analytics.export_packs import (
 )
 from m9_analytics.talent_kpis import compute_talent_acquisition_metrics
 from m9_analytics.freshness import compute_source_freshness
+from m9_analytics.compare import compare_snapshots
+from m9_analytics.bundle import get_executive_dashboard_bundle
+from m9_analytics.constants import COL_M9_KPI_THRESHOLDS
 from m9_analytics.service import drill_filter_options, get_drill_dashboard_cached, get_kpi_pack, load_merged_kpi_definitions
+from m9_analytics.definition_config import delete_definition_override
+from m9_analytics.threshold_config import delete_threshold_override, list_threshold_overrides, upsert_threshold_override
+from m9_analytics.predictive import get_executive_predictive_views
+from m9_analytics.trends import get_kpi_trends
 from m9_analytics.strategic_aggregate import build_strategic_dashboard_data
 
 from m10_events.constants import COL_M10_EVENTS, COL_M10_HANDLER_AUDIT, COL_M10_IDEMPOTENCY
@@ -388,6 +453,16 @@ HTTP_DURATION_SECONDS = Histogram(
     "HTTP request duration in seconds",
     ["method"],
     buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+HIRING_PACK_REQUESTS = Counter(
+    "aai_hiring_pack_requests_total",
+    "Smart Hiring Dashboard hiring-pack requests",
+    ["cache_hit"],
+)
+HIRING_PACK_DURATION_SECONDS = Histogram(
+    "aai_hiring_pack_duration_seconds",
+    "hiring-pack aggregation duration in seconds",
+    buckets=(0.05, 0.1, 0.25, 0.5, 0.8, 1.0, 2.0, 5.0, 10.0),
 )
 
 
@@ -766,6 +841,9 @@ class JobResponse(BaseModel):
     activities: List[Dict[str, Any]] = []
     scoring_rubric: Optional[Dict[str, Any]] = None
     pin_rank: Optional[int] = None  # higher = listed first (e.g. Excel JD imports)
+    seed_marker: Optional[str] = None
+    import_source_file: Optional[str] = None
+    import_stable_id: Optional[str] = None
     created_by: str
     created_at: str
     candidate_count: int = 0
@@ -847,6 +925,17 @@ class ApplicationCreate(BaseModel):
 class ApplicationUpdate(BaseModel):
     stage: str
     reason: Optional[str] = None
+
+class OfferStatusUpdate(BaseModel):
+    offer_status: Literal["SENT", "NEGOTIATION", "ACCEPTED", "DECLINED"]
+
+class ApplicationStageHistoryItem(BaseModel):
+    from_stage: str | None = None
+    to_stage: str
+    changed_at: str
+    days_in_stage: float | None = None
+    reason: str | None = None
+    offer_status: str | None = None
 
 class ApplicationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2485,6 +2574,12 @@ async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str
             str(incoming_candidate.get("source") or ""),
             {"incoming_id": incoming_candidate.get("id")},
         )
+        await trigger_auto_analyze_if_eligible(
+            db,
+            candidate_id=merged["id"],
+            resume_text=merged.get("resume_text"),
+            created_by="system",
+        )
         return merged
 
     now = datetime.now(timezone.utc).isoformat()
@@ -2515,6 +2610,12 @@ async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str
         [],
         str(incoming_candidate.get("source") or ""),
         {},
+    )
+    await trigger_auto_analyze_if_eligible(
+        db,
+        candidate_id=candidate_doc["id"],
+        resume_text=candidate_doc.get("resume_text"),
+        created_by="system",
     )
     return candidate_doc
 
@@ -2996,49 +3097,85 @@ Compute matching scores and return JSON:
         logger.error(f"AI fit scoring failed: {e}")
         return compute_basic_fit_score(job, candidate)
 
+def _experience_fit_score(candidate: Dict[str, Any], job: Dict[str, Any]) -> float:
+    """Map years of experience to 0–100 using job minimum when available."""
+    raw = candidate.get("total_experience_years")
+    if raw is None:
+        return 50.0
+    try:
+        years = float(raw)
+    except (TypeError, ValueError):
+        return 50.0
+    req = job.get("min_experience_years") or job.get("years_of_experience_min")
+    if req is not None:
+        try:
+            required = max(float(req), 0.5)
+            return round(min(100.0, max(0.0, (years / required) * 100.0)), 2)
+        except (TypeError, ValueError):
+            pass
+    return round(min(100.0, max(0.0, years * 10.0)), 2)
+
+
 def compute_basic_fit_score(job: Dict, candidate: Dict) -> Dict[str, Any]:
-    """Basic fit score without AI"""
-    job_skills = set(s.get("skill_name", "").lower() for s in job.get("skills", []))
-    must_have = set(s.get("skill_name", "").lower() for s in job.get("skills", []) if s.get("skill_type") == "MUST_HAVE")
-    candidate_skills = set(s.get("skill_name", "").lower() for s in candidate.get("skills", []))
-    
+    """Deterministic fit score without LLM — per-candidate title, resume, and experience."""
+    det = compute_match_score(job, candidate)
+    job_skills, must_have = _job_skill_sets(job)
+    candidate_skills = _candidate_skill_set(candidate)
+
     matched_skills = job_skills.intersection(candidate_skills)
-    skill_match_pct = (len(matched_skills) / len(job_skills) * 100) if job_skills else 0
-    must_have_ok = must_have.issubset(candidate_skills)
-    
+    skill_match_pct = (len(matched_skills) / len(job_skills) * 100) if job_skills else float(det.get("skill_score", 0))
+    must_have_ok = bool(det.get("must_have_ok", True))
+
     weights = (job.get("scoring_rubric") or {}).get("weights") or {"title": 0.2, "skill": 0.4, "activity": 0.3, "experience": 0.1}
-    title_score = 70.0
-    act_score = 60.0
-    exp_score = 70.0
+    title_score = float(det.get("title_score", 0))
+
+    resume_text = (candidate.get("resume_text") or "").strip()
+    if resume_text:
+        activity_match_pct = float(det.get("description_score", 0))
+    else:
+        job_acts = {_norm(a) for a in (job.get("activities") or []) if _norm(a)}
+        cand_blob = _norm(
+            " ".join(
+                [candidate.get("headline") or "", " ".join(candidate_skills), candidate.get("summary") or ""]
+            )
+        )
+        if job_acts:
+            hits = sum(1 for act in job_acts if act in cand_blob)
+            activity_match_pct = (hits / len(job_acts)) * 100.0
+        else:
+            activity_match_pct = title_score
+
+    experience_score = _experience_fit_score(candidate, job)
+
     final = (
         title_score * float(weights.get("title", 0.2))
         + skill_match_pct * float(weights.get("skill", 0.4))
-        + act_score * float(weights.get("activity", 0.3))
-        + exp_score * float(weights.get("experience", 0.1))
+        + activity_match_pct * float(weights.get("activity", 0.3))
+        + experience_score * float(weights.get("experience", 0.1))
     )
     if not must_have_ok:
         final *= 0.25
     return {
-        "title_score": title_score,
+        "title_score": round(title_score, 2),
         "skill_match_pct": round(skill_match_pct, 2),
-        "activity_match_pct": act_score,
-        "experience_score": exp_score,
+        "activity_match_pct": round(activity_match_pct, 2),
+        "experience_score": experience_score,
         "final_score": round(final, 2),
         "must_have_ok": must_have_ok,
         "score_source": "basic",
         "score_factors": {
             "title_weighted": round(title_score * float(weights.get("title", 0.2)), 3),
             "skill_weighted": round(skill_match_pct * float(weights.get("skill", 0.4)), 3),
-            "activity_weighted": round(act_score * float(weights.get("activity", 0.3)), 3),
-            "experience_weighted": round(exp_score * float(weights.get("experience", 0.1)), 3),
+            "activity_weighted": round(activity_match_pct * float(weights.get("activity", 0.3)), 3),
+            "experience_weighted": round(experience_score * float(weights.get("experience", 0.1)), 3),
         },
         "explanation": {
-            "matched_skills": list(matched_skills),
-            "missing_must_have": list(must_have - candidate_skills),
+            "matched_skills": sorted(matched_skills),
+            "missing_must_have": sorted(must_have - candidate_skills),
             "matched_activities": [],
             "strengths": [],
-            "concerns": []
-        }
+            "concerns": [],
+        },
     }
 
 async def generate_assessment_with_ai(job: Dict, assessment_type: str) -> Dict[str, Any]:
@@ -3509,6 +3646,7 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks, cur
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.jobs.insert_one(job_doc)
+    invalidate_hiring_pack_cache(reason="job_created")
 
     # Our in-house aggregator: auto-generate Top 50 matches (company DB + connectors).
     background_tasks.add_task(generate_and_store_job_matches, job_id, 50)
@@ -3567,6 +3705,7 @@ async def update_job(job_id: str, job_data: JobUpdate, current_user: dict = Depe
     update_data = {k: v for k, v in job_data.model_dump().items() if v is not None}
     if update_data:
         await db.jobs.update_one({"id": job_id}, {"$set": update_data})
+        invalidate_hiring_pack_cache(reason="job_updated")
     
     updated_job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     count = await db.applications.count_documents({"job_id": job_id})
@@ -3578,6 +3717,7 @@ async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)
     result = await db.jobs.delete_one({"id": job_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Job not found")
+    invalidate_hiring_pack_cache(reason="job_deleted")
     return {"message": "Job deleted"}
 
 # ========================
@@ -3615,7 +3755,14 @@ async def create_candidate(candidate_data: CandidateCreate, current_user: dict =
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.candidates.insert_one(candidate_doc)
-    
+
+    await trigger_auto_analyze_if_eligible(
+        db,
+        candidate_id=candidate_id,
+        resume_text=candidate_doc.get("resume_text"),
+        created_by=current_user.get("id") or "",
+    )
+
     return CandidateResponse(**candidate_doc)
 
 @api_router.get("/candidates", response_model=List[CandidateResponse])
@@ -3640,7 +3787,10 @@ async def list_candidates_paged(
     page_size: int = 50,
     q: Optional[str] = None,
     source: Optional[str] = None,
+    display_channel: Optional[str] = None,
     skill: Optional[str] = None,
+    fit_min: Optional[float] = None,
+    fit_max: Optional[float] = None,
     current_user: dict = Depends(get_current_user),
 ):
     page = max(1, int(page or 1))
@@ -3648,17 +3798,41 @@ async def list_candidates_paged(
     page_size = min(max(page_size, 1), 200)
 
     query: Dict[str, Any] = {}
-    if source:
+    source_norm = str(source or "").strip().upper()
+    if source_norm == "TALENT_POOL":
+        tp_filter = all_talent_pool_mongo_filter()
+        query = tp_filter
+    elif source:
         query["source"] = source
+    if display_channel:
+        ch_filter = display_channel_mongo_filter(display_channel)
+        if ch_filter:
+            query = {"$and": [query, ch_filter]} if query else ch_filter
     if skill:
         query["skills.skill_name"] = {"$regex": skill, "$options": "i"}
     if q and str(q).strip():
         qq = str(q).strip()
-        query["$or"] = [
-            {"full_name": {"$regex": qq, "$options": "i"}},
-            {"email": {"$regex": qq, "$options": "i"}},
-            {"headline": {"$regex": qq, "$options": "i"}},
-        ]
+        text_or = {
+            "$or": [
+                {"full_name": {"$regex": qq, "$options": "i"}},
+                {"email": {"$regex": qq, "$options": "i"}},
+                {"headline": {"$regex": qq, "$options": "i"}},
+            ]
+        }
+        query = {"$and": [query, text_or]} if query else text_or
+
+    fit_ids = await candidate_ids_matching_fit_range(db, fit_min, fit_max)
+    if fit_ids is not None:
+        if not fit_ids:
+            return CandidatesPagedResponse(
+                items=[],
+                total=0,
+                page=1,
+                page_size=int(page_size),
+                total_pages=1,
+            )
+        fit_clause = {"id": {"$in": fit_ids}}
+        query = {"$and": [query, fit_clause]} if query else fit_clause
 
     total = await db.candidates.count_documents(query)
     total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
@@ -3778,7 +3952,14 @@ async def upload_resume(
                 update_doc["education"] = extracted_data["education"]
             
             await db.candidates.update_one({"id": candidate_id}, {"$set": update_doc})
-            
+
+            await trigger_auto_analyze_if_eligible(
+                db,
+                candidate_id=candidate_id,
+                resume_text=resume_text,
+                created_by=current_user.get("id") or "",
+            )
+
             candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
             return {
                 "message": "Existing candidate updated with new resume",
@@ -3808,7 +3989,14 @@ async def upload_resume(
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.candidates.insert_one(candidate_doc)
-    
+
+    await trigger_auto_analyze_if_eligible(
+        db,
+        candidate_id=candidate_id,
+        resume_text=resume_text,
+        created_by=current_user.get("id") or "",
+    )
+
     return {
         "message": "Resume parsed and candidate created successfully",
         "candidate_id": candidate_id,
@@ -3919,6 +4107,8 @@ async def create_application(app_data: ApplicationCreate, current_user: dict = D
         "changed_by": current_user["id"],
         "changed_at": now
     })
+
+    invalidate_hiring_pack_cache(reason="application_created")
     
     return ApplicationResponse(
         **app_doc,
@@ -3974,17 +4164,27 @@ async def update_application_stage(
         {"id": app_id},
         {"$set": {"stage": stage_data.stage, "updated_at": now}}
     )
+    if stage_data.stage == "OFFER" and not app.get("offer_status"):
+        await db.applications.update_one(
+            {"id": app_id},
+            {"$set": {"offer_status": "SENT"}},
+        )
     
     # Log stage change
-    await db.application_stage_history.insert_one({
+    history_doc = {
         "id": str(uuid.uuid4()),
         "application_id": app_id,
         "from_stage": old_stage,
         "to_stage": stage_data.stage,
         "reason": stage_data.reason,
         "changed_by": current_user["id"],
-        "changed_at": now
-    })
+        "changed_at": now,
+    }
+    if stage_data.stage == "OFFER":
+        history_doc["offer_status"] = app.get("offer_status") or "SENT"
+    await db.application_stage_history.insert_one(history_doc)
+
+    invalidate_hiring_pack_cache(reason="application_stage_updated")
     
     updated_app = await db.applications.find_one({"id": app_id}, {"_id": 0})
     candidate = await db.candidates.find_one({"id": updated_app["candidate_id"]}, {"_id": 0})
@@ -4003,6 +4203,95 @@ async def update_application_stage(
             current_user["full_name"]
         )
     
+    return ApplicationResponse(
+        **updated_app,
+        fit_score=fit_score,
+        candidate=candidate,
+        job={"id": job["id"], "title": job["title"]} if job else None
+    )
+
+
+def _parse_stage_dt(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+@api_router.get("/applications/{app_id}/stage-history", response_model=List[ApplicationStageHistoryItem])
+async def get_application_stage_history(
+    app_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    app = await db.applications.find_one({"id": app_id}, {"_id": 0, "id": 1, "updated_at": 1})
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    rows = await db.application_stage_history.find(
+        {"application_id": app_id},
+        {"_id": 0, "from_stage": 1, "to_stage": 1, "changed_at": 1, "reason": 1, "offer_status": 1},
+    ).sort("changed_at", 1).to_list(500)
+
+    out: List[ApplicationStageHistoryItem] = []
+    for i, row in enumerate(rows):
+        entered = _parse_stage_dt(row.get("changed_at"))
+        days = None
+        if entered:
+            if i + 1 < len(rows):
+                exited = _parse_stage_dt(rows[i + 1].get("changed_at"))
+            else:
+                exited = _parse_stage_dt(app.get("updated_at"))
+            if exited and exited > entered:
+                days = round((exited - entered).total_seconds() / 86400.0, 1)
+        out.append(
+            ApplicationStageHistoryItem(
+                from_stage=row.get("from_stage"),
+                to_stage=str(row.get("to_stage") or ""),
+                changed_at=str(row.get("changed_at") or ""),
+                days_in_stage=days,
+                reason=row.get("reason"),
+                offer_status=row.get("offer_status"),
+            )
+        )
+    return out
+
+
+@api_router.patch("/applications/{app_id}/offer-status", response_model=ApplicationResponse)
+async def update_application_offer_status(
+    app_id: str,
+    body: OfferStatusUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    app = await db.applications.find_one({"id": app_id})
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if app.get("stage") != "OFFER":
+        raise HTTPException(status_code=400, detail="Offer status can only be updated for applications in OFFER stage")
+
+    old_status = app.get("offer_status")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.applications.update_one(
+        {"id": app_id},
+        {"$set": {"offer_status": body.offer_status, "updated_at": now}},
+    )
+    await db.application_stage_history.insert_one({
+        "id": str(uuid.uuid4()),
+        "application_id": app_id,
+        "from_stage": "OFFER",
+        "to_stage": "OFFER",
+        "offer_status": body.offer_status,
+        "reason": f"Offer status: {old_status or 'unset'} → {body.offer_status}",
+        "changed_by": current_user["id"],
+        "changed_at": now,
+    })
+    invalidate_hiring_pack_cache(reason="offer_status_updated")
+
+    updated_app = await db.applications.find_one({"id": app_id}, {"_id": 0})
+    candidate = await db.candidates.find_one({"id": updated_app["candidate_id"]}, {"_id": 0})
+    job = await db.jobs.find_one({"id": updated_app["job_id"]}, {"_id": 0})
+    fit_score = await db.fit_scores.find_one({"id": updated_app.get("fit_score_id")}, {"_id": 0})
     return ApplicationResponse(
         **updated_app,
         fit_score=fit_score,
@@ -4129,6 +4418,8 @@ async def _referral_create_application_with_fit(
         "changed_at": now,
     })
 
+    invalidate_hiring_pack_cache(reason="application_sourced")
+
     return {
         "final_score": fit_result.get("final_score"),
         "must_have_ok": fit_result.get("must_have_ok"),
@@ -4181,6 +4472,14 @@ async def create_referral(referral_data: ReferralCreate, current_user: dict = De
             raise HTTPException(status_code=400, detail="Candidate already referred for this job")
 
     await db.candidates.insert_one(candidate_doc)
+
+    await trigger_auto_analyze_if_eligible(
+        db,
+        candidate_id=candidate_id,
+        resume_text=candidate_doc.get("resume_text"),
+        created_by=current_user.get("id") or "",
+        job_id=referral_data.job_id,
+    )
 
     # Create referral
     referral_id = str(uuid.uuid4())
@@ -4298,6 +4597,14 @@ async def create_referral_with_resume(
 
     await db.candidates.insert_one(candidate_doc)
 
+    await trigger_auto_analyze_if_eligible(
+        db,
+        candidate_id=candidate_id,
+        resume_text=resume_text,
+        created_by=current_user.get("id") or "",
+        job_id=job_id,
+    )
+
     referral_id = str(uuid.uuid4())
     referral_doc = {
         "id": referral_id,
@@ -4352,62 +4659,8 @@ async def list_all_referrals(current_user: dict = Depends(get_current_user)):
     return result
 
 # ========================
-# ASSESSMENT ROUTES
+# ASSESSMENT ROUTES — see create_assessments_router() include below
 # ========================
-
-@api_router.post("/assessments/generate/{job_id}", response_model=AssessmentResponse)
-async def generate_assessment(
-    job_id: str,
-    assessment_data: AssessmentCreate,
-    current_user: dict = Depends(get_current_user)
-):
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Generate assessment with AI
-    generated = await generate_assessment_with_ai(job, assessment_data.assessment_type)
-    
-    assessment_id = str(uuid.uuid4())
-    questions = generated.get("questions", [])
-    
-    # Add IDs to questions
-    for q in questions:
-        q["id"] = str(uuid.uuid4())
-    
-    total_marks = sum(q.get("max_marks", 10) for q in questions)
-    
-    assessment_doc = {
-        "id": assessment_id,
-        "job_id": job_id,
-        "assessment_type": assessment_data.assessment_type,
-        "title": assessment_data.title,
-        "duration_minutes": assessment_data.duration_minutes,
-        "total_marks": total_marks,
-        "questions": questions,
-        "rubric": generated.get("rubric"),
-        "created_by": current_user["id"],
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    await db.assessments.insert_one(assessment_doc)
-    
-    return AssessmentResponse(**assessment_doc)
-
-@api_router.get("/assessments", response_model=List[AssessmentResponse])
-async def list_assessments(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
-    query = {}
-    if job_id:
-        query["job_id"] = job_id
-    
-    assessments = await db.assessments.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return [AssessmentResponse(**a) for a in assessments]
-
-@api_router.get("/assessments/{assessment_id}", response_model=AssessmentResponse)
-async def get_assessment(assessment_id: str, current_user: dict = Depends(get_current_user)):
-    assessment = await db.assessments.find_one({"id": assessment_id}, {"_id": 0})
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    return AssessmentResponse(**assessment)
 
 # ========================
 # MATCH/SCORING ROUTES
@@ -4426,12 +4679,9 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Get all candidates not already applied
     existing_apps = await db.applications.find({"job_id": job_id}).to_list(1000)
-    applied_ids = {app["candidate_id"] for app in existing_apps}
+    applied_ids = applied_ids_excluding_fit_seeds(existing_apps)
 
-    # 1) Talent Pool search first: pull candidates who share any job skill (case-insensitive),
-    # then fill remaining slots with most recent candidates.
     job_skill_names = [
         str(s.get("skill_name")).strip()
         for s in (job.get("skills") or [])
@@ -4439,62 +4689,43 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
     ]
     skill_or = []
     for sk in job_skill_names[:30]:
-        # Regex is case-insensitive; escape to avoid regex injection / special chars.
         skill_or.append({"skills.skill_name": {"$regex": re.escape(sk), "$options": "i"}})
 
-    pool: List[Dict[str, Any]] = []
-    if skill_or:
-        pool = await (
-            db.candidates.find({"$or": skill_or}, {"_id": 0})
-            .sort("created_at", -1)
-            .limit(1500)
-            .to_list(1500)
-        )
-    if len(pool) < 1500:
-        # Fill from recent candidates to avoid zero results for sparse/unknown skills.
-        extra = await (
-            db.candidates.find({}, {"_id": 0})
-            .sort("created_at", -1)
-            .limit(1500 - len(pool))
-            .to_list(1500 - len(pool))
-        )
-        pool.extend(extra)
+    candidates = await gather_job_match_candidates(
+        db, job, job_id, applied_ids, skill_or, per_bucket=200, max_total=600
+    )
 
-    # De-dup by id, and exclude already-applied.
-    seen = set()
-    candidates: List[Dict[str, Any]] = []
-    for c in pool:
-        cid = c.get("id")
-        if not cid or cid in applied_ids or cid in seen:
-            continue
-        seen.add(cid)
-        candidates.append(c)
-
-    # 2) If talent pool is too small, then try connector ingestion and top-up.
-    # External connectors are best-effort: failures should not block local matching.
-    if len(candidates) < 500:
+    if sum(1 for c in candidates if is_linkedin_sourced_candidate(c)) < 10:
         try:
-            await ingest_candidates_for_job(job, total_limit=500)
+            await ingest_candidates_for_job(job, total_limit=200)
         except Exception as e:
             logger.error(f"Connector ingestion failed for job {job_id}: {e}")
+        extra = await gather_job_match_candidates(
+            db, job, job_id, applied_ids, skill_or, per_bucket=80, max_total=600
+        )
+        seen_ids = {c["id"] for c in candidates if c.get("id")}
+        for c in extra:
+            if c.get("id") and c["id"] not in seen_ids:
+                candidates.append(c)
+                seen_ids.add(c["id"])
 
-        # Pull additional candidates (recent) after ingestion.
-        more = await db.candidates.find({}, {"_id": 0}).sort("created_at", -1).limit(800).to_list(800)
-        for c in more:
-            cid = c.get("id")
-            if not cid or cid in applied_ids or cid in seen:
-                continue
-            seen.add(cid)
-            candidates.append(c)
+    deduped: List[Dict[str, Any]] = []
+    seen_candidate_ids: Set[str] = set()
+    for c in candidates[:500]:
+        cid = c.get("id")
+        if not cid or cid in seen_candidate_ids:
+            continue
+        seen_candidate_ids.add(cid)
+        deduped.append(c)
+    candidates = deduped
 
-    # Hard cap for scoring loop.
-    candidates = candidates[:500]
-    
     # Bulk match must stay fast and timeout-safe: N×LLM calls (see compute_fit_score) routinely
     # exceed reverse-proxy limits (e.g. nginx default 60s) and are poor UX for "Play Demo".
     results = []
     for candidate in candidates:
         fit_result = compute_basic_fit_score(job, candidate)
+        persisted = await load_persisted_fit_score(db, job_id, candidate.get("id") or "")
+        fit_result = merge_fit_with_seed_persisted(job_id, candidate, fit_result, persisted)
         det = compute_match_score(job, candidate)
         fit_result["ranking_explainability"] = {
             "score_source": fit_result.get("score_source", "basic"),
@@ -4508,9 +4739,11 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
             "fit_score": fit_result
         })
     
-    # Sort by final score
-    results.sort(key=lambda x: x["fit_score"]["final_score"], reverse=True)
-    top50 = results[:50]
+    # Grid order (3 cols): Excel | Talent pool | AI-generated fit 90%+, repeating for 50 matches.
+    top50 = order_job_match_results(
+        results, job_id=job_id, total_limit=DEFAULT_TOTAL_MATCH_LIMIT
+    )
+    bucket_counts = count_match_buckets(top50, job_id=job_id)
 
     # Create HR interview proposals for the top ranked matches (no auto-booking).
     try:
@@ -4524,7 +4757,24 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
     except Exception as e:
         logger.error(f"Failed to generate interview proposals for job {job_id}: {e}")
 
-    return {"job_id": job_id, "matches": top50}
+    try:
+        await log_find_matches_event(
+            db,
+            job_id=job_id,
+            user_id=current_user["id"],
+            match_count=len(top50),
+        )
+    except Exception as e:
+        logger.error(f"Failed to log find_matches analytics event for job {job_id}: {e}")
+
+    return {
+        "job_id": job_id,
+        "matches": top50,
+        "excel_count": bucket_counts["excel_count"],
+        "talent_pool_count": bucket_counts["talent_pool_count"],
+        "ai_high_match_count": bucket_counts["ai_high_match_count"],
+        "source_order": ["excel", "talent_pool", "ai_high_match"],
+    }
 
 @api_router.post("/jobs/{job_id}/demo-candidates", response_model=DemoCandidatesResponse)
 async def generate_demo_candidates(
@@ -4627,6 +4877,11 @@ async def get_fit_score(job_id: str, candidate_id: str, current_user: dict = Dep
 # DASHBOARD ROUTES
 # ========================
 
+async def _attach_hiring_trends(pack: HiringDashboardPack, *, months: int) -> HiringDashboardPack:
+    trends_data = await get_hiring_dashboard_trends(db, months=months)
+    return pack.model_copy(update={"trends": HiringDashboardTrends(**trends_data)})
+
+
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     total_jobs = await db.jobs.count_documents({})
@@ -4664,6 +4919,153 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         applications_by_stage=applications_by_stage,
         recent_activities=recent_activities
     )
+
+
+@api_router.get("/dashboard/hiring-pack", response_model=HiringDashboardPack)
+async def get_hiring_dashboard_pack(
+    window_days: int = 30,
+    department: Optional[str] = None,
+    scope: str = "all",
+    job_id: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    include_trends: bool = True,
+    trends_months: int = 6,
+    current_user: dict = Depends(get_current_user),
+):
+    """Smart Hiring Dashboard — windowed KPIs, funnel, source mix, alerts, and optional embedded trends."""
+    scope, department, owner_id, job_id = await enforce_hiring_dashboard_scope(
+        db,
+        current_user=current_user,
+        scope=scope,
+        department=department,
+        owner_id=owner_id,
+        job_id=job_id,
+    )
+    cache_key = (
+        f"{window_days}|{department or ''}|{scope}|{job_id or ''}|{owner_id or ''}|{current_user.get('id') or ''}"
+    )
+    cached = get_cached_hiring_pack(cache_key)
+    if cached is not None:
+        HIRING_PACK_REQUESTS.labels(cache_hit="true").inc()
+        pack = cached.model_copy(update={"data_freshness": "cached"}) if hasattr(cached, "model_copy") else cached
+    else:
+        pack_start = time.perf_counter()
+        pack = await build_hiring_dashboard_pack(
+            db,
+            window_days=window_days,
+            department=department,
+            scope=scope,
+            user_id=current_user.get("id"),
+            job_id=job_id,
+            owner_id=owner_id,
+        )
+        duration = time.perf_counter() - pack_start
+        HIRING_PACK_DURATION_SECONDS.observe(duration)
+        HIRING_PACK_REQUESTS.labels(cache_hit="false").inc()
+        log_slow_hiring_pack_query(
+            duration,
+            window_days=window_days,
+            scope=scope,
+            department=department,
+            job_id=job_id,
+            owner_id=owner_id,
+        )
+        set_cached_hiring_pack(cache_key, pack)
+
+    if include_trends:
+        pack = await _attach_hiring_trends(pack, months=trends_months)
+    return pack
+
+
+@api_router.get("/dashboard/trends", response_model=HiringDashboardTrends)
+async def get_hiring_dashboard_trends_route(
+    months: int = 6,
+    current_user: dict = Depends(get_current_user),
+):
+    data = await get_hiring_dashboard_trends(db, months=months)
+    return HiringDashboardTrends(**data)
+
+
+@api_router.get("/dashboard/trends/health", response_model=HiringSnapshotHealth)
+async def get_hiring_snapshot_health_route(
+    current_user: dict = Depends(get_current_user),
+):
+    """Snapshot cron maturity and staleness for Smart Hiring trends."""
+    data = await get_hiring_snapshot_health(db)
+    return HiringSnapshotHealth(**data)
+
+
+@api_router.get("/dashboard/hiring-alerts/dismissals", response_model=HiringAlertDismissalsResponse)
+async def get_hiring_alert_dismissals(current_user: dict = Depends(get_current_user)):
+    """List alert IDs dismissed by the current user (server-side persistence)."""
+    user_id = current_user.get("id") or ""
+    dismissed = await list_dismissed_alert_ids(db, user_id)
+    return HiringAlertDismissalsResponse(dismissed=dismissed)
+
+
+@api_router.post("/dashboard/hiring-alerts/dismissals")
+async def post_hiring_alert_dismissal(
+    body: HiringAlertDismissRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user.get("id") or ""
+    if not body.alert_id.strip():
+        raise HTTPException(status_code=400, detail="alert_id is required")
+    await dismiss_hiring_alert(db, user_id, body.alert_id.strip())
+    return {"ok": True, "alert_id": body.alert_id.strip()}
+
+
+@api_router.delete("/dashboard/hiring-alerts/dismissals/{alert_id}")
+async def delete_hiring_alert_dismissal(alert_id: str, current_user: dict = Depends(get_current_user)):
+    user_id = current_user.get("id") or ""
+    await restore_hiring_alert(db, user_id, alert_id)
+    return {"ok": True, "alert_id": alert_id}
+
+
+@api_router.get("/admin/hiring-dashboard/config", response_model=HiringDashboardConfigResponse)
+async def get_admin_hiring_dashboard_config(current_user: dict = Depends(get_current_user)):
+    _require_admin(current_user)
+    config = await get_hiring_dashboard_config(db)
+    return HiringDashboardConfigResponse(**config_to_json(config))
+
+
+@api_router.put("/admin/hiring-dashboard/config", response_model=HiringDashboardConfigResponse)
+async def put_admin_hiring_dashboard_config(
+    body: HiringDashboardConfigUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    existing = await get_hiring_dashboard_config(db)
+    payload = config_to_json(existing)
+    for key, value in body.model_dump(exclude_unset=True).items():
+        if value is not None:
+            payload[key] = value
+    config = await upsert_hiring_dashboard_config(db, payload)
+    invalidate_hiring_pack_cache(reason="hiring_dashboard_config_updated")
+    return HiringDashboardConfigResponse(**config_to_json(config))
+
+
+@api_router.post("/admin/hiring-dashboard/snapshot")
+async def admin_hiring_dashboard_snapshot(current_user: dict = Depends(get_current_user)):
+    """Ops/cron: persist daily hiring dashboard snapshot for trend charts."""
+    _require_admin(current_user)
+    pack = await build_hiring_dashboard_pack(db, window_days=30)
+    doc = await write_hiring_dashboard_snapshot(db, pack.model_dump())
+    seeded = await seed_hiring_snapshots_if_sparse(db)
+    return {"ok": True, "snapshot": doc, "seeded_snapshots": seeded}
+
+
+@api_router.post("/admin/hiring-dashboard/snapshot-cron")
+async def hiring_dashboard_snapshot_cron(request: Request):
+    """Scheduled snapshot (no JWT). Requires HIRING_SNAPSHOT_TOKEN and X-Hiring-Snapshot-Token."""
+    expected = (os.environ.get("HIRING_SNAPSHOT_TOKEN") or "").strip()
+    got = (request.headers.get("X-Hiring-Snapshot-Token") or "").strip()
+    if not expected or got != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Hiring-Snapshot-Token")
+    pack = await build_hiring_dashboard_pack(db, window_days=30)
+    doc = await write_hiring_dashboard_snapshot(db, pack.model_dump())
+    seeded = await seed_hiring_snapshots_if_sparse(db)
+    return {"ok": True, "snapshot": doc, "seeded_snapshots": seeded}
 
 # ========================
 # PHASE-1 WORKFORCE MODULES
@@ -5288,8 +5690,12 @@ async def list_import_audits(
     }
 
 @api_router.get("/executive/kpis", response_model=ExecutiveKpiResponse)
-async def get_executive_kpis(current_user: dict = Depends(get_current_user)):
+async def get_executive_kpis(
+    window_days: int = 30,
+    current_user: dict = Depends(get_current_user),
+):
     _require_phase1_access(current_user, "kpi_read")
+    window_days = max(1, min(int(window_days or 30), 365))
     employee_count = await db.employees.count_documents({})
     active_employee_count = await db.employees.count_documents({"status": {"$in": ["ACTIVE", "ONBOARDING"]}})
     attrition_count = await db.employees.count_documents({"status": "EXITED"})
@@ -5321,7 +5727,7 @@ async def get_executive_kpis(current_user: dict = Depends(get_current_user)):
     )
     skill_coverage_pct = round((workforce_supply_total / hiring_demand_total) * 100, 2) if hiring_demand_total else 100.0
 
-    talent_acq = await compute_talent_acquisition_metrics(db, window_days=30)
+    talent_acq = await compute_talent_acquisition_metrics(db, window_days=window_days)
 
     return ExecutiveKpiResponse(
         employee_count=employee_count,
@@ -10964,6 +11370,87 @@ class M9MonthlySnapshotCreate(BaseModel):
     period: str = Field(..., description="YYYY-MM")
     horizon_months: int = 3
     window_days: int = 30
+    department: Optional[str] = None
+    manager_root_id: Optional[str] = None
+    role_title_contains: Optional[str] = None
+
+
+class M9ThresholdUpdate(BaseModel):
+    warn: Optional[float] = None
+    critical: Optional[float] = None
+    higher_is_worse: Optional[bool] = None
+
+
+class M9DefinitionUpdate(BaseModel):
+    description: Optional[str] = None
+    formula: Optional[str] = None
+    owner_role: Optional[str] = None
+    steward_team: Optional[str] = None
+    source_system: Optional[str] = None
+
+
+@api_router.get("/admin/m9/kpi-thresholds")
+async def admin_m9_list_thresholds(current_user: dict = Depends(get_current_user)):
+    _require_admin(current_user)
+    return {"items": await list_threshold_overrides(db)}
+
+
+@api_router.put("/admin/m9/kpi-thresholds/{kpi_id}")
+async def admin_m9_upsert_threshold(
+    kpi_id: str,
+    body: M9ThresholdUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    try:
+        return await upsert_threshold_override(db, kpi_id, body.model_dump(exclude_unset=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@api_router.delete("/admin/m9/kpi-thresholds/{kpi_id}")
+async def admin_m9_delete_threshold(kpi_id: str, current_user: dict = Depends(get_current_user)):
+    _require_admin(current_user)
+    ok = await delete_threshold_override(db, kpi_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="threshold override not found")
+    return {"ok": True}
+
+
+@api_router.put("/admin/m9/kpi-definitions/{kpi_id}")
+async def admin_m9_upsert_definition(
+    kpi_id: str,
+    body: M9DefinitionUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    _require_admin(current_user)
+    kid = (kpi_id or "").strip()
+    if not kid:
+        raise HTTPException(status_code=400, detail="kpi_id required")
+    patch = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not patch:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    patch["kpi_id"] = kid
+    patch["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db[COL_M9_KPI_DEFINITIONS].update_one({"kpi_id": kid}, {"$set": patch}, upsert=True)
+    items = await load_merged_kpi_definitions(db)
+    row = next((d for d in items if d.get("kpi_id") == kid), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="kpi not found")
+    return row
+
+
+@api_router.delete("/admin/m9/kpi-definitions/{kpi_id}")
+async def admin_m9_delete_definition(kpi_id: str, current_user: dict = Depends(get_current_user)):
+    _require_admin(current_user)
+    ok = await delete_definition_override(db, kpi_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="definition override not found")
+    items = await load_merged_kpi_definitions(db)
+    row = next((d for d in items if d.get("kpi_id") == (kpi_id or "").strip()), None)
+    if not row:
+        raise HTTPException(status_code=404, detail="kpi not found")
+    return row
 
 
 @api_router.get("/executive/m9/kpi-definitions")
@@ -10998,6 +11485,35 @@ async def m9_drill_options(current_user: dict = Depends(get_current_user)):
     return await drill_filter_options(db)
 
 
+@api_router.get("/executive/m9/dashboard-bundle")
+async def m9_executive_dashboard_bundle(
+    horizon_months: int = 3,
+    window_days: int = 30,
+    department: Optional[str] = None,
+    manager_root_id: Optional[str] = None,
+    role_title_contains: Optional[str] = None,
+    compare_period: Optional[str] = None,
+    compare_against: Optional[str] = None,
+    trends_months: int = 12,
+    snapshot_limit: int = 24,
+    current_user: dict = Depends(get_current_user),
+):
+    """M9: Pack, drill, definitions, trends, filter options, and snapshots in one response."""
+    _require_phase1_access(current_user, "kpi_read")
+    return await get_executive_dashboard_bundle(
+        db,
+        horizon_months=horizon_months,
+        window_days=window_days,
+        department=department,
+        manager_root_id=manager_root_id,
+        role_title_contains=role_title_contains,
+        compare_period=compare_period,
+        compare_against=compare_against,
+        trends_months=trends_months,
+        snapshot_limit=snapshot_limit,
+    )
+
+
 @api_router.get("/executive/m9/strategic-drill")
 async def m9_strategic_drill(
     horizon_months: int = 3,
@@ -11005,6 +11521,8 @@ async def m9_strategic_drill(
     department: Optional[str] = None,
     manager_root_id: Optional[str] = None,
     role_title_contains: Optional[str] = None,
+    compare_period: Optional[str] = None,
+    compare_against: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """M9-2: Strategic dashboard with org/team/role scope + linked time window (short-TTL cache)."""
@@ -11013,6 +11531,61 @@ async def m9_strategic_drill(
         db,
         horizon_months=horizon_months,
         window_days=window_days,
+        department=department,
+        manager_root_id=manager_root_id,
+        role_title_contains=role_title_contains,
+        compare_period=compare_period,
+        compare_against=compare_against,
+    )
+
+
+@api_router.get("/executive/m9/kpi-compare")
+async def m9_kpi_compare(
+    period: str,
+    against_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """M9: Period-over-period deltas from leadership snapshots."""
+    _require_phase1_access(current_user, "kpi_read")
+    return await compare_snapshots(db, period=period.strip(), against_period=(against_period or "").strip() or None)
+
+
+@api_router.get("/executive/m9/predictive-views")
+async def m9_predictive_views(
+    horizon_months: int = 3,
+    window_days: int = 30,
+    department: Optional[str] = None,
+    manager_root_id: Optional[str] = None,
+    role_title_contains: Optional[str] = None,
+    trends_months: int = 12,
+    current_user: dict = Depends(get_current_user),
+):
+    """M9: Attrition trend forecast + M8-based retention risk projections."""
+    _require_phase1_access(current_user, "kpi_read")
+    return await get_executive_predictive_views(
+        db,
+        horizon_months=horizon_months,
+        window_days=window_days,
+        department=department,
+        manager_root_id=manager_root_id,
+        role_title_contains=role_title_contains,
+        trends_months=trends_months,
+    )
+
+
+@api_router.get("/executive/m9/trends")
+async def m9_kpi_trends(
+    months: int = 12,
+    department: Optional[str] = None,
+    manager_root_id: Optional[str] = None,
+    role_title_contains: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """M9: Historical KPI series from leadership snapshots."""
+    _require_phase1_access(current_user, "kpi_read")
+    return await get_kpi_trends(
+        db,
+        months=months,
         department=department,
         manager_root_id=manager_root_id,
         role_title_contains=role_title_contains,
@@ -11032,6 +11605,9 @@ async def m9_create_monthly_snapshot(
             year_month=payload.period,
             horizon_months=payload.horizon_months,
             window_days=payload.window_days,
+            department=payload.department,
+            manager_root_id=payload.manager_root_id,
+            role_title_contains=payload.role_title_contains,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -11052,6 +11628,9 @@ async def m9_download_full_leadership_pack_zip(
             year_month=payload.period,
             horizon_months=payload.horizon_months,
             window_days=payload.window_days,
+            department=payload.department,
+            manager_root_id=payload.manager_root_id,
+            role_title_contains=payload.role_title_contains,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -11091,12 +11670,14 @@ async def m9_monthly_snapshot_cron(request: Request):
         wd = max(1, min(int(body.get("window_days") or 30), 365))
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="horizon_months and window_days must be integers")
+    scoped_limit = body.get("scoped_department_limit")
     try:
-        return await create_monthly_snapshot_and_deliver(
+        return await create_monthly_cron_snapshots(
             db,
             year_month=period,
             horizon_months=hm,
             window_days=wd,
+            scoped_department_limit=int(scoped_limit) if scoped_limit is not None else None,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -11384,6 +11965,8 @@ async def approve_interview_proposal(
                 "changed_at": now,
             }
         )
+
+    invalidate_hiring_pack_cache(reason="interview_proposal_accepted")
 
     interview_id = str(uuid.uuid4())
     interview_doc = {
@@ -12066,6 +12649,32 @@ api_router.include_router(
     )
 )
 api_router.include_router(
+    create_career_trajectory_router(
+        db=db,
+        get_current_user=get_current_user,
+        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    )
+)
+api_router.include_router(
+    create_assessments_router(
+        db=db,
+        get_current_user=get_current_user,
+        generate_with_ai=generate_assessment_with_ai,
+        create_notification=create_notification,
+        llm_chat=_llm_chat,
+        require_admin=_require_admin,
+    )
+)
+api_router.include_router(
+    create_phase2_fit_router(
+        db=db,
+        get_current_user=get_current_user,
+        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    )
+)
+api_router.include_router(
     create_employee_lifecycle_management_router(
         db=db,
         get_current_user=get_current_user,
@@ -12116,446 +12725,518 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from pymongo.errors import OperationFailure
+
+
+class _IndexSafeCollection:
+    __slots__ = ("_coll",)
+
+    def __init__(self, coll):
+        self._coll = coll
+
+    async def create_index(self, keys, **kwargs):
+        try:
+            return await self._coll.create_index(keys, **kwargs)
+        except OperationFailure as exc:
+            if exc.code in (85, 86):
+                return None
+            raise
+
+    def __getattr__(self, name):
+        return getattr(self._coll, name)
+
+
+class _IndexSafeDb:
+    __slots__ = ("_db",)
+
+    def __init__(self, db_handle):
+        self._db = db_handle
+
+    def __getitem__(self, name):
+        return _IndexSafeCollection(self._db[name])
+
+    def __getattr__(self, name):
+        val = getattr(self._db, name)
+        if hasattr(val, "create_index"):
+            return _IndexSafeCollection(val)
+        return val
+
+
 @app.on_event("startup")
 async def ensure_phase1_indexes():
     # Data governance: enforce unique keys and query indexes for phase-1 modules.
-    await db.employees.create_index("employee_code", unique=True, name="uq_employee_code")
-    await db.employees.create_index([("status", 1), ("department", 1)], name="ix_employee_status_dept")
-    await db.workforce_skills.create_index("skill_name_lc", unique=True, name="uq_skill_name_lc")
-    await db.workforce_skills.create_index([("gap", -1), ("priority", 1)], name="ix_skill_gap_priority")
-    await db.import_audit_logs.create_index([("module", 1), ("created_at", -1)], name="ix_import_audit_module_created")
+    idx_db = _IndexSafeDb(db)
+    await idx_db.employees.create_index("employee_code", unique=True, name="uq_employee_code")
+    await idx_db.employees.create_index([("status", 1), ("department", 1)], name="ix_employee_status_dept")
+    await idx_db.workforce_skills.create_index("skill_name_lc", unique=True, name="uq_skill_name_lc")
+    await idx_db.workforce_skills.create_index([("gap", -1), ("priority", 1)], name="ix_skill_gap_priority")
+    await idx_db.import_audit_logs.create_index([("module", 1), ("created_at", -1)], name="ix_import_audit_module_created")
 
     # M1 (Talent Acquisition) governance: candidate canonicalization + interview proposals.
-    await db.candidates.create_index("email_lc", name="ix_candidates_email_lc")
-    await db.candidates.create_index("full_name_lc", name="ix_candidates_full_name_lc")
-    await db.candidates.create_index("phone_lc", name="ix_candidates_phone_lc", sparse=True)
-    await db.candidates.create_index("resume_content_hash", name="ix_candidates_resume_hash", sparse=True)
-    await db.ingestion_jobs.create_index([("job_id", 1), ("created_at", -1)], name="ix_ingestion_jobs_job_created")
-    await db.candidate_dedup_audit.create_index(
+    await idx_db.candidates.create_index("email_lc", name="ix_candidates_email_lc")
+    await idx_db.candidates.create_index("full_name_lc", name="ix_candidates_full_name_lc")
+    await idx_db.candidates.create_index("phone_lc", name="ix_candidates_phone_lc", sparse=True)
+    await idx_db.candidates.create_index("resume_content_hash", name="ix_candidates_resume_hash", sparse=True)
+    await idx_db.ingestion_jobs.create_index([("job_id", 1), ("created_at", -1)], name="ix_ingestion_jobs_job_created")
+    await idx_db.candidate_dedup_audit.create_index(
         [("candidate_id", 1), ("created_at", -1)],
         name="ix_dedup_audit_candidate_created",
     )
-    await db.interview_proposals.create_index("id", unique=True, name="uq_interview_proposal_id")
-    await db.interview_proposals.create_index(
+    await idx_db.interview_proposals.create_index("id", unique=True, name="uq_interview_proposal_id")
+    await idx_db.interview_proposals.create_index(
         [("job_id", 1), ("candidate_id", 1), ("status", 1)],
         name="ix_interview_proposals_job_candidate_status",
     )
 
     # M3/M4 (Project-demand MVP) governance: projects + project skill demands.
-    await db.projects.create_index("id", unique=True, name="uq_project_id")
-    await db.project_skill_demands.create_index(
+    await idx_db.projects.create_index("id", unique=True, name="uq_project_id")
+    await idx_db.project_skill_demands.create_index(
         [("project_id", 1), ("skill_name_lc", 1)],
         unique=True,
         name="uq_project_skill_demand_project_skill",
     )
-    await db.project_skill_demands.create_index([("project_id", 1), ("updated_at", -1)], name="ix_project_skill_demands_project_updated")
+    await idx_db.project_skill_demands.create_index([("project_id", 1), ("updated_at", -1)], name="ix_project_skill_demands_project_updated")
 
     # M4 (Project allocations governance)
-    await db.project_skill_allocations.create_index("id", unique=True, name="uq_project_skill_allocation_id")
-    await db.project_skill_allocations.create_index(
+    await idx_db.project_skill_allocations.create_index("id", unique=True, name="uq_project_skill_allocation_id")
+    await idx_db.project_skill_allocations.create_index(
         [("project_id", 1), ("skill_name_lc", 1)],
         unique=True,
         name="uq_project_skill_alloc_project_skill",
     )
-    await db.project_skill_allocations.create_index(
+    await idx_db.project_skill_allocations.create_index(
         [("project_id", 1), ("updated_at", -1)],
         name="ix_project_skill_allocations_project_updated",
     )
 
     # M6 (Project vs resource allocations)
-    await db.allocations.create_index("id", unique=True, name="uq_allocation_id")
-    await db.allocations.create_index([("project_id", 1), ("created_at", -1)], name="ix_allocations_project_created")
-    await db.allocations.create_index([("employee_id", 1), ("created_at", -1)], name="ix_allocations_employee_created")
-    await db.allocations.create_index(
+    await idx_db.allocations.create_index("id", unique=True, name="uq_allocation_id")
+    await idx_db.allocations.create_index([("project_id", 1), ("created_at", -1)], name="ix_allocations_project_created")
+    await idx_db.allocations.create_index([("employee_id", 1), ("created_at", -1)], name="ix_allocations_employee_created")
+    await idx_db.allocations.create_index(
         [("employee_id", 1), ("status", 1), ("approval_status", 1)],
         name="ix_allocations_employee_status_approval",
     )
 
     # M7 (Project Section) governance
-    await db.project_masters.create_index("id", unique=True, name="uq_project_master_id")
-    await db.project_masters.create_index("project_code", unique=True, name="uq_project_master_code")
-    await db.project_masters.create_index([("project_status", 1), ("project_priority", 1)], name="ix_project_master_status_priority")
-    await db.project_masters.create_index([("business_unit", 1)], name="ix_project_master_bu")
-    await db.project_masters.create_index([("client_name", 1)], name="ix_project_master_client")
+    await idx_db.project_masters.create_index("id", unique=True, name="uq_project_master_id")
+    await idx_db.project_masters.create_index("project_code", unique=True, name="uq_project_master_code")
+    await idx_db.project_masters.create_index([("project_status", 1), ("project_priority", 1)], name="ix_project_master_status_priority")
+    await idx_db.project_masters.create_index([("business_unit", 1)], name="ix_project_master_bu")
+    await idx_db.project_masters.create_index([("client_name", 1)], name="ix_project_master_client")
 
-    await db.project_lifecycle_history.create_index([("project_id", 1), ("changed_at", -1)], name="ix_project_lifecycle_project_changed")
-    await db.project_demands.create_index(
+    await idx_db.project_lifecycle_history.create_index([("project_id", 1), ("changed_at", -1)], name="ix_project_lifecycle_project_changed")
+    await idx_db.project_demands.create_index(
         [("project_id", 1), ("role_name_lc", 1), ("skill_name_lc", 1)],
         unique=True,
         name="uq_project_demands_project_role_skill",
     )
-    await db.project_demands.create_index([("project_id", 1), ("updated_at", -1)], name="ix_project_demands_project_updated")
-    await db.project_risks.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_risks_project_created")
-    await db.project_issues.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_issues_project_created")
-    await db.project_documents.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_docs_project_created")
-    await db.project_notes.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_notes_project_created")
-    await db.project_approvals.create_index([("status", 1), ("requested_at", -1)], name="ix_project_approvals_status_requested")
-    await db.project_approvals.create_index([("project_id", 1), ("requested_at", -1)], name="ix_project_approvals_project_requested")
-    await db.project_closure.create_index("project_id", unique=True, name="uq_project_closure_project")
-    await db.project_wbs_items.create_index([("project_id", 1), ("order", 1)], name="ix_project_wbs_project_order")
-    await db.project_financials.create_index("project_id", unique=True, name="uq_project_financials_project")
-    await db.project_financial_snapshots.create_index([("project_id", 1), ("snapshot_at", -1)], name="ix_project_fin_snapshots_project_at")
-    await db.project_status_reports.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_status_reports_project_at")
+    await idx_db.project_demands.create_index([("project_id", 1), ("updated_at", -1)], name="ix_project_demands_project_updated")
+    await idx_db.project_risks.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_risks_project_created")
+    await idx_db.project_issues.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_issues_project_created")
+    await idx_db.project_documents.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_docs_project_created")
+    await idx_db.project_notes.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_notes_project_created")
+    await idx_db.project_approvals.create_index([("status", 1), ("requested_at", -1)], name="ix_project_approvals_status_requested")
+    await idx_db.project_approvals.create_index([("project_id", 1), ("requested_at", -1)], name="ix_project_approvals_project_requested")
+    await idx_db.project_closure.create_index("project_id", unique=True, name="uq_project_closure_project")
+    await idx_db.project_wbs_items.create_index([("project_id", 1), ("order", 1)], name="ix_project_wbs_project_order")
+    await idx_db.project_financials.create_index("project_id", unique=True, name="uq_project_financials_project")
+    await idx_db.project_financial_snapshots.create_index([("project_id", 1), ("snapshot_at", -1)], name="ix_project_fin_snapshots_project_at")
+    await idx_db.project_status_reports.create_index([("project_id", 1), ("created_at", -1)], name="ix_project_status_reports_project_at")
 
     # M3/M4 dashboard cache + audit telemetry.
-    await db.workforce_intelligence_forecast_cache.create_index(
+    await idx_db.workforce_intelligence_forecast_cache.create_index(
         [("horizon_months", 1), ("demand_source", 1)],
         unique=True,
         name="uq_workforce_intelligence_cache_key",
     )
-    await db.workforce_resource_optimization_cache.create_index(
+    await idx_db.workforce_resource_optimization_cache.create_index(
         [("demand_source", 1)],
         unique=True,
         name="uq_workforce_resource_optimization_cache_key",
     )
-    await db.workforce_dashboard_audit_logs.create_index(
+    await idx_db.workforce_dashboard_audit_logs.create_index(
         [("dashboard", 1), ("created_at", -1)],
         name="ix_workforce_dashboard_audit_dashboard_created",
     )
-    await db.workforce_dashboard_audit_logs.create_index([("cache_hit", 1)], name="ix_workforce_dashboard_audit_cache_hit")
+    await idx_db.workforce_dashboard_audit_logs.create_index([("cache_hit", 1)], name="ix_workforce_dashboard_audit_cache_hit")
 
     # M3 Workforce Intelligence: historical features + model registry + monitoring.
-    await db[COL_HIST_FEATURES].create_index("id", unique=True, name="uq_wf_intel_hist_row_id")
-    await db[COL_HIST_FEATURES].create_index(
+    await idx_db[COL_HIST_FEATURES].create_index("id", unique=True, name="uq_wf_intel_hist_row_id")
+    await idx_db[COL_HIST_FEATURES].create_index(
         [("demand_source", 1), ("snapshot_at", -1), ("skill_name_lc", 1)],
         name="ix_wf_intel_hist_demand_snapshot_skill",
     )
-    await db[COL_HIST_FEATURES].create_index([("etl_run_id", 1)], name="ix_wf_intel_hist_etl_run")
-    await db[COL_ETL_RUNS].create_index([("ended_at", -1)], name="ix_wf_intel_etl_runs_ended")
-    await db[COL_MODELS].create_index([("version_id", 1)], unique=True, name="uq_wf_intel_model_version")
-    await db[COL_MODELS].create_index([("created_at", -1)], name="ix_wf_intel_models_created")
-    await db[COL_EVAL_RUNS].create_index([("evaluated_at", -1)], name="ix_wf_intel_eval_at")
-    await db[COL_DRIFT_EVENTS].create_index([("created_at", -1)], name="ix_wf_intel_drift_created")
-    await db[COL_DRIFT_EVENTS].create_index([("version_id", 1), ("created_at", -1)], name="ix_wf_intel_drift_version_created")
+    await idx_db[COL_HIST_FEATURES].create_index([("etl_run_id", 1)], name="ix_wf_intel_hist_etl_run")
+    await idx_db[COL_ETL_RUNS].create_index([("ended_at", -1)], name="ix_wf_intel_etl_runs_ended")
+    await idx_db[COL_MODELS].create_index([("version_id", 1)], unique=True, name="uq_wf_intel_model_version")
+    await idx_db[COL_MODELS].create_index([("created_at", -1)], name="ix_wf_intel_models_created")
+    await idx_db[COL_EVAL_RUNS].create_index([("evaluated_at", -1)], name="ix_wf_intel_eval_at")
+    await idx_db[COL_DRIFT_EVENTS].create_index([("created_at", -1)], name="ix_wf_intel_drift_created")
+    await idx_db[COL_DRIFT_EVENTS].create_index([("version_id", 1), ("created_at", -1)], name="ix_wf_intel_drift_version_created")
 
     # M4 Resource vs Project Optimization: scenarios + settings singleton.
-    await db[COL_ALLOCATION_SCENARIOS].create_index("id", unique=True, name="uq_m4_allocation_scenario_id")
-    await db[COL_ALLOCATION_SCENARIOS].create_index(
+    await idx_db[COL_ALLOCATION_SCENARIOS].create_index("id", unique=True, name="uq_m4_allocation_scenario_id")
+    await idx_db[COL_ALLOCATION_SCENARIOS].create_index(
         [("status", 1), ("created_at", -1)],
         name="ix_m4_allocation_scenario_status_created",
     )
 
     # M5 Training & Skill Development
-    await db[COL_LEARNING_PATH_TEMPLATES].create_index(
+    await idx_db[COL_LEARNING_PATH_TEMPLATES].create_index(
         "skill_name_lc", unique=True, name="uq_training_path_template_skill_lc"
     )
-    await db[COL_ASSIGNMENTS].create_index("id", unique=True, name="uq_training_assignment_id")
-    await db[COL_ASSIGNMENTS].create_index([("employee_code", 1), ("status", 1)], name="ix_training_assign_emp_status")
-    await db[COL_LMS_COURSES].create_index(
+    await idx_db[COL_ASSIGNMENTS].create_index("id", unique=True, name="uq_training_assignment_id")
+    await idx_db[COL_ASSIGNMENTS].create_index([("employee_code", 1), ("status", 1)], name="ix_training_assign_emp_status")
+    await idx_db[COL_LMS_COURSES].create_index(
         [("provider", 1), ("external_id", 1)],
         unique=True,
         name="uq_training_lms_course_provider_ext",
     )
-    await db[COL_LMS_COURSES].create_index([("skill_tags_lc", 1)], name="ix_training_lms_skill_tags")
-    await db[COL_LMS_SYNC_RUNS].create_index([("ended_at", -1)], name="ix_training_lms_sync_ended")
-    await db[COL_CERTIFICATIONS].create_index("id", unique=True, name="uq_training_cert_id")
-    await db[COL_CERTIFICATIONS].create_index([("employee_code", 1), ("expires_at", 1)], name="ix_training_cert_emp_exp")
+    await idx_db[COL_LMS_COURSES].create_index([("skill_tags_lc", 1)], name="ix_training_lms_skill_tags")
+    await idx_db[COL_LMS_SYNC_RUNS].create_index([("ended_at", -1)], name="ix_training_lms_sync_ended")
+    await idx_db[COL_CERTIFICATIONS].create_index("id", unique=True, name="uq_training_cert_id")
+    await idx_db[COL_CERTIFICATIONS].create_index([("employee_code", 1), ("expires_at", 1)], name="ix_training_cert_emp_exp")
 
     # Phase-2 (M2) governance: employee lifecycle events.
-    await db.employee_lifecycle_events.create_index("id", unique=True, name="uq_lifecycle_event_id")
-    await db.employee_lifecycle_events.create_index("employee_code", name="ix_lifecycle_employee_code")
-    await db.employee_lifecycle_events.create_index("event_type", name="ix_lifecycle_event_type")
-    await db.employee_lifecycle_events.create_index([("created_at", -1)], name="ix_lifecycle_created_at")
-    await db.employee_lifecycle_events.create_index(
+    await idx_db.employee_lifecycle_events.create_index("id", unique=True, name="uq_lifecycle_event_id")
+    await idx_db.employee_lifecycle_events.create_index("employee_code", name="ix_lifecycle_employee_code")
+    await idx_db.employee_lifecycle_events.create_index("event_type", name="ix_lifecycle_event_type")
+    await idx_db.employee_lifecycle_events.create_index([("created_at", -1)], name="ix_lifecycle_created_at")
+    await idx_db.employee_lifecycle_events.create_index(
         [("requires_approval", 1), ("approval_status", 1), ("created_at", -1)],
         name="ix_lifecycle_approval_pending",
     )
 
-    await db[LIFECYCLE_AUDIT_COLLECTION].create_index(
+    await idx_db[LIFECYCLE_AUDIT_COLLECTION].create_index(
         [("employee_code", 1), ("created_at", -1)],
         name="ix_lifecycle_audit_emp_created",
     )
-    await db[COMPLIANCE_DOCS_COLLECTION].create_index("id", unique=True, name="uq_compliance_doc_id")
-    await db[COMPLIANCE_DOCS_COLLECTION].create_index(
+    await idx_db[COMPLIANCE_DOCS_COLLECTION].create_index("id", unique=True, name="uq_compliance_doc_id")
+    await idx_db[COMPLIANCE_DOCS_COLLECTION].create_index(
         [("employee_code", 1), ("status", 1)],
         name="ix_compliance_emp_status",
     )
-    await db[COMPLIANCE_DOCS_COLLECTION].create_index([("status", 1), ("sla_due_at", 1)], name="ix_compliance_sla")
+    await idx_db[COMPLIANCE_DOCS_COLLECTION].create_index([("status", 1), ("sla_due_at", 1)], name="ix_compliance_sla")
 
     # Phase-4 (M6) engagement governance: surveys + responses.
-    await db.employee_engagement_surveys.create_index("id", unique=True, name="uq_pulse_survey_id")
-    await db.employee_engagement_surveys.create_index([("active", 1), ("created_at", -1)], name="ix_pulse_survey_active_created")
+    await idx_db.employee_engagement_surveys.create_index("id", unique=True, name="uq_pulse_survey_id")
+    await idx_db.employee_engagement_surveys.create_index([("active", 1), ("created_at", -1)], name="ix_pulse_survey_active_created")
 
-    await db.employee_engagement_responses.create_index("id", unique=True, name="uq_pulse_response_id")
-    await db.employee_engagement_responses.create_index([("survey_id", 1), ("created_at", -1)], name="ix_pulse_response_survey_created")
-    await db.employee_engagement_responses.create_index([("employee_code", 1), ("created_at", -1)], name="ix_pulse_response_employee_created")
+    await idx_db.employee_engagement_responses.create_index("id", unique=True, name="uq_pulse_response_id")
+    await idx_db.employee_engagement_responses.create_index([("survey_id", 1), ("created_at", -1)], name="ix_pulse_response_survey_created")
+    await idx_db.employee_engagement_responses.create_index([("employee_code", 1), ("created_at", -1)], name="ix_pulse_response_employee_created")
 
     # M6: templates, schedules, privacy audit
-    await db[COL_SURVEY_TEMPLATES].create_index("id", unique=True, name="uq_engagement_survey_template_id")
-    await db[COL_SURVEY_TEMPLATES].create_index([("updated_at", -1)], name="ix_engagement_template_updated")
-    await db[COL_SURVEY_SCHEDULES].create_index("id", unique=True, name="uq_engagement_survey_schedule_id")
-    await db[COL_SURVEY_SCHEDULES].create_index([("enabled", 1), ("next_run_at", 1)], name="ix_engagement_schedule_due")
-    await db[COL_SURVEY_SCHEDULES].create_index("template_id", name="ix_engagement_schedule_template")
-    await db[COL_PRIVACY_AUDIT].create_index([("created_at", -1)], name="ix_engagement_privacy_audit_created")
-    await db[COL_PRIVACY_AUDIT].create_index([("survey_id", 1), ("created_at", -1)], name="ix_engagement_privacy_audit_survey")
+    await idx_db[COL_SURVEY_TEMPLATES].create_index("id", unique=True, name="uq_engagement_survey_template_id")
+    await idx_db[COL_SURVEY_TEMPLATES].create_index([("updated_at", -1)], name="ix_engagement_template_updated")
+    await idx_db[COL_SURVEY_SCHEDULES].create_index("id", unique=True, name="uq_engagement_survey_schedule_id")
+    await idx_db[COL_SURVEY_SCHEDULES].create_index([("enabled", 1), ("next_run_at", 1)], name="ix_engagement_schedule_due")
+    await idx_db[COL_SURVEY_SCHEDULES].create_index("template_id", name="ix_engagement_schedule_template")
+    await idx_db[COL_PRIVACY_AUDIT].create_index([("created_at", -1)], name="ix_engagement_privacy_audit_created")
+    await idx_db[COL_PRIVACY_AUDIT].create_index([("survey_id", 1), ("created_at", -1)], name="ix_engagement_privacy_audit_survey")
 
     # M7 workflow automation, copilot audit, baselines
-    await db[COL_WORKFLOW_RULES].create_index("id", unique=True, name="uq_m7_workflow_rule_id")
-    await db[COL_WORKFLOW_RULES].create_index([("enabled", 1), ("updated_at", -1)], name="ix_m7_workflow_rule_enabled_updated")
-    await db[COL_WORKFLOW_RUNS].create_index("id", unique=True, name="uq_m7_workflow_run_id")
-    await db[COL_WORKFLOW_RUNS].create_index([("created_at", -1)], name="ix_m7_workflow_run_created")
-    await db[COL_WORKFLOW_RUNS].create_index([("rule_id", 1), ("created_at", -1)], name="ix_m7_workflow_run_rule_created")
-    await db[COL_WORKFLOW_RUNS].create_index([("status", 1), ("created_at", -1)], name="ix_m7_workflow_run_status_created")
-    await db[COL_HR_COPILOT_AUDIT].create_index([("created_at", -1)], name="ix_m7_copilot_audit_created")
-    await db[COL_HR_COPILOT_AUDIT].create_index([("session_id", 1), ("created_at", -1)], name="ix_m7_copilot_audit_session")
-    await db[COL_MANUAL_WORKFLOW_BASELINES].create_index("id", unique=True, name="uq_m7_manual_baseline_id")
-    await db[COL_MANUAL_WORKFLOW_BASELINES].create_index(
+    await idx_db[COL_WORKFLOW_RULES].create_index("id", unique=True, name="uq_m7_workflow_rule_id")
+    await idx_db[COL_WORKFLOW_RULES].create_index([("enabled", 1), ("updated_at", -1)], name="ix_m7_workflow_rule_enabled_updated")
+    await idx_db[COL_WORKFLOW_RUNS].create_index("id", unique=True, name="uq_m7_workflow_run_id")
+    await idx_db[COL_WORKFLOW_RUNS].create_index([("created_at", -1)], name="ix_m7_workflow_run_created")
+    await idx_db[COL_WORKFLOW_RUNS].create_index([("rule_id", 1), ("created_at", -1)], name="ix_m7_workflow_run_rule_created")
+    await idx_db[COL_WORKFLOW_RUNS].create_index([("status", 1), ("created_at", -1)], name="ix_m7_workflow_run_status_created")
+    await idx_db[COL_HR_COPILOT_AUDIT].create_index([("created_at", -1)], name="ix_m7_copilot_audit_created")
+    await idx_db[COL_HR_COPILOT_AUDIT].create_index([("session_id", 1), ("created_at", -1)], name="ix_m7_copilot_audit_session")
+    await idx_db[COL_MANUAL_WORKFLOW_BASELINES].create_index("id", unique=True, name="uq_m7_manual_baseline_id")
+    await idx_db[COL_MANUAL_WORKFLOW_BASELINES].create_index(
         "workflow_key", unique=True, name="uq_m7_manual_baseline_workflow_key"
     )
 
     # M8 retention: attrition v1 + interventions
-    await db[COL_ATTRITION_MODEL_STATE].create_index("id", unique=True, name="uq_m8_attrition_model_id")
-    await db[COL_ATTRITION_SCORES_LATEST].create_index("employee_id", unique=True, name="uq_m8_attrition_score_emp")
-    await db[COL_ATTRITION_SCORES_LATEST].create_index([("attrition_risk", -1)], name="ix_m8_attrition_risk")
-    await db[COL_ATTRITION_SCORES_LATEST].create_index([("risk_band", 1), ("department", 1)], name="ix_m8_attrition_band_dept")
-    await db[COL_ATTRITION_SCORES_LATEST].create_index("segments", name="ix_m8_attrition_segments")
-    await db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_m8_retention_segment_settings")
-    await db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_m8_retention_playbook_id")
-    await db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_m8_retention_intervention_id")
-    await db[COL_RETENTION_INTERVENTIONS].create_index(
+    await idx_db[COL_ATTRITION_MODEL_STATE].create_index("id", unique=True, name="uq_m8_attrition_model_id")
+    await idx_db[COL_ATTRITION_SCORES_LATEST].create_index("employee_id", unique=True, name="uq_m8_attrition_score_emp")
+    await idx_db[COL_ATTRITION_SCORES_LATEST].create_index([("attrition_risk", -1)], name="ix_m8_attrition_risk")
+    await idx_db[COL_ATTRITION_SCORES_LATEST].create_index([("risk_band", 1), ("department", 1)], name="ix_m8_attrition_band_dept")
+    await idx_db[COL_ATTRITION_SCORES_LATEST].create_index("segments", name="ix_m8_attrition_segments")
+    await idx_db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_m8_retention_segment_settings")
+    await idx_db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_m8_retention_playbook_id")
+    await idx_db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_m8_retention_intervention_id")
+    await idx_db[COL_RETENTION_INTERVENTIONS].create_index(
         [("employee_id", 1), ("created_at", -1)],
         name="ix_m8_intervention_emp_created",
     )
-    await db[COL_RETENTION_INTERVENTIONS].create_index(
+    await idx_db[COL_RETENTION_INTERVENTIONS].create_index(
         [("status", 1), ("created_at", -1)],
         name="ix_m8_intervention_status_created",
     )
 
     # M9 analytics: KPI overrides + leadership snapshots
-    await db[COL_M9_KPI_DEFINITIONS].create_index("kpi_id", unique=True, name="uq_m9_kpi_definition_id")
-    await db[COL_M9_LEADERSHIP_SNAPSHOTS].create_index("id", unique=True, name="uq_m9_leadership_snapshot_id")
-    await db[COL_M9_LEADERSHIP_SNAPSHOTS].create_index(
+    await idx_db[COL_M9_KPI_DEFINITIONS].create_index("kpi_id", unique=True, name="uq_m9_kpi_definition_id")
+    await idx_db[COL_M9_KPI_THRESHOLDS].create_index("kpi_id", unique=True, name="uq_m9_kpi_threshold_id")
+    await idx_db[COL_M9_LEADERSHIP_SNAPSHOTS].create_index("id", unique=True, name="uq_m9_leadership_snapshot_id")
+    await idx_db[COL_M9_LEADERSHIP_SNAPSHOTS].create_index(
         [("period", 1), ("created_at", -1)],
         name="ix_m9_snapshot_period_created",
     )
+    await idx_db[COL_M9_LEADERSHIP_SNAPSHOTS].create_index(
+        [("period", 1), ("snapshot_scope", 1)],
+        unique=True,
+        name="uq_m9_snapshot_period_scope",
+        partialFilterExpression={"snapshot_scope": {"$exists": True, "$type": "string"}},
+    )
 
     # M10 Allocation Section (staffing bridge — collections alongside M10 events module)
-    await db[COL_STAFFING_REQUESTS].create_index("id", unique=True, name="uq_alloc_sec_request_id")
-    await db[COL_STAFFING_REQUESTS].create_index([("project_id", 1), ("created_at", -1)], name="ix_alloc_sec_req_project")
-    await db[COL_STAFFING_REQUEST_HISTORY].create_index([("request_id", 1), ("at", -1)], name="ix_alloc_sec_req_hist_req")
-    await db[COL_CONFLICTS].create_index("id", unique=True, name="uq_alloc_sec_conflict_id")
-    await db[COL_CONFLICTS].create_index([("allocation_id", 1), ("resolution_status", 1)], name="ix_alloc_sec_conflict_alloc")
-    await db[COL_ROLL_EVENTS].create_index("id", unique=True, name="uq_alloc_sec_roll_id")
-    await db[COL_ROLL_EVENTS].create_index([("resource_id", 1), ("planned_rolloff_date", 1)], name="ix_alloc_sec_roll_emp")
-    await db[COL_CHANGES].create_index("id", unique=True, name="uq_alloc_sec_change_id")
-    await db[COL_CHANGES].create_index([("allocation_id", 1), ("changed_on", -1)], name="ix_alloc_sec_change_alloc")
-    await db[COL_RELEASES].create_index("id", unique=True, name="uq_alloc_sec_release_id")
-    await db[COL_WORKFLOW_APPROVALS].create_index("id", unique=True, name="uq_alloc_sec_wf_appr_id")
-    await db[COL_WORKFLOW_APPROVALS].create_index([("status", 1), ("submitted_at", -1)], name="ix_alloc_sec_wf_status")
-    await db[COL_BENCH_MATCHES].create_index("id", unique=True, name="uq_alloc_sec_bench_match_id")
-    await db[COL_NOTES].create_index("id", unique=True, name="uq_alloc_sec_note_id")
-    await db[COL_DOCUMENTS].create_index("id", unique=True, name="uq_alloc_sec_doc_id")
-    await db[COL_ALERTS].create_index("id", unique=True, name="uq_alloc_sec_alert_id")
-    await db[COL_ALERTS].create_index([("created_at", -1)], name="ix_alloc_sec_alert_created")
-    await db[COL_ACTIVITY_LOGS].create_index([("created_at", -1)], name="ix_alloc_sec_activity_created")
-    await db[COL_FORECAST_SNAPSHOTS].create_index("id", unique=True, name="uq_alloc_sec_forecast_id")
-    await db[COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_alloc_sec_ai_insight_id")
-    await db[COL_AI_INSIGHTS].create_index([("generated_at", -1)], name="ix_alloc_sec_ai_gen")
+    await idx_db[COL_STAFFING_REQUESTS].create_index("id", unique=True, name="uq_alloc_sec_request_id")
+    await idx_db[COL_STAFFING_REQUESTS].create_index([("project_id", 1), ("created_at", -1)], name="ix_alloc_sec_req_project")
+    await idx_db[COL_STAFFING_REQUEST_HISTORY].create_index([("request_id", 1), ("at", -1)], name="ix_alloc_sec_req_hist_req")
+    await idx_db[COL_CONFLICTS].create_index("id", unique=True, name="uq_alloc_sec_conflict_id")
+    await idx_db[COL_CONFLICTS].create_index([("allocation_id", 1), ("resolution_status", 1)], name="ix_alloc_sec_conflict_alloc")
+    await idx_db[COL_ROLL_EVENTS].create_index("id", unique=True, name="uq_alloc_sec_roll_id")
+    await idx_db[COL_ROLL_EVENTS].create_index([("resource_id", 1), ("planned_rolloff_date", 1)], name="ix_alloc_sec_roll_emp")
+    await idx_db[COL_CHANGES].create_index("id", unique=True, name="uq_alloc_sec_change_id")
+    await idx_db[COL_CHANGES].create_index([("allocation_id", 1), ("changed_on", -1)], name="ix_alloc_sec_change_alloc")
+    await idx_db[COL_RELEASES].create_index("id", unique=True, name="uq_alloc_sec_release_id")
+    await idx_db[COL_WORKFLOW_APPROVALS].create_index("id", unique=True, name="uq_alloc_sec_wf_appr_id")
+    await idx_db[COL_WORKFLOW_APPROVALS].create_index([("status", 1), ("submitted_at", -1)], name="ix_alloc_sec_wf_status")
+    await idx_db[COL_BENCH_MATCHES].create_index("id", unique=True, name="uq_alloc_sec_bench_match_id")
+    await idx_db[COL_NOTES].create_index("id", unique=True, name="uq_alloc_sec_note_id")
+    await idx_db[COL_DOCUMENTS].create_index("id", unique=True, name="uq_alloc_sec_doc_id")
+    await idx_db[COL_ALERTS].create_index("id", unique=True, name="uq_alloc_sec_alert_id")
+    await idx_db[COL_ALERTS].create_index([("created_at", -1)], name="ix_alloc_sec_alert_created")
+    await idx_db[COL_ACTIVITY_LOGS].create_index([("created_at", -1)], name="ix_alloc_sec_activity_created")
+    await idx_db[COL_FORECAST_SNAPSHOTS].create_index("id", unique=True, name="uq_alloc_sec_forecast_id")
+    await idx_db[COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_alloc_sec_ai_insight_id")
+    await idx_db[COL_AI_INSIGHTS].create_index([("generated_at", -1)], name="ix_alloc_sec_ai_gen")
 
     # M11 Resource Section (workforce deployability overlay)
-    await db[RS_COL_PROFILES].create_index("resource_id", unique=True, name="uq_res_sec_profile_resource")
-    await db[RS_COL_CLASSIFICATIONS].create_index("id", unique=True, name="uq_res_sec_class_id")
-    await db[RS_COL_CLASSIFICATIONS].create_index([("resource_id", 1), ("tag", 1)], name="ix_res_sec_class_resource_tag")
-    await db[RS_COL_SKILL_RECORDS].create_index("id", unique=True, name="uq_res_sec_skill_id")
-    await db[RS_COL_SKILL_RECORDS].create_index([("resource_id", 1), ("skill_name", 1)], name="ix_res_sec_skill_resource")
-    await db[RS_COL_AVAILABILITY].create_index("id", unique=True, name="uq_res_sec_avail_id")
-    await db[RS_COL_AVAILABILITY].create_index([("resource_id", 1), ("updated_on", -1)], name="ix_res_sec_avail_resource")
-    await db[RS_COL_UTIL_SNAPSHOTS].create_index("id", unique=True, name="uq_res_sec_util_id")
-    await db[RS_COL_UTIL_SNAPSHOTS].create_index([("resource_id", 1), ("snapshot_period", -1)], name="ix_res_sec_util_resource_period")
-    await db[RS_COL_BENCH_RECORDS].create_index("id", unique=True, name="uq_res_sec_bench_id")
-    await db[RS_COL_BENCH_RECORDS].create_index([("resource_id", 1), ("bench_start_date", -1)], name="ix_res_sec_bench_resource")
-    await db[RS_COL_READINESS].create_index("id", unique=True, name="uq_res_sec_readiness_id")
-    await db[RS_COL_READINESS].create_index([("resource_id", 1), ("calculated_on", -1)], name="ix_res_sec_readiness_resource")
-    await db[RS_COL_DEMAND_MATCHES].create_index("id", unique=True, name="uq_res_sec_match_id")
-    await db[RS_COL_DEMAND_MATCHES].create_index([("resource_id", 1), ("fit_score", -1)], name="ix_res_sec_match_resource_score")
-    await db[RS_COL_MOBILITY].create_index("id", unique=True, name="uq_res_sec_mobility_id")
-    await db[RS_COL_MOBILITY].create_index([("resource_id", 1), ("event_date", -1)], name="ix_res_sec_mobility_resource")
-    await db[RS_COL_CAREER].create_index("resource_id", unique=True, name="uq_res_sec_career_resource")
-    await db[RS_COL_LEARNING].create_index("id", unique=True, name="uq_res_sec_learning_id")
-    await db[RS_COL_CERTIFICATIONS].create_index("id", unique=True, name="uq_res_sec_cert_id")
-    await db[RS_COL_CERTIFICATIONS].create_index([("resource_id", 1), ("expiry_date", 1)], name="ix_res_sec_cert_resource_exp")
-    await db[RS_COL_COST_PROFILES].create_index("resource_id", unique=True, name="uq_res_sec_cost_resource")
-    await db[RS_COL_ATTENDANCE_IMPACT].create_index("id", unique=True, name="uq_res_sec_att_id")
-    await db[RS_COL_RESOURCE_DOCUMENTS].create_index("id", unique=True, name="uq_res_sec_doc_id")
-    await db[RS_COL_COMPLIANCE].create_index("id", unique=True, name="uq_res_sec_compliance_id")
-    await db[RS_COL_RESOURCE_NOTES].create_index("id", unique=True, name="uq_res_sec_note_id")
-    await db[RS_COL_RESOURCE_NOTES].create_index([("resource_id", 1), ("created_at", -1)], name="ix_res_sec_note_resource")
-    await db[RS_COL_ACTIVITY].create_index("id", unique=True, name="uq_res_sec_activity_id")
-    await db[RS_COL_ACTIVITY].create_index([("created_at", -1)], name="ix_res_sec_activity_created")
-    await db[RS_COL_APPROVALS].create_index("id", unique=True, name="uq_res_sec_appr_id")
-    await db[RS_COL_APPROVALS].create_index([("status", 1), ("submitted_on", -1)], name="ix_res_sec_appr_status")
-    await db[RS_COL_FORECASTS].create_index("id", unique=True, name="uq_res_sec_forecast_id")
-    await db[RS_COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_res_sec_ai_id")
-    await db[RS_COL_AI_INSIGHTS].create_index([("resource_id", 1), ("generated_at", -1)], name="ix_res_sec_ai_resource_gen")
+    await idx_db[RS_COL_PROFILES].create_index("resource_id", unique=True, name="uq_res_sec_profile_resource")
+    await idx_db[RS_COL_CLASSIFICATIONS].create_index("id", unique=True, name="uq_res_sec_class_id")
+    await idx_db[RS_COL_CLASSIFICATIONS].create_index([("resource_id", 1), ("tag", 1)], name="ix_res_sec_class_resource_tag")
+    await idx_db[RS_COL_SKILL_RECORDS].create_index("id", unique=True, name="uq_res_sec_skill_id")
+    await idx_db[RS_COL_SKILL_RECORDS].create_index([("resource_id", 1), ("skill_name", 1)], name="ix_res_sec_skill_resource")
+    await idx_db[RS_COL_AVAILABILITY].create_index("id", unique=True, name="uq_res_sec_avail_id")
+    await idx_db[RS_COL_AVAILABILITY].create_index([("resource_id", 1), ("updated_on", -1)], name="ix_res_sec_avail_resource")
+    await idx_db[RS_COL_UTIL_SNAPSHOTS].create_index("id", unique=True, name="uq_res_sec_util_id")
+    await idx_db[RS_COL_UTIL_SNAPSHOTS].create_index([("resource_id", 1), ("snapshot_period", -1)], name="ix_res_sec_util_resource_period")
+    await idx_db[RS_COL_BENCH_RECORDS].create_index("id", unique=True, name="uq_res_sec_bench_id")
+    await idx_db[RS_COL_BENCH_RECORDS].create_index([("resource_id", 1), ("bench_start_date", -1)], name="ix_res_sec_bench_resource")
+    await idx_db[RS_COL_READINESS].create_index("id", unique=True, name="uq_res_sec_readiness_id")
+    await idx_db[RS_COL_READINESS].create_index([("resource_id", 1), ("calculated_on", -1)], name="ix_res_sec_readiness_resource")
+    await idx_db[RS_COL_DEMAND_MATCHES].create_index("id", unique=True, name="uq_res_sec_match_id")
+    await idx_db[RS_COL_DEMAND_MATCHES].create_index([("resource_id", 1), ("fit_score", -1)], name="ix_res_sec_match_resource_score")
+    await idx_db[RS_COL_MOBILITY].create_index("id", unique=True, name="uq_res_sec_mobility_id")
+    await idx_db[RS_COL_MOBILITY].create_index([("resource_id", 1), ("event_date", -1)], name="ix_res_sec_mobility_resource")
+    await idx_db[RS_COL_CAREER].create_index("resource_id", unique=True, name="uq_res_sec_career_resource")
+    await idx_db[RS_COL_LEARNING].create_index("id", unique=True, name="uq_res_sec_learning_id")
+    await idx_db[RS_COL_CERTIFICATIONS].create_index("id", unique=True, name="uq_res_sec_cert_id")
+    await idx_db[RS_COL_CERTIFICATIONS].create_index([("resource_id", 1), ("expiry_date", 1)], name="ix_res_sec_cert_resource_exp")
+    await idx_db[RS_COL_COST_PROFILES].create_index("resource_id", unique=True, name="uq_res_sec_cost_resource")
+    await idx_db[RS_COL_ATTENDANCE_IMPACT].create_index("id", unique=True, name="uq_res_sec_att_id")
+    await idx_db[RS_COL_RESOURCE_DOCUMENTS].create_index("id", unique=True, name="uq_res_sec_doc_id")
+    await idx_db[RS_COL_COMPLIANCE].create_index("id", unique=True, name="uq_res_sec_compliance_id")
+    await idx_db[RS_COL_RESOURCE_NOTES].create_index("id", unique=True, name="uq_res_sec_note_id")
+    await idx_db[RS_COL_RESOURCE_NOTES].create_index([("resource_id", 1), ("created_at", -1)], name="ix_res_sec_note_resource")
+    await idx_db[RS_COL_ACTIVITY].create_index("id", unique=True, name="uq_res_sec_activity_id")
+    await idx_db[RS_COL_ACTIVITY].create_index([("created_at", -1)], name="ix_res_sec_activity_created")
+    await idx_db[RS_COL_APPROVALS].create_index("id", unique=True, name="uq_res_sec_appr_id")
+    await idx_db[RS_COL_APPROVALS].create_index([("status", 1), ("submitted_on", -1)], name="ix_res_sec_appr_status")
+    await idx_db[RS_COL_FORECASTS].create_index("id", unique=True, name="uq_res_sec_forecast_id")
+    await idx_db[RS_COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_res_sec_ai_id")
+    await idx_db[RS_COL_AI_INSIGHTS].create_index([("resource_id", 1), ("generated_at", -1)], name="ix_res_sec_ai_resource_gen")
 
     # M10 event backbone (outbox + idempotency)
-    await db[COL_M10_EVENTS].create_index("event_id", unique=True, name="uq_m10_event_id")
-    await db[COL_M10_EVENTS].create_index([("status", 1), ("created_at", 1)], name="ix_m10_event_status_created")
-    await db[COL_M10_EVENTS].create_index([("topic", 1), ("created_at", -1)], name="ix_m10_event_topic_created")
-    await db[COL_M10_EVENTS].create_index(
+    await idx_db[COL_M10_EVENTS].create_index("event_id", unique=True, name="uq_m10_event_id")
+    await idx_db[COL_M10_EVENTS].create_index([("status", 1), ("created_at", 1)], name="ix_m10_event_status_created")
+    await idx_db[COL_M10_EVENTS].create_index([("topic", 1), ("created_at", -1)], name="ix_m10_event_topic_created")
+    await idx_db[COL_M10_EVENTS].create_index(
         [("topic", 1), ("idempotency_key", 1)],
         unique=True,
         partialFilterExpression={"idempotency_key": {"$type": "string"}},
         name="uq_m10_event_topic_idempotency",
     )
-    await db[COL_M10_IDEMPOTENCY].create_index(
+    await idx_db[COL_M10_IDEMPOTENCY].create_index(
         [("consumer", 1), ("topic", 1), ("idempotency_key", 1)],
         unique=True,
         name="uq_m10_idempotency_consumer_topic_key",
     )
-    await db[COL_M10_HANDLER_AUDIT].create_index(
+    await idx_db[COL_M10_HANDLER_AUDIT].create_index(
         [("event_id", 1), ("at", -1)], name="ix_m10_handler_audit_event_at"
     )
-    await db[COL_M10_HANDLER_AUDIT].create_index([("at", -1)], name="ix_m10_handler_audit_at")
+    await idx_db[COL_M10_HANDLER_AUDIT].create_index([("at", -1)], name="ix_m10_handler_audit_at")
+
+    # Smart Hiring assessments
+    await idx_db.assessments.create_index("id", unique=True, name="uq_hiring_assessment_id")
+    await idx_db.assessments.create_index([("job_id", 1), ("created_at", -1)], name="ix_hiring_assessment_job_created")
+    await idx_db.assessment_submissions.create_index("id", unique=True, name="uq_hiring_assess_sub_id")
+    await idx_db.assessment_submissions.create_index("access_token", unique=True, name="uq_hiring_assess_sub_token")
+    await idx_db.assessment_submissions.create_index(
+        [("assessment_id", 1), ("candidate_id", 1)], name="ix_hiring_assess_sub_assess_cand"
+    )
+    await idx_db.assessment_submissions.create_index([("job_id", 1), ("status", 1)], name="ix_hiring_assess_sub_job_status")
+    await idx_db.assessment_submissions.create_index([("invited_at", -1)], name="ix_hiring_assess_sub_invited")
+    await idx_db.assessment_submissions.create_index(
+        [("status", 1), ("reminder_sent_at", 1), ("invited_at", 1)],
+        name="ix_hiring_assess_sub_reminder",
+    )
+    await idx_db.assessment_audit_log.create_index([("created_at", -1)], name="ix_hiring_assess_audit_created")
+    await idx_db.assessment_audit_log.create_index([("assessment_id", 1), ("created_at", -1)], name="ix_hiring_assess_audit_assess")
+    await idx_db.assessment_invite_emails.create_index([("status", 1), ("created_at", 1)], name="ix_hiring_assess_email_queue")
 
     # M12 Training & Development (enterprise LMS module)
-    await db[TD_COL_TRAINING_PROGRAMS].create_index("id", unique=True, name="uq_td_program_id")
-    await db[TD_COL_TRAINING_PROGRAMS].create_index("training_code", unique=True, name="uq_td_program_code", partialFilterExpression={"deleted_at": None})
-    await db[TD_COL_TRAINING_PROGRAMS].create_index([("status", 1), ("updated_at", -1)], name="ix_td_program_status_updated")
-    await db[TD_COL_TRAINING_BATCHES].create_index("id", unique=True, name="uq_td_batch_id")
-    await db[TD_COL_TRAINING_BATCHES].create_index([("training_id", 1), ("created_at", -1)], name="ix_td_batch_training_created")
-    await db[TD_COL_TRAINING_SESSIONS].create_index("id", unique=True, name="uq_td_session_id")
-    await db[TD_COL_TRAINING_SESSIONS].create_index([("training_id", 1), ("start_datetime", 1)], name="ix_td_session_training_start")
-    await db[TD_COL_TRAINING_ENROLLMENTS].create_index("id", unique=True, name="uq_td_enrollment_id")
-    await db[TD_COL_TRAINING_ENROLLMENTS].create_index([("training_id", 1), ("enrolled_on", -1)], name="ix_td_enr_training_enrolled")
-    await db[TD_COL_TRAINING_ENROLLMENTS].create_index([("employee_id", 1), ("enrollment_status", 1)], name="ix_td_enr_employee_status")
-    await db[TD_COL_TRAINING_ATTENDANCE].create_index("id", unique=True, name="uq_td_attendance_id")
-    await db[TD_COL_TRAINING_ATTENDANCE].create_index([("session_id", 1), ("employee_id", 1)], name="ix_td_att_session_employee")
-    await db[TD_COL_CATALOG_ITEMS].create_index("id", unique=True, name="uq_td_catalog_id")
-    await db[TD_COL_CATALOG_ITEMS].create_index([("catalog_type", 1), ("status", 1)], name="ix_td_catalog_type_status")
-    await db[TD_COL_EXTENDED_RECORDS].create_index("id", unique=True, name="uq_td_extended_id")
-    await db[TD_COL_EXTENDED_RECORDS].create_index([("record_type", 1), ("created_at", -1)], name="ix_td_extended_type_created")
-    await db[TD_COL_EXTENDED_RECORDS].create_index([("employee_id", 1), ("record_type", 1)], name="ix_td_extended_emp_type")
-    await db[TD_COL_APPROVAL_REQUESTS].create_index("id", unique=True, name="uq_td_appr_id")
-    await db[TD_COL_APPROVAL_REQUESTS].create_index([("status", 1), ("submitted_at", -1)], name="ix_td_appr_status_submitted")
-    await db[TD_COL_ASSESSMENTS].create_index("id", unique=True, name="uq_td_assessment_id")
-    await db[TD_COL_ASSESSMENTS].create_index([("training_id", 1)], name="ix_td_assessment_training")
-    await db[TD_COL_ASSESSMENT_RESULTS].create_index("id", unique=True, name="uq_td_assess_result_id")
-    await db[TD_COL_ASSESSMENT_RESULTS].create_index([("training_id", 1), ("employee_id", 1)], name="ix_td_assess_res_training_emp")
+    await idx_db[TD_COL_TRAINING_PROGRAMS].create_index("id", unique=True, name="uq_td_program_id")
+    await idx_db[TD_COL_TRAINING_PROGRAMS].create_index("training_code", unique=True, name="uq_td_program_code", partialFilterExpression={"deleted_at": None})
+    await idx_db[TD_COL_TRAINING_PROGRAMS].create_index([("status", 1), ("updated_at", -1)], name="ix_td_program_status_updated")
+    await idx_db[TD_COL_TRAINING_BATCHES].create_index("id", unique=True, name="uq_td_batch_id")
+    await idx_db[TD_COL_TRAINING_BATCHES].create_index([("training_id", 1), ("created_at", -1)], name="ix_td_batch_training_created")
+    await idx_db[TD_COL_TRAINING_SESSIONS].create_index("id", unique=True, name="uq_td_session_id")
+    await idx_db[TD_COL_TRAINING_SESSIONS].create_index([("training_id", 1), ("start_datetime", 1)], name="ix_td_session_training_start")
+    await idx_db[TD_COL_TRAINING_ENROLLMENTS].create_index("id", unique=True, name="uq_td_enrollment_id")
+    await idx_db[TD_COL_TRAINING_ENROLLMENTS].create_index([("training_id", 1), ("enrolled_on", -1)], name="ix_td_enr_training_enrolled")
+    await idx_db[TD_COL_TRAINING_ENROLLMENTS].create_index([("employee_id", 1), ("enrollment_status", 1)], name="ix_td_enr_employee_status")
+    await idx_db[TD_COL_TRAINING_ATTENDANCE].create_index("id", unique=True, name="uq_td_attendance_id")
+    await idx_db[TD_COL_TRAINING_ATTENDANCE].create_index([("session_id", 1), ("employee_id", 1)], name="ix_td_att_session_employee")
+    await idx_db[TD_COL_CATALOG_ITEMS].create_index("id", unique=True, name="uq_td_catalog_id")
+    await idx_db[TD_COL_CATALOG_ITEMS].create_index([("catalog_type", 1), ("status", 1)], name="ix_td_catalog_type_status")
+    await idx_db[TD_COL_EXTENDED_RECORDS].create_index("id", unique=True, name="uq_td_extended_id")
+    await idx_db[TD_COL_EXTENDED_RECORDS].create_index([("record_type", 1), ("created_at", -1)], name="ix_td_extended_type_created")
+    await idx_db[TD_COL_EXTENDED_RECORDS].create_index([("employee_id", 1), ("record_type", 1)], name="ix_td_extended_emp_type")
+    await idx_db[TD_COL_APPROVAL_REQUESTS].create_index("id", unique=True, name="uq_td_appr_id")
+    await idx_db[TD_COL_APPROVAL_REQUESTS].create_index([("status", 1), ("submitted_at", -1)], name="ix_td_appr_status_submitted")
+    await idx_db[TD_COL_ASSESSMENTS].create_index("id", unique=True, name="uq_td_assessment_id")
+    await idx_db[TD_COL_ASSESSMENTS].create_index([("training_id", 1)], name="ix_td_assessment_training")
+    await idx_db[TD_COL_ASSESSMENT_RESULTS].create_index("id", unique=True, name="uq_td_assess_result_id")
+    await idx_db[TD_COL_ASSESSMENT_RESULTS].create_index([("training_id", 1), ("employee_id", 1)], name="ix_td_assess_res_training_emp")
 
     # M13 High-Skill Talent Retention (strategic retention intelligence)
-    await db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index("id", unique=True, name="uq_hsr_profile_id")
-    await db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index(
+    await idx_db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index("id", unique=True, name="uq_hsr_profile_id")
+    await idx_db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index(
         "talent_code",
         unique=True,
         name="uq_hsr_talent_code",
         partialFilterExpression={"deleted_at": None},
     )
-    await db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index(
+    await idx_db[HSR_COL_CRITICAL_TALENT_PROFILES].create_index(
         [("current_risk_level", 1), ("updated_at", -1)],
         name="ix_hsr_profile_risk_updated",
     )
-    await db[HSR_COL_TALENT_CRITICALITY_TAGS].create_index("id", unique=True, name="uq_hsr_tag_id")
-    await db[HSR_COL_TALENT_CRITICALITY_TAGS].create_index(
+    await idx_db[HSR_COL_TALENT_CRITICALITY_TAGS].create_index("id", unique=True, name="uq_hsr_tag_id")
+    await idx_db[HSR_COL_TALENT_CRITICALITY_TAGS].create_index(
         [("employee_id", 1), ("tag_type", 1), ("active_flag", 1)],
         name="ix_hsr_tags_emp_type_active",
     )
-    await db[HSR_COL_TALENT_SEGMENTS].create_index("id", unique=True, name="uq_hsr_segment_id")
-    await db[HSR_COL_TALENT_SEGMENTS].create_index(
+    await idx_db[HSR_COL_TALENT_SEGMENTS].create_index("id", unique=True, name="uq_hsr_segment_id")
+    await idx_db[HSR_COL_TALENT_SEGMENTS].create_index(
         [("segment_type", 1), ("priority_score", -1)],
         name="ix_hsr_segments_type_priority",
     )
-    await db[HSR_COL_RISK_ASSESSMENTS].create_index("id", unique=True, name="uq_hsr_risk_id")
-    await db[HSR_COL_RISK_ASSESSMENTS].create_index([("employee_id", 1), ("assessed_on", -1)], name="ix_hsr_risk_emp_assessed")
-    await db[HSR_COL_ATTRITION_PREDICTIONS].create_index("id", unique=True, name="uq_hsr_pred_id")
-    await db[HSR_COL_ATTRITION_PREDICTIONS].create_index([("employee_id", 1), ("generated_at", -1)], name="ix_hsr_pred_emp_gen")
-    await db[HSR_COL_STAY_INTERVIEWS].create_index("id", unique=True, name="uq_hsr_stay_id")
-    await db[HSR_COL_STAY_INTERVIEWS].create_index([("employee_id", 1), ("scheduled_on", -1)], name="ix_hsr_stay_emp_sched")
-    await db[HSR_COL_RETENTION_CASES].create_index("id", unique=True, name="uq_hsr_case_id")
-    await db[HSR_COL_RETENTION_CASES].create_index([("status", 1), ("opened_on", -1)], name="ix_hsr_case_status_opened")
-    await db[HSR_COL_ENGAGEMENT_ACTION_PLANS].create_index("id", unique=True, name="uq_hsr_action_id")
-    await db[HSR_COL_ENGAGEMENT_ACTION_PLANS].create_index([("employee_id", 1), ("status", 1)], name="ix_hsr_action_emp_status")
-    await db[HSR_COL_EXIT_RISK_TRIGGERS].create_index("id", unique=True, name="uq_hsr_trigger_id")
-    await db[HSR_COL_EXIT_RISK_TRIGGERS].create_index([("severity", 1), ("detected_on", -1)], name="ix_hsr_trigger_sev_detected")
-    await db[HSR_COL_STABILITY_FORECASTS].create_index("id", unique=True, name="uq_hsr_forecast_id")
-    await db[HSR_COL_AI_RECOMMENDATIONS].create_index("id", unique=True, name="uq_hsr_ai_rec_id")
-    await db[HSR_COL_AI_FLIGHT_RISK].create_index("id", unique=True, name="uq_hsr_ai_risk_id")
-    await db[HSR_COL_SEARCH_LOGS].create_index("id", unique=True, name="uq_hsr_search_id")
-    await db[HSR_COL_SEARCH_LOGS].create_index([("ts", -1)], name="ix_hsr_search_ts")
+    await idx_db[HSR_COL_RISK_ASSESSMENTS].create_index("id", unique=True, name="uq_hsr_risk_id")
+    await idx_db[HSR_COL_RISK_ASSESSMENTS].create_index([("employee_id", 1), ("assessed_on", -1)], name="ix_hsr_risk_emp_assessed")
+    await idx_db[HSR_COL_ATTRITION_PREDICTIONS].create_index("id", unique=True, name="uq_hsr_pred_id")
+    await idx_db[HSR_COL_ATTRITION_PREDICTIONS].create_index([("employee_id", 1), ("generated_at", -1)], name="ix_hsr_pred_emp_gen")
+    await idx_db[HSR_COL_STAY_INTERVIEWS].create_index("id", unique=True, name="uq_hsr_stay_id")
+    await idx_db[HSR_COL_STAY_INTERVIEWS].create_index([("employee_id", 1), ("scheduled_on", -1)], name="ix_hsr_stay_emp_sched")
+    await idx_db[HSR_COL_RETENTION_CASES].create_index("id", unique=True, name="uq_hsr_case_id")
+    await idx_db[HSR_COL_RETENTION_CASES].create_index([("status", 1), ("opened_on", -1)], name="ix_hsr_case_status_opened")
+    await idx_db[HSR_COL_ENGAGEMENT_ACTION_PLANS].create_index("id", unique=True, name="uq_hsr_action_id")
+    await idx_db[HSR_COL_ENGAGEMENT_ACTION_PLANS].create_index([("employee_id", 1), ("status", 1)], name="ix_hsr_action_emp_status")
+    await idx_db[HSR_COL_EXIT_RISK_TRIGGERS].create_index("id", unique=True, name="uq_hsr_trigger_id")
+    await idx_db[HSR_COL_EXIT_RISK_TRIGGERS].create_index([("severity", 1), ("detected_on", -1)], name="ix_hsr_trigger_sev_detected")
+    await idx_db[HSR_COL_STABILITY_FORECASTS].create_index("id", unique=True, name="uq_hsr_forecast_id")
+    await idx_db[HSR_COL_AI_RECOMMENDATIONS].create_index("id", unique=True, name="uq_hsr_ai_rec_id")
+    await idx_db[HSR_COL_AI_FLIGHT_RISK].create_index("id", unique=True, name="uq_hsr_ai_risk_id")
+    await idx_db[HSR_COL_SEARCH_LOGS].create_index("id", unique=True, name="uq_hsr_search_id")
+    await idx_db[HSR_COL_SEARCH_LOGS].create_index([("ts", -1)], name="ix_hsr_search_ts")
 
     # M14 Employee Lifecycle Management (journey orchestration)
-    await db[ELM_COL_PREBOARDING].create_index("id", unique=True, name="uq_elm_preboarding_id")
-    await db[ELM_COL_PREBOARDING].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_preboarding_emp_created")
-    await db[ELM_COL_ONBOARDING].create_index("id", unique=True, name="uq_elm_onboarding_id")
-    await db[ELM_COL_ONBOARDING].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_onboarding_emp_created")
-    await db[ELM_COL_PROBATION].create_index("id", unique=True, name="uq_elm_probation_id")
-    await db[ELM_COL_PROBATION].create_index([("employee_id", 1), ("probation_end_date", 1)], name="ix_elm_probation_emp_end")
-    await db[ELM_COL_CONFIRMATION].create_index("id", unique=True, name="uq_elm_confirmation_id")
-    await db[ELM_COL_CONFIRMATION].create_index([("approval_status", 1), ("confirmation_due_date", 1)], name="ix_elm_confirmation_status_due")
-    await db[ELM_COL_EMPLOYEE_DOCUMENTS].create_index("id", unique=True, name="uq_elm_doc_id")
-    await db[ELM_COL_EMPLOYEE_DOCUMENTS].create_index([("employee_id", 1), ("uploaded_at", -1)], name="ix_elm_doc_emp_uploaded")
-    await db[ELM_COL_BGV].create_index("id", unique=True, name="uq_elm_bgv_id")
-    await db[ELM_COL_BGV].create_index([("employee_id", 1), ("bgv_overall_status", 1)], name="ix_elm_bgv_emp_status")
-    await db[ELM_COL_POLICY_CONSENTS].create_index("id", unique=True, name="uq_elm_consent_id")
-    await db[ELM_COL_POLICY_CONSENTS].create_index([("employee_id", 1), ("policy_type", 1)], name="ix_elm_consent_emp_policy")
-    await db[ELM_COL_ACCESS_PROVISIONING].create_index("id", unique=True, name="uq_elm_prov_id")
-    await db[ELM_COL_ACCESS_PROVISIONING].create_index([("employee_id", 1), ("provisioning_status", 1)], name="ix_elm_prov_emp_status")
-    await db[ELM_COL_PAYROLL_LINKAGE].create_index("id", unique=True, name="uq_elm_payroll_id")
-    await db[ELM_COL_PAYROLL_LINKAGE].create_index([("employee_id", 1), ("payroll_readiness_status", 1)], name="ix_elm_payroll_emp_status")
-    await db[ELM_COL_APPROVAL_REQUESTS].create_index("id", unique=True, name="uq_elm_appr_id")
-    await db[ELM_COL_APPROVAL_REQUESTS].create_index([("status", 1), ("submitted_at", -1)], name="ix_elm_appr_status_submitted")
-    await db[ELM_COL_RETENTION_SIGNALS].create_index("id", unique=True, name="uq_elm_ret_signal_id")
-    await db[ELM_COL_RETENTION_SIGNALS].create_index([("severity", 1), ("detected_on", -1)], name="ix_elm_ret_signal_sev_detected")
-    await db[ELM_COL_RESIGNATION].create_index("id", unique=True, name="uq_elm_resignation_id")
-    await db[ELM_COL_RESIGNATION].create_index([("approval_status", 1), ("resignation_submitted_on", -1)], name="ix_elm_resignation_status_submitted")
-    await db[ELM_COL_NOTICE].create_index("id", unique=True, name="uq_elm_notice_id")
-    await db[ELM_COL_EXIT_INTERVIEW].create_index("id", unique=True, name="uq_elm_exit_interview_id")
-    await db[ELM_COL_CLEARANCE].create_index("id", unique=True, name="uq_elm_clearance_id")
-    await db[ELM_COL_FORECASTS].create_index("id", unique=True, name="uq_elm_forecast_id")
-    await db[ELM_COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_elm_ai_id")
-    await db[ELM_COL_AI_INSIGHTS].create_index([("generated_at", -1)], name="ix_elm_ai_generated")
-    await db[ELM_COL_LIFECYCLE_NOTES].create_index("id", unique=True, name="uq_elm_note_id")
-    await db[ELM_COL_LIFECYCLE_NOTES].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_note_emp_created")
-    await db[ELM_COL_ACTIVITY_LOGS].create_index([("ts", -1)], name="ix_elm_activity_ts")
+    await idx_db[ELM_COL_PREBOARDING].create_index("id", unique=True, name="uq_elm_preboarding_id")
+    await idx_db[ELM_COL_PREBOARDING].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_preboarding_emp_created")
+    await idx_db[ELM_COL_ONBOARDING].create_index("id", unique=True, name="uq_elm_onboarding_id")
+    await idx_db[ELM_COL_ONBOARDING].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_onboarding_emp_created")
+    await idx_db[ELM_COL_PROBATION].create_index("id", unique=True, name="uq_elm_probation_id")
+    await idx_db[ELM_COL_PROBATION].create_index([("employee_id", 1), ("probation_end_date", 1)], name="ix_elm_probation_emp_end")
+    await idx_db[ELM_COL_CONFIRMATION].create_index("id", unique=True, name="uq_elm_confirmation_id")
+    await idx_db[ELM_COL_CONFIRMATION].create_index([("approval_status", 1), ("confirmation_due_date", 1)], name="ix_elm_confirmation_status_due")
+    await idx_db[ELM_COL_EMPLOYEE_DOCUMENTS].create_index("id", unique=True, name="uq_elm_doc_id")
+    await idx_db[ELM_COL_EMPLOYEE_DOCUMENTS].create_index([("employee_id", 1), ("uploaded_at", -1)], name="ix_elm_doc_emp_uploaded")
+    await idx_db[ELM_COL_BGV].create_index("id", unique=True, name="uq_elm_bgv_id")
+    await idx_db[ELM_COL_BGV].create_index([("employee_id", 1), ("bgv_overall_status", 1)], name="ix_elm_bgv_emp_status")
+    await idx_db[ELM_COL_POLICY_CONSENTS].create_index("id", unique=True, name="uq_elm_consent_id")
+    await idx_db[ELM_COL_POLICY_CONSENTS].create_index([("employee_id", 1), ("policy_type", 1)], name="ix_elm_consent_emp_policy")
+    await idx_db[ELM_COL_ACCESS_PROVISIONING].create_index("id", unique=True, name="uq_elm_prov_id")
+    await idx_db[ELM_COL_ACCESS_PROVISIONING].create_index([("employee_id", 1), ("provisioning_status", 1)], name="ix_elm_prov_emp_status")
+    await idx_db[ELM_COL_PAYROLL_LINKAGE].create_index("id", unique=True, name="uq_elm_payroll_id")
+    await idx_db[ELM_COL_PAYROLL_LINKAGE].create_index([("employee_id", 1), ("payroll_readiness_status", 1)], name="ix_elm_payroll_emp_status")
+    await idx_db[ELM_COL_APPROVAL_REQUESTS].create_index("id", unique=True, name="uq_elm_appr_id")
+    await idx_db[ELM_COL_APPROVAL_REQUESTS].create_index([("status", 1), ("submitted_at", -1)], name="ix_elm_appr_status_submitted")
+    await idx_db[ELM_COL_RETENTION_SIGNALS].create_index("id", unique=True, name="uq_elm_ret_signal_id")
+    await idx_db[ELM_COL_RETENTION_SIGNALS].create_index([("severity", 1), ("detected_on", -1)], name="ix_elm_ret_signal_sev_detected")
+    await idx_db[ELM_COL_RESIGNATION].create_index("id", unique=True, name="uq_elm_resignation_id")
+    await idx_db[ELM_COL_RESIGNATION].create_index([("approval_status", 1), ("resignation_submitted_on", -1)], name="ix_elm_resignation_status_submitted")
+    await idx_db[ELM_COL_NOTICE].create_index("id", unique=True, name="uq_elm_notice_id")
+    await idx_db[ELM_COL_EXIT_INTERVIEW].create_index("id", unique=True, name="uq_elm_exit_interview_id")
+    await idx_db[ELM_COL_CLEARANCE].create_index("id", unique=True, name="uq_elm_clearance_id")
+    await idx_db[ELM_COL_FORECASTS].create_index("id", unique=True, name="uq_elm_forecast_id")
+    await idx_db[ELM_COL_AI_INSIGHTS].create_index("id", unique=True, name="uq_elm_ai_id")
+    await idx_db[ELM_COL_AI_INSIGHTS].create_index([("generated_at", -1)], name="ix_elm_ai_generated")
+    await idx_db[ELM_COL_LIFECYCLE_NOTES].create_index("id", unique=True, name="uq_elm_note_id")
+    await idx_db[ELM_COL_LIFECYCLE_NOTES].create_index([("employee_id", 1), ("created_at", -1)], name="ix_elm_note_emp_created")
+    await idx_db[ELM_COL_ACTIVITY_LOGS].create_index([("ts", -1)], name="ix_elm_activity_ts")
 
     # M15 Workforce Intelligence (strategic decision support)
-    await db[WFI_COL_SNAPSHOT_RECORDS].create_index("id", unique=True, name="uq_wfi_snapshot_id")
-    await db[WFI_COL_SNAPSHOT_RECORDS].create_index([("snapshot_date", -1)], name="ix_wfi_snapshot_date")
-    await db[WFI_COL_HEADCOUNT_RECORDS].create_index("id", unique=True, name="uq_wfi_headcount_id")
-    await db[WFI_COL_HEADCOUNT_RECORDS].create_index(
+    await idx_db[WFI_COL_SNAPSHOT_RECORDS].create_index("id", unique=True, name="uq_wfi_snapshot_id")
+    await idx_db[WFI_COL_SNAPSHOT_RECORDS].create_index([("snapshot_date", -1)], name="ix_wfi_snapshot_date")
+    await idx_db[WFI_COL_HEADCOUNT_RECORDS].create_index("id", unique=True, name="uq_wfi_headcount_id")
+    await idx_db[WFI_COL_HEADCOUNT_RECORDS].create_index(
         [("snapshot_date", -1), ("business_unit", 1), ("department", 1), ("geography", 1)],
         name="ix_wfi_headcount_scope",
     )
-    await db[WFI_COL_DEMOGRAPHIC_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_demo_id")
-    await db[WFI_COL_DEMOGRAPHIC_SNAPSHOTS].create_index([("snapshot_date", -1), ("dimension_type", 1)], name="ix_wfi_demo_date_dim")
-    await db[WFI_COL_SKILL_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_skill_vis_id")
-    await db[WFI_COL_SKILL_VISIBILITY_RECORDS].create_index([("snapshot_date", -1), ("skill_name", 1)], name="ix_wfi_skill_vis_date_skill")
-    await db[WFI_COL_UTILIZATION_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_util_id")
-    await db[WFI_COL_UTILIZATION_SNAPSHOTS].create_index([("snapshot_date", -1), ("department", 1)], name="ix_wfi_util_date_dept")
-    await db[WFI_COL_ENGAGEMENT_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_eng_id")
-    await db[WFI_COL_PERFORMANCE_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_perf_id")
-    await db[WFI_COL_COMPLIANCE_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_comp_id")
-    await db[WFI_COL_COST_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_cost_id")
-    await db[WFI_COL_WORKFORCE_PLANS].create_index("id", unique=True, name="uq_wfi_plan_id")
-    await db[WFI_COL_DEMAND_SUPPLY_RECORDS].create_index("id", unique=True, name="uq_wfi_ds_id")
-    await db[WFI_COL_SCENARIO_MODELS].create_index("id", unique=True, name="uq_wfi_scenario_id")
-    await db[WFI_COL_MANAGER_EFFECTIVENESS_RECORDS].create_index("id", unique=True, name="uq_wfi_mgr_eff_id")
-    await db[WFI_COL_FORECASTS].create_index("id", unique=True, name="uq_wfi_forecast_id")
-    await db[WFI_COL_FORECASTS].create_index([("forecast_type", 1), ("generated_on", -1)], name="ix_wfi_forecast_type_gen")
-    await db[WFI_COL_ATTRITION_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_attr_pred_id")
-    await db[WFI_COL_BURNOUT_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_burn_pred_id")
-    await db[WFI_COL_SKILL_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_skill_risk_id")
-    await db[WFI_COL_COST_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_cost_risk_id")
-    await db[WFI_COL_COMPLIANCE_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_comp_risk_id")
-    await db[WFI_COL_AI_RECOMMENDATIONS].create_index("id", unique=True, name="uq_wfi_ai_rec_id")
-    await db[WFI_COL_COPILOT_QUERIES].create_index("id", unique=True, name="uq_wfi_copilot_id")
-    await db[WFI_COL_COPILOT_QUERIES].create_index([("created_at", -1)], name="ix_wfi_copilot_created")
-    await db[WFI_COL_STRATEGIC_RISK_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_strat_risk_id")
-    await db[WFI_COL_STRATEGIC_OPPORTUNITY_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_strat_opp_id")
-    await db[WFI_COL_EXECUTIVE_SUMMARY_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_exec_id")
-    await db[WFI_COL_ACTIVITY_LOGS].create_index([("ts", -1)], name="ix_wfi_activity_ts")
+    await idx_db[WFI_COL_DEMOGRAPHIC_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_demo_id")
+    await idx_db[WFI_COL_DEMOGRAPHIC_SNAPSHOTS].create_index([("snapshot_date", -1), ("dimension_type", 1)], name="ix_wfi_demo_date_dim")
+    await idx_db[WFI_COL_SKILL_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_skill_vis_id")
+    await idx_db[WFI_COL_SKILL_VISIBILITY_RECORDS].create_index([("snapshot_date", -1), ("skill_name", 1)], name="ix_wfi_skill_vis_date_skill")
+    await idx_db[WFI_COL_UTILIZATION_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_util_id")
+    await idx_db[WFI_COL_UTILIZATION_SNAPSHOTS].create_index([("snapshot_date", -1), ("department", 1)], name="ix_wfi_util_date_dept")
+    await idx_db[WFI_COL_ENGAGEMENT_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_eng_id")
+    await idx_db[WFI_COL_PERFORMANCE_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_perf_id")
+    await idx_db[WFI_COL_COMPLIANCE_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_comp_id")
+    await idx_db[WFI_COL_COST_VISIBILITY_RECORDS].create_index("id", unique=True, name="uq_wfi_cost_id")
+    await idx_db[WFI_COL_WORKFORCE_PLANS].create_index("id", unique=True, name="uq_wfi_plan_id")
+    await idx_db[WFI_COL_DEMAND_SUPPLY_RECORDS].create_index("id", unique=True, name="uq_wfi_ds_id")
+    await idx_db[WFI_COL_SCENARIO_MODELS].create_index("id", unique=True, name="uq_wfi_scenario_id")
+    await idx_db[WFI_COL_MANAGER_EFFECTIVENESS_RECORDS].create_index("id", unique=True, name="uq_wfi_mgr_eff_id")
+    await idx_db[WFI_COL_FORECASTS].create_index("id", unique=True, name="uq_wfi_forecast_id")
+    await idx_db[WFI_COL_FORECASTS].create_index([("forecast_type", 1), ("generated_on", -1)], name="ix_wfi_forecast_type_gen")
+    await idx_db[WFI_COL_ATTRITION_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_attr_pred_id")
+    await idx_db[WFI_COL_BURNOUT_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_burn_pred_id")
+    await idx_db[WFI_COL_SKILL_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_skill_risk_id")
+    await idx_db[WFI_COL_COST_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_cost_risk_id")
+    await idx_db[WFI_COL_COMPLIANCE_RISK_PREDICTIONS].create_index("id", unique=True, name="uq_wfi_comp_risk_id")
+    await idx_db[WFI_COL_AI_RECOMMENDATIONS].create_index("id", unique=True, name="uq_wfi_ai_rec_id")
+    await idx_db[WFI_COL_COPILOT_QUERIES].create_index("id", unique=True, name="uq_wfi_copilot_id")
+    await idx_db[WFI_COL_COPILOT_QUERIES].create_index([("created_at", -1)], name="ix_wfi_copilot_created")
+    await idx_db[WFI_COL_STRATEGIC_RISK_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_strat_risk_id")
+    await idx_db[WFI_COL_STRATEGIC_OPPORTUNITY_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_strat_opp_id")
+    await idx_db[WFI_COL_EXECUTIVE_SUMMARY_SNAPSHOTS].create_index("id", unique=True, name="uq_wfi_exec_id")
+    await idx_db[WFI_COL_ACTIVITY_LOGS].create_index([("ts", -1)], name="ix_wfi_activity_ts")
 
     # M16 Cost Optimization & Automation
     for _coa_col in ALL_INDEXED_COLLECTIONS:
-        await db[_coa_col].create_index("id", unique=True, name=f"uq_{_coa_col}_id")
-    await db["coa_budget_spend_records"].create_index(
+        await idx_db[_coa_col].create_index("id", unique=True, name=f"uq_{_coa_col}_id")
+    await idx_db["coa_budget_spend_records"].create_index(
         [("fiscal_period", 1), ("business_unit", 1), ("department", 1)], name="ix_coa_budget_scope"
     )
-    await db["coa_cost_forecast_records"].create_index([("forecast_type", 1), ("generated_on", -1)], name="ix_coa_forecast_type_gen")
-    await db["coa_copilot_query_logs"].create_index([("created_at", -1)], name="ix_coa_copilot_created")
+    await idx_db["coa_cost_forecast_records"].create_index([("forecast_type", 1), ("generated_on", -1)], name="ix_coa_forecast_type_gen")
+    await idx_db["coa_copilot_query_logs"].create_index([("created_at", -1)], name="ix_coa_copilot_created")
 
     # M17 Employee Satisfaction & Engagement
     await m17_ese_service.ensure_m17_indexes(db)
+
+    try:
+        recovered = await recover_stale_analyze_jobs(db)
+        if recovered:
+            logging.getLogger(__name__).info(
+                "Career trajectory: recovered %s background analyze job(s)", recovered
+            )
+    except Exception:
+        logging.getLogger(__name__).exception("Career trajectory job recovery failed on startup")
 
     if os.environ.get("M10_EVENT_CONSUMER_ENABLED", "1").strip().lower() not in ("0", "false", "no"):
         app.state.m10_consumer_task = spawn_consumer_task(db)

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { TRAINING_DEV_EXTRA_ROUTES } from './training-development/routeTable';
 import TrainingDevelopmentLayout from './training-development/TrainingDevelopmentLayout';
 import TrainingDevelopmentSectionLanding from './training-development/TrainingDevelopmentSectionLanding';
@@ -47,18 +47,32 @@ import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import LandingPage from './pages/LandingPage';
 import DashboardPage from './pages/DashboardPage';
+import LegacyHiringDashboardPage from './pages/LegacyHiringDashboardPage';
 import JobsPage from './pages/JobsPage';
 import CreateJobPage from './pages/CreateJobPage';
 import JobDetailPage from './pages/JobDetailPage';
 import CandidatesPage from './pages/CandidatesPage';
+import CareerTrajectoryPage from './pages/CareerTrajectoryPage';
+import CareerTrajectoryComparePage from './pages/CareerTrajectoryComparePage';
+import Phase2FitSimulationPage from './pages/Phase2FitSimulationPage';
 import CandidateProfilePage from './pages/CandidateProfilePage';
 import PipelinePage from './pages/PipelinePage';
 import ReferralsPage from './pages/ReferralsPage';
 import AssessmentsPage from './pages/AssessmentsPage';
+import AssessmentCommandCenterGate from './components/assessments/AssessmentCommandCenterGate';
+import AssessmentTakePage from './pages/AssessmentTakePage';
+
+function TakeAssessmentRedirect() {
+  const { token } = useParams();
+  return <Navigate to={`/assessment/take/${token}`} replace />;
+}
 import InterviewsPage from './pages/InterviewsPage';
 import AdminIntegrationsPage from './pages/AdminIntegrationsPage';
 import AdminRoleManagementPage from './pages/AdminRoleManagementPage';
 import AdminWorkflowAutomationPage from './pages/AdminWorkflowAutomationPage';
+import AdminExecutiveKpiPage from './pages/AdminExecutiveKpiPage';
+import AdminCareerTrajectoryConfigPage from './pages/AdminCareerTrajectoryConfigPage';
+import AdminHiringDashboardConfigPage from './pages/AdminHiringDashboardConfigPage';
 import WorkflowDesignerPage from './pages/WorkflowDesignerPage';
 import HrCopilotPage from './pages/HrCopilotPage';
 import TransformationPage from './pages/TransformationPage';
@@ -168,6 +182,8 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const hiringDashboardV2 = process.env.REACT_APP_HIRING_DASHBOARD_V2 !== '0';
+
 function AppRoutes() {
   return (
     <Routes>
@@ -183,7 +199,13 @@ function AppRoutes() {
       {/* Protected Routes */}
       <Route path="/dashboard" element={
         <ProtectedRoute>
-          <DashboardPage />
+          {hiringDashboardV2 ? <DashboardPage /> : <LegacyHiringDashboardPage />}
+        </ProtectedRoute>
+      } />
+
+      <Route path="/dashboard/legacy" element={
+        <ProtectedRoute>
+          <LegacyHiringDashboardPage />
         </ProtectedRoute>
       } />
       
@@ -222,7 +244,23 @@ function AppRoutes() {
           <CandidateProfilePage />
         </ProtectedRoute>
       } />
-      
+
+      <Route path="/ai-hiring/candidate-fit/career-trajectory" element={
+        <ProtectedRoute>
+          <CareerTrajectoryPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/ai-hiring/candidate-fit/career-trajectory/compare" element={
+        <ProtectedRoute>
+          <CareerTrajectoryComparePage />
+        </ProtectedRoute>
+      } />
+      <Route path="/ai-hiring/candidate-fit/phase2" element={
+        <ProtectedRoute>
+          <Phase2FitSimulationPage />
+        </ProtectedRoute>
+      } />
+
       <Route path="/pipeline" element={
         <ProtectedRoute>
           <PipelinePage />
@@ -235,9 +273,14 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/assessment/take/:token" element={<AssessmentTakePage />} />
+      <Route path="/take/:token" element={<TakeAssessmentRedirect />} />
+
       <Route path="/assessments" element={
         <ProtectedRoute>
-          <AssessmentsPage />
+          <AssessmentCommandCenterGate>
+            <AssessmentsPage />
+          </AssessmentCommandCenterGate>
         </ProtectedRoute>
       } />
       
@@ -838,6 +881,24 @@ function AppRoutes() {
       <Route path="/admin/workflow-automation" element={
         <AdminProtectedRoute>
           <AdminWorkflowAutomationPage />
+        </AdminProtectedRoute>
+      } />
+
+      <Route path="/admin/executive-kpi" element={
+        <AdminProtectedRoute>
+          <AdminExecutiveKpiPage />
+        </AdminProtectedRoute>
+      } />
+
+      <Route path="/admin/career-trajectory-config" element={
+        <AdminProtectedRoute>
+          <AdminCareerTrajectoryConfigPage />
+        </AdminProtectedRoute>
+      } />
+
+      <Route path="/admin/hiring-dashboard-config" element={
+        <AdminProtectedRoute>
+          <AdminHiringDashboardConfigPage />
         </AdminProtectedRoute>
       } />
 

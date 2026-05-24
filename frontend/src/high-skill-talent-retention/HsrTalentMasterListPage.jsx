@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { normalizeEmployeeCodeParam } from '../lib/drillQueryParams';
 import { toast } from 'sonner';
 import { highSkillRetentionApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,13 +11,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge';
 import { Loader2, Plus } from 'lucide-react';
 
+function initialSearchFromParams(searchParams) {
+  return (
+    normalizeEmployeeCodeParam(searchParams.get('q')) ||
+    normalizeEmployeeCodeParam(searchParams.get('employee_code')) ||
+    ''
+  );
+}
+
 const HsrTalentMasterListPage = () => {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 50;
-  const [filters, setFilters] = useState({ q: '', risk: 'all', segment: 'all' });
+  const [filters, setFilters] = useState(() => ({
+    q: initialSearchFromParams(searchParams),
+    risk: 'all',
+    segment: 'all',
+  }));
+
+  useEffect(() => {
+    const nextQ = initialSearchFromParams(searchParams);
+    if (nextQ && nextQ !== filters.q) {
+      setFilters((f) => ({ ...f, q: nextQ }));
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const params = useMemo(() => {
     const skip = (page - 1) * pageSize;
@@ -49,6 +72,9 @@ const HsrTalentMasterListPage = () => {
   }, [params]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const drillQuery =
+    normalizeEmployeeCodeParam(searchParams.get('employee_code')) ||
+    normalizeEmployeeCodeParam(searchParams.get('q'));
 
   if (loading && rows.length === 0) {
     return (
@@ -74,6 +100,27 @@ const HsrTalentMasterListPage = () => {
           </Link>
         </Button>
       </div>
+
+      {drillQuery ? (
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex flex-wrap items-center justify-between gap-2"
+          data-testid="hsr-talent-master-drill-banner"
+        >
+          <span>
+            Drill-down from Executive KPIs: employee <strong>{drillQuery}</strong>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to={`/high-skill-talent-retention/dashboard?employee_code=${encodeURIComponent(drillQuery)}`}>
+                Open retention dashboard
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/executive-kpis">Executive KPIs</Link>
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <Card className="border-slate-200">
         <CardHeader>

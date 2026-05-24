@@ -1,13 +1,13 @@
-"""M7 Cost Optimization & Automation — collection names."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_WORKFLOW_RULES = "workflow_automation_rules"
-COL_WORKFLOW_RUNS = "workflow_automation_runs"
-COL_HR_COPILOT_AUDIT = "hr_copilot_conversation_audit"
-COL_MANUAL_WORKFLOW_BASELINES = "manual_workflow_baselines"
+COL_HR_COPILOT_AUDIT = 'col_hr_copilot_audit'
 
-# Version tags for audit / compatibility
-WORKFLOW_ENGINE_VERSION = "m7-v3-flow-webhook"
-COPILOT_ENGINE_VERSION = "m7-v2-hf"
+COL_MANUAL_WORKFLOW_BASELINES = 'col_manual_workflow_baselines'
 
-# HR Copilot — Hugging Face Inference API (zero-shot NLI); override via env HR_COPILOT_HF_MODEL
-HR_COPILOT_HF_DEFAULT_MODEL = "typeform/distilbert-base-uncased-mnli"
+COL_WORKFLOW_RULES = 'col_workflow_rules'
+
+COL_WORKFLOW_RUNS = 'col_workflow_runs'
+
+COPILOT_ENGINE_VERSION = 'copilot_engine_version'
+
+WORKFLOW_ENGINE_VERSION = 'workflow_engine_version'

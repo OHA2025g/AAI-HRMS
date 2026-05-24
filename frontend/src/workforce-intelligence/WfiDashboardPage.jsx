@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
+import { normalizeSkillParam } from '../lib/drillQueryParams';
+import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -18,6 +21,8 @@ const Kpi = ({ title, value, hint }) => (
 );
 
 export default function WfiDashboardPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const drillSkill = normalizeSkillParam(searchParams.get('skill'));
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
@@ -41,14 +46,26 @@ export default function WfiDashboardPage() {
   const gaps = useMemo(() => data?.top_skill_gaps || [], [data]);
   const changes = useMemo(() => data?.recent_workforce_changes || [], [data]);
 
-  const chartData = useMemo(
-    () =>
-      (gaps || []).map((r) => ({
-        skill: r.skill_name,
-        gap: r.gap ?? Math.max(0, (r.demand_count || 0) - (r.supply_count || 0)),
-      })),
-    [gaps]
-  );
+  const chartData = useMemo(() => {
+    const rows = (gaps || []).map((r) => ({
+      skill: r.skill_name,
+      skill_name: r.skill_name,
+      demand_count: r.demand_count,
+      supply_count: r.supply_count,
+      gap: r.gap ?? Math.max(0, (r.demand_count || 0) - (r.supply_count || 0)),
+      highlighted: drillSkill
+        ? String(r.skill_name || '').toLowerCase() === drillSkill.toLowerCase()
+        : false,
+    }));
+    if (!drillSkill) return rows;
+    return [...rows].sort((a, b) => (b.highlighted ? 1 : 0) - (a.highlighted ? 1 : 0));
+  }, [gaps, drillSkill]);
+
+  const clearDrillSkill = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('skill');
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div className="space-y-4">
@@ -65,6 +82,22 @@ export default function WfiDashboardPage() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading dashboard…
+        </div>
+      ) : null}
+
+      {drillSkill ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+          <span>
+            Drill-down from Executive KPIs: skill <strong>{drillSkill}</strong>
+          </span>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/executive-kpis">Back to executive KPIs</Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearDrillSkill}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -94,7 +127,16 @@ export default function WfiDashboardPage() {
                   <XAxis dataKey="skill" tick={{ fontSize: 11 }} interval={0} />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="gap" fill="#6366F1" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="gap"
+                    radius={[4, 4, 0, 0]}
+                    fill="#6366F1"
+                    shape={(props) => {
+                      const { x, y, width, height, payload } = props;
+                      const fill = payload?.highlighted ? '#4F46E5' : '#6366F1';
+                      return <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} />;
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

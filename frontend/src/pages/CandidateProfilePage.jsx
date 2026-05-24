@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { candidatesApi } from '../lib/api';
+import { candidatesApi, applicationsApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -13,6 +13,9 @@ import { FitScoreCard, FitScoreRing } from '../components/FitScore';
 import { getCandidateDisplaySource } from '../lib/candidateSource';
 import { hasResumeDisplayContent } from '../lib/resumeContent';
 import { ResumeContentView } from '../components/ResumeContentView';
+import { CandidateCareerTrajectoryTab } from '../components/career-trajectory/CandidateCareerTrajectoryTab';
+import CandidateAssessmentsSection from '../components/assessments/CandidateAssessmentsSection';
+import ApplicationTimeline from '../components/hiring-dashboard/ApplicationTimeline';
 import { normalizeExperienceList } from '../lib/experienceParser';
 import { 
   ArrowLeft,
@@ -40,6 +43,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+
+function ApplicationStageTimeline({ applicationId }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!applicationId) return;
+    setLoading(true);
+    applicationsApi
+      .getStageHistory(applicationId)
+      .then((res) => setEntries(res.data || []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [applicationId]);
+
+  return <ApplicationTimeline entries={entries} loading={loading} />;
+}
 
 const CandidateProfilePage = () => {
   const { candidateId } = useParams();
@@ -188,7 +208,7 @@ const CandidateProfilePage = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/candidates')} data-testid="back-btn">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/candidates')} data-testid="back-btn" aria-label="Back to candidates">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex items-start gap-4">
@@ -316,6 +336,8 @@ const CandidateProfilePage = () => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="applications">Applications ({profile.applications?.length || 0})</TabsTrigger>
           <TabsTrigger value="experience">Experience</TabsTrigger>
+          <TabsTrigger value="career-trajectory">AI Career Trajectory</TabsTrigger>
+          <TabsTrigger value="assessments">Assessments</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -495,6 +517,11 @@ const CandidateProfilePage = () => {
                         <FitScoreCard fitScore={app.fit_score} showDetails />
                       </div>
                     )}
+
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                      <p className="text-sm font-medium text-slate-700 mb-3">Hiring timeline</p>
+                      <ApplicationStageTimeline applicationId={app.id} />
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -552,6 +579,18 @@ const CandidateProfilePage = () => {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="career-trajectory" className="mt-6">
+          <CandidateCareerTrajectoryTab
+            candidateId={candidateId}
+            resumeText={profile?.resume_text || ''}
+            candidateName={profile?.full_name}
+          />
+        </TabsContent>
+
+        <TabsContent value="assessments" className="mt-6">
+          <CandidateAssessmentsSection candidateId={candidateId} />
         </TabsContent>
       </Tabs>
     </motion.div>

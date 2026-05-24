@@ -182,7 +182,7 @@ const ReferralsPage = () => {
               Submit Referral
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[min(90vh,640px)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle style={{ fontFamily: 'Outfit' }}>Submit a Referral</DialogTitle>
               <DialogDescription>Refer a candidate for an open position</DialogDescription>
@@ -219,7 +219,7 @@ const ReferralsPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="candidate_email">Email</Label>
                   <Input

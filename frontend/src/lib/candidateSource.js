@@ -11,10 +11,36 @@ const TALENT_POOL_BADGE = {
   className: 'bg-emerald-100 text-emerald-800',
 };
 
+/** Candidates imported from the Excel workbook (not internal DB bulk seed). */
+const TALENT_POOL_EX_BADGE = {
+  label: 'Talent Pool-Ex',
+  className: 'bg-teal-100 text-teal-800',
+};
+
 const LINKEDIN_BADGE = {
   label: 'LinkedIn',
   className: 'bg-blue-100 text-blue-700',
 };
+
+/** Candidates imported from the Excel workbook (subset of talent pool for display ordering). */
+export function isExcelImportedCandidate(candidate) {
+  if (!candidate) return false;
+  const source = String(candidate.source || '').trim().toUpperCase();
+  const marker = String(candidate.seed_marker || '').trim();
+  if (marker === 'excel_candidates_v1') return true;
+  if (candidate.import_source_file || candidate.import_stable_id) return true;
+  if (source === 'EXCEL_IMPORT') return true;
+  return false;
+}
+
+/** Talent pool profiles that were not loaded from Excel (e.g. BULK_SEED). */
+export function isTalentPoolOnlyCandidate(candidate) {
+  if (!candidate || isExcelImportedCandidate(candidate)) return false;
+  if (isAiGeneratedCandidate(candidate)) return false;
+  const source = String(candidate.source || '').trim().toUpperCase();
+  if (source === 'BULK_SEED') return true;
+  return isTalentPoolCandidate(candidate);
+}
 
 /** Excel import, bulk DB seed, or explicit talent-pool source. */
 export function isTalentPoolCandidate(candidate) {
@@ -78,6 +104,10 @@ export function getSourceBadgeClass(source) {
 
 /** Profile header / card corner badge — source tag overrides pipeline stage when recognized. */
 export function getCandidateDisplaySource(candidate) {
+  if (isExcelImportedCandidate(candidate)) {
+    return { ...TALENT_POOL_EX_BADGE };
+  }
+  if (isTalentPoolOnlyCandidate(candidate)) return { ...TALENT_POOL_BADGE };
   if (isTalentPoolCandidate(candidate)) return { ...TALENT_POOL_BADGE };
   if (isAiGeneratedCandidate(candidate)) return { ...LINKEDIN_BADGE };
   const source = String(candidate?.source || '').trim().toUpperCase();
@@ -105,7 +135,8 @@ export function getCandidateCardBadge(candidate, stage, stageBadgeMap = {}) {
 export function formatSourceLabel(source) {
   if (!source) return 'Other';
   const s = String(source).toUpperCase();
-  if (s === 'LINKEDIN') return 'LinkedIn';
-  if (s === 'TALENT_POOL' || s === 'EXCEL_IMPORT' || s === 'BULK_SEED') return 'Talent Pool';
+  if (s === 'LINKEDIN' || s === 'FIT_SEED' || s === 'DEMO') return 'LinkedIn';
+  if (s === 'EXCEL_IMPORT') return TALENT_POOL_EX_BADGE.label;
+  if (s === 'TALENT_POOL' || s === 'BULK_SEED') return TALENT_POOL_BADGE.label;
   return String(source).replace(/_/g, ' ');
 }

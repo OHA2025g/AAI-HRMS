@@ -1,53 +1,29 @@
-# AAI-HRMS — Playwright E2E
-
-Automated **browser + API** checks for the full product. See **`memory/E2E_TEST_CASES.md`** for the full test-case catalog (manual + automated IDs).
+# Playwright E2E
 
 ## Prerequisites
 
-1. **MongoDB** running locally or in Docker.
-2. **Backend** `.env`: `MONGO_URL`, `DB_NAME`.
-3. Apply DB baseline:
-   ```bash
-   cd backend && python scripts/mongo_migrate.py up && python scripts/seed_qa_baseline.py
-   ```
-4. **API** (terminal 1):
-   ```bash
-   cd backend && uvicorn server:app --host 127.0.0.1 --port 11001
-   ```
-5. **Frontend** (terminal 2):
-   ```bash
-   cd frontend && REACT_APP_BACKEND_URL=http://127.0.0.1:11001 yarn start
-   ```
-   Default UI: `http://127.0.0.1:3000`.
+- MongoDB running with migrations applied
+- Backend on `:11001`, frontend on `:3000` (or set env vars below)
 
-## Run
+## Quick start
 
 ```bash
 cd e2e
 npm install
-npx playwright install chromium   # once per machine
-npm test
+npx playwright install chromium
+PLAYWRIGHT_USER_EMAIL=you@example.com PLAYWRIGHT_USER_PASSWORD=secret123 npm test
 ```
 
-Optional env:
+## Environment
 
 | Variable | Default |
 |----------|---------|
-| `E2E_BASE_URL` | `http://127.0.0.1:3000` |
-| `E2E_API_URL` | `http://127.0.0.1:11001` |
-| `E2E_ADMIN_EMAIL` | `qa_admin@aai-hrms.local` |
-| `E2E_ADMIN_PASSWORD` | `QA_Seed_ChangeMe!` |
+| `PLAYWRIGHT_BASE_URL` | `http://127.0.0.1:3000` |
+| `PLAYWRIGHT_API_URL` | `http://127.0.0.1:11001` |
+| `PLAYWRIGHT_USER_EMAIL` | `admin@example.com` |
+| `PLAYWRIGHT_USER_PASSWORD` | `secret123` |
+| `PLAYWRIGHT_SKIP_WEBSERVER` | set to `1` when servers already running |
 
-```bash
-E2E_ADMIN_PASSWORD='your-secret' npm test
-```
+## Hiring dashboard scenarios
 
-## Reports
-
-```bash
-npm run report
-```
-
-## CI
-
-Workflow: `.github/workflows/e2e-playwright.yml` (Mongo service + migrate + seed + API + static frontend + Playwright).
+See `tests/hiring-dashboard.spec.js` for KPI load, period toggle, scope filter, funnel visibility, and alert drill-through.

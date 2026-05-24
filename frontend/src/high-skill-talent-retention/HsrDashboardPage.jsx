@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { normalizeEmployeeCodeParam } from '../lib/drillQueryParams';
+import { Button } from '../components/ui/button';
 import { highSkillRetentionApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -22,6 +23,9 @@ const Kpi = ({ label, value, sub }) => (
 );
 
 const HsrDashboardPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const drillEmployeeCode = normalizeEmployeeCodeParam(searchParams.get('employee_code'));
+  const highlightRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
@@ -42,6 +46,32 @@ const HsrDashboardPage = () => {
       cancelled = true;
     };
   }, []);
+
+  const topRisk = useMemo(() => data?.top_risk_talent || [], [data]);
+
+  const matchedTalent = useMemo(() => {
+    if (!drillEmployeeCode) return null;
+    const code = drillEmployeeCode.toLowerCase();
+    return (
+      topRisk.find(
+        (t) =>
+          String(t.employee_id || '').toLowerCase() === code ||
+          String(t.talent_code || '').toLowerCase() === code,
+      ) || null
+    );
+  }, [topRisk, drillEmployeeCode]);
+
+  useEffect(() => {
+    if (matchedTalent && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [matchedTalent, loading]);
+
+  const clearDrill = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('employee_code');
+    setSearchParams(next, { replace: true });
+  };
 
   const chartData = useMemo(() => {
     const k = data?.kpis || {};
@@ -85,6 +115,28 @@ const HsrDashboardPage = () => {
           </Button>
         </div>
       </div>
+
+      {drillEmployeeCode ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Drill-down from Executive KPIs: employee <strong>{drillEmployeeCode}</strong>
+            {matchedTalent ? ` · risk ${matchedTalent.current_risk_level}` : ' · not in top risk list'}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to={`/high-skill-talent-retention/talent-master?q=${encodeURIComponent(drillEmployeeCode)}`}>
+                Open in talent master
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/executive-kpis">Executive KPIs</Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearDrill}>
+              Clear
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Kpi label="Total critical talent" value={k.total_critical_talent} />
@@ -145,17 +197,32 @@ const HsrDashboardPage = () => {
           {(data?.top_risk_talent || []).length === 0 ? (
             <p className="text-slate-500">No high risk profiles yet.</p>
           ) : (
-            (data?.top_risk_talent || []).map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                <div className="truncate">
-                  <Link className="text-indigo-600 hover:underline" to={`/high-skill-talent-retention/talent-master/${encodeURIComponent(t.id)}`}>
-                    {t.talent_code}
-                  </Link>
-                  <span className="text-slate-500 ml-2 font-mono text-xs">{t.employee_id}</span>
+            (data?.top_risk_talent || []).map((t) => {
+              const isMatch =
+                drillEmployeeCode &&
+                (String(t.employee_id || '').toLowerCase() === drillEmployeeCode.toLowerCase() ||
+                  String(t.talent_code || '').toLowerCase() === drillEmployeeCode.toLowerCase());
+              return (
+                <div
+                  key={t.id}
+                  ref={isMatch ? highlightRef : undefined}
+                  className={`flex items-center justify-between gap-2 border-b pb-2 ${
+                    isMatch ? 'border-amber-300 bg-amber-50/80 rounded-md px-2 py-1 -mx-2' : 'border-slate-100'
+                  }`}
+                >
+                  <div className="truncate">
+                    <Link
+                      className="text-indigo-600 hover:underline"
+                      to={`/high-skill-talent-retention/talent-master/${encodeURIComponent(t.id)}`}
+                    >
+                      {t.talent_code}
+                    </Link>
+                    <span className="text-slate-500 ml-2 font-mono text-xs">{t.employee_id}</span>
+                  </div>
+                  <span className="text-slate-600 shrink-0">{t.current_risk_level}</span>
                 </div>
-                <span className="text-slate-600 shrink-0">{t.current_risk_level}</span>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>

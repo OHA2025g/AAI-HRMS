@@ -1,44 +1,29 @@
-"""Mongo collection names for the Allocation Section."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_STAFFING_REQUESTS = "allocation_staffing_requests"
-COL_STAFFING_REQUEST_HISTORY = "allocation_staffing_request_history"
-COL_CONFLICTS = "allocation_conflicts"
-COL_ROLL_EVENTS = "allocation_rollon_rolloff"
-COL_CHANGES = "allocation_changes"
-COL_RELEASES = "allocation_releases"
-COL_WORKFLOW_APPROVALS = "allocation_workflow_approvals"
-COL_BENCH_MATCHES = "allocation_bench_matches"
-COL_NOTES = "allocation_notes"
-COL_DOCUMENTS = "allocation_documents"
-COL_ALERTS = "allocation_alerts"
-COL_ACTIVITY_LOGS = "allocation_activity_logs"
-COL_POLICY_RULES = "allocation_policy_rules"
-COL_FORECAST_SNAPSHOTS = "allocation_forecast_snapshots"
-COL_AI_INSIGHTS = "allocation_ai_insights"
+COL_ACTIVITY_LOGS = 'col_activity_logs'
 
-ALLOCATION_TYPES = [
-    "FULL_TIME",
-    "PARTIAL",
-    "BILLABLE",
-    "NON_BILLABLE",
-    "INTERNAL",
-    "CLIENT",
-    "BUFFER",
-    "SHADOW",
-    "TRAINING",
-    "TRANSITION",
-    "SUPPORT",
-    "TEMPORARY",
-    "EMERGENCY",
-]
+COL_AI_INSIGHTS = 'col_ai_insights'
 
-CONFLICT_TYPES = [
-    "OVER_ALLOCATION",
-    "DOUBLE_BOOKING",
-    "DATE_OVERLAP",
-    "LEAVE_CONFLICT",
-    "SKILL_MISMATCH",
-    "ROLE_MISMATCH",
-    "COMPLIANCE",
-    "OTHER",
-]
+COL_ALERTS = 'col_alerts'
+
+COL_BENCH_MATCHES = 'col_bench_matches'
+
+COL_CHANGES = 'col_changes'
+
+COL_CONFLICTS = 'col_conflicts'
+
+COL_DOCUMENTS = 'col_documents'
+
+COL_FORECAST_SNAPSHOTS = 'col_forecast_snapshots'
+
+COL_NOTES = 'col_notes'
+
+COL_RELEASES = 'col_releases'
+
+COL_ROLL_EVENTS = 'col_roll_events'
+
+COL_STAFFING_REQUEST_HISTORY = 'col_staffing_request_history'
+
+COL_STAFFING_REQUESTS = 'col_staffing_requests'
+
+COL_WORKFLOW_APPROVALS = 'col_workflow_approvals'

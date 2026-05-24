@@ -1,48 +1,39 @@
-"""Mongo collections for Employee Lifecycle Management (M14)."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_PREBOARDING = "elm_employee_preboarding_records"
-COL_ONBOARDING = "elm_employee_onboarding_records"
-COL_PROBATION = "elm_probation_records"
-COL_CONFIRMATION = "elm_confirmation_records"
-COL_EMPLOYMENT_ADMIN = "elm_employment_admin_records"
-COL_EMPLOYEE_DOCUMENTS = "elm_employee_documents"
-COL_BGV = "elm_bgv_records"
-COL_POLICY_CONSENTS = "elm_policy_consents"
-COL_ACCESS_PROVISIONING = "elm_access_provisioning_records"
-COL_EMPLOYEE_ASSETS = "elm_employee_asset_records"
-COL_PAYROLL_LINKAGE = "elm_payroll_linkage_records"
-COL_APPROVAL_REQUESTS = "elm_lifecycle_approval_requests"
-COL_POLICY_RULES = "elm_lifecycle_policy_rules"
+COL_PREBOARDING = 'col_preboarding'
 
-COL_LEARNING_LINKAGE = "elm_learning_linkage_records"
-COL_ENGAGEMENT = "elm_engagement_records"
-COL_RECOGNITION = "elm_recognition_records"
-COL_CAREER_GROWTH = "elm_career_growth_records"
-COL_INTERNAL_MOBILITY = "elm_internal_mobility_records"
-COL_COMP_REVISION = "elm_compensation_revision_records"
-COL_GRIEVANCES = "elm_grievance_cases"
-COL_WELLBEING = "elm_wellbeing_support_records"
-COL_DEPLOYMENT_LINKAGE = "elm_deployment_linkage_records"
-COL_MANAGER_INTERACTIONS = "elm_manager_interaction_logs"
-COL_COMMUNICATION = "elm_employee_communication_logs"
-COL_DISCIPLINARY = "elm_disciplinary_cases"
-COL_LIFECYCLE_NOTES = "elm_employee_lifecycle_notes"
+COL_ONBOARDING = 'col_onboarding'
 
-COL_RETENTION_SIGNALS = "elm_retention_signal_records"
-COL_RESIGNATION = "elm_resignation_records"
-COL_NOTICE = "elm_notice_period_records"
-COL_EXIT_INTERVIEW = "elm_exit_interview_records"
-COL_KT_HANDOVER = "elm_knowledge_transfer_records"
-COL_FNF = "elm_fnf_records"
-COL_ASSET_RETURN = "elm_offboarding_asset_return_records"
-COL_CLEARANCE = "elm_offboarding_clearance_records"
-COL_SEPARATION = "elm_separation_records"
-COL_ALUMNI_REHIRE = "elm_alumni_rehire_records"
-COL_FORECASTS = "elm_lifecycle_forecasts"
-COL_AI_INSIGHTS = "elm_ai_lifecycle_insights"
-COL_ANALYTICS_SNAPSHOTS = "elm_lifecycle_analytics_snapshots"
-COL_COMPLIANCE_AUDIT = "elm_lifecycle_compliance_audit_records"
-COL_ACTIVITY_LOGS = "elm_lifecycle_activity_logs"
+COL_PROBATION = 'col_probation'
 
-STATUS_LEVELS = frozenset({"DRAFT", "OPEN", "IN_PROGRESS", "COMPLETED", "ARCHIVED"})
+COL_CONFIRMATION = 'col_confirmation'
 
+COL_EMPLOYEE_DOCUMENTS = 'col_employee_documents'
+
+COL_BGV = 'col_bgv'
+
+COL_POLICY_CONSENTS = 'col_policy_consents'
+
+COL_ACCESS_PROVISIONING = 'col_access_provisioning'
+
+COL_PAYROLL_LINKAGE = 'col_payroll_linkage'
+
+COL_APPROVAL_REQUESTS = 'col_approval_requests'
+
+COL_RETENTION_SIGNALS = 'col_retention_signals'
+
+COL_RESIGNATION = 'col_resignation'
+
+COL_NOTICE = 'col_notice'
+
+COL_EXIT_INTERVIEW = 'col_exit_interview'
+
+COL_CLEARANCE = 'col_clearance'
+
+COL_FORECASTS = 'col_forecasts'
+
+COL_AI_INSIGHTS = 'col_ai_insights'
+
+COL_LIFECYCLE_NOTES = 'col_lifecycle_notes'
+
+COL_ACTIVITY_LOGS = 'col_activity_logs'

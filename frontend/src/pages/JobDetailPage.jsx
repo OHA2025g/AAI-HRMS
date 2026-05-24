@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { jobsApi, applicationsApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -7,6 +7,9 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FitScoreCard } from '../components/FitScore';
+import { ApplicationScoresSection } from '../components/career-trajectory/ApplicationScoresSection';
+import { useCareerTrajectorySummaries } from '../hooks/useCareerTrajectorySummaries';
+import { useAssessmentClearance } from '../hooks/useAssessmentClearance';
 import { 
   ArrowLeft,
   MapPin,
@@ -24,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCandidateCardBadge } from '../lib/candidateSource';
+import { orderJobMatchesForGrid } from '../lib/matchOrdering';
 
 const JOB_DETAIL_STAGE_BADGE = {
   SOURCED: 'bg-slate-100 text-slate-600',
@@ -53,6 +57,11 @@ const NEXT_PIPELINE_STEP = {
 const JobDetailPage = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(() =>
+    ['overview', 'candidates', 'matches'].includes(tabParam) ? tabParam : 'overview'
+  );
   const [job, setJob] = useState(null);
   const [applications, setApplications] = useState([]);
   const [matchingCandidates, setMatchingCandidates] = useState([]);
@@ -60,10 +69,27 @@ const JobDetailPage = () => {
   const [matching, setMatching] = useState(false);
   const [demoGenerating, setDemoGenerating] = useState(false);
   const [stageUpdatingId, setStageUpdatingId] = useState(null);
+  const { runWithClearanceCheck, clearanceDialog } = useAssessmentClearance();
+
+  const jobCandidateIds = useMemo(
+    () => [...new Set(applications.map((a) => a.candidate_id).filter(Boolean))],
+    [applications]
+  );
+  const {
+    summaries: trajSummaries,
+    loading: trajLoading,
+    reload: reloadTrajSummaries,
+  } = useCareerTrajectorySummaries(jobCandidateIds);
 
   useEffect(() => {
     fetchJobDetails();
   }, [jobId]);
+
+  useEffect(() => {
+    if (tabParam && ['overview', 'candidates', 'matches'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   const fetchJobDetails = async () => {
     try {
@@ -88,12 +114,27 @@ const JobDetailPage = () => {
     return error?.message || 'Request failed';
   };
 
+  const displayMatches = useMemo(
+    () => orderJobMatchesForGrid(matchingCandidates, { jobId }),
+    [matchingCandidates, jobId]
+  );
+
   const handleFindMatches = async () => {
     setMatching(true);
     try {
       const response = await jobsApi.match(jobId);
-      setMatchingCandidates(response.data.matches || []);
-      toast.success(`Found ${response.data.matches?.length || 0} matching candidates`);
+      const matches = response.data.matches || [];
+      setMatchingCandidates(matches);
+      const ex = response.data.excel_count;
+      const tp = response.data.talent_pool_count;
+      const ai = response.data.ai_high_match_count;
+      if (typeof ex === 'number' && typeof tp === 'number' && typeof ai === 'number') {
+        toast.success(
+          `Found ${matches.length} matches (${ex} Excel, ${tp} talent pool, ${ai} AI 90%+)`
+        );
+      } else {
+        toast.success(`Found ${matches.length} matching candidates`);
+      }
     } catch (error) {
       toast.error(`Failed to find matches: ${_formatApiError(error)}`);
     } finally {
@@ -133,16 +174,24 @@ const JobDetailPage = () => {
   const advanceApplicationStage = async (app) => {
     const step = NEXT_PIPELINE_STEP[app?.stage];
     if (!step?.next || !app?.id) return;
-    setStageUpdatingId(app.id);
-    try {
-      await applicationsApi.updateStage(app.id, { stage: step.next });
-      toast.success('Updated');
-      await fetchJobDetails();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to update stage');
-    } finally {
-      setStageUpdatingId(null);
-    }
+
+    const doUpdate = async (reasonOverride) => {
+      setStageUpdatingId(app.id);
+      try {
+        await applicationsApi.updateStage(app.id, {
+          stage: step.next,
+          ...(reasonOverride ? { reason: reasonOverride } : {}),
+        });
+        toast.success('Updated');
+        await fetchJobDetails();
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Failed to update stage');
+      } finally {
+        setStageUpdatingId(null);
+      }
+    };
+
+    await runWithClearanceCheck(app, app.stage, step.next, doUpdate);
   };
 
   if (loading) {
@@ -184,7 +233,7 @@ const JobDetailPage = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn" aria-label="Back to jobs">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex items-center gap-4">
@@ -257,7 +306,7 @@ const JobDetailPage = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="candidates">Candidates ({applications.length})</TabsTrigger>
@@ -433,15 +482,13 @@ const JobDetailPage = () => {
                         </Badge>
                       </div>
 
-                      <div className="mt-4">
-                        {app.fit_score ? (
-                          <FitScoreCard fitScore={app.fit_score} showDetails />
-                        ) : (
-                          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center text-sm text-slate-600">
-                            Fit score is not available for this application yet.
-                          </div>
-                        )}
-                      </div>
+                      <ApplicationScoresSection
+                        app={app}
+                        jobId={jobId}
+                        trajSummaries={trajSummaries}
+                        trajLoading={trajLoading}
+                        onTrajRefresh={reloadTrajSummaries}
+                      />
 
                       <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
                         <Link
@@ -491,33 +538,53 @@ const JobDetailPage = () => {
 
         {/* AI Matches Tab */}
         <TabsContent value="matches" className="mt-6">
-          {matchingCandidates.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {matchingCandidates.map((match) => (
-                <Card key={match.candidate.id} className="card-hover">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold text-slate-900">{match.candidate.full_name}</h3>
-                        <p className="text-sm text-slate-500">{match.candidate.headline || match.candidate.email}</p>
-                      </div>
-                    </div>
-                    
-                    <FitScoreCard fitScore={match.fit_score} showDetails />
-                    
-                    <div className="mt-4 pt-4 border-t flex gap-2">
-                      <Button 
-                        onClick={() => handleAddToApplication(match.candidate.id)}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                        size="sm"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add to Pipeline
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+          {displayMatches.length > 0 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">
+                Grid order: Excel import · Talent pool · AI generated (90%+ fit), repeating for each row.
+              </p>
+              <div
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+                data-testid="job-matches-grid"
+              >
+                {displayMatches.map((match) => {
+                  const sourceBadge = getCandidateCardBadge(match.candidate, null, {});
+                  return (
+                    <Card key={match.candidate.id} className="card-hover">
+                      <CardContent className="p-5">
+                        <div className="flex items-start justify-between mb-3 gap-2">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-slate-900 truncate">
+                              {match.candidate.full_name}
+                            </h3>
+                            <p className="text-sm text-slate-500 truncate">
+                              {match.candidate.headline || match.candidate.email}
+                            </p>
+                          </div>
+                          {sourceBadge ? (
+                            <Badge className={`shrink-0 ${sourceBadge.className}`}>
+                              {sourceBadge.label}
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <FitScoreCard fitScore={match.fit_score} showDetails />
+
+                        <div className="mt-4 pt-4 border-t flex gap-2">
+                          <Button
+                            onClick={() => handleAddToApplication(match.candidate.id)}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700"
+                            size="sm"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add to Pipeline
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <Card className="border-dashed">
@@ -540,6 +607,7 @@ const JobDetailPage = () => {
           )}
         </TabsContent>
       </Tabs>
+      {clearanceDialog}
     </motion.div>
   );
 };

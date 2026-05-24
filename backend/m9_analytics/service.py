@@ -12,7 +12,11 @@ from m9_analytics.drill_scope import resolve_drill_scope_ids
 from m9_analytics.freshness import compute_source_freshness
 from m9_analytics.kpi_catalog import default_kpi_definitions
 from m9_analytics.strategic_aggregate import _merged_skill_rows, build_strategic_dashboard_data
+from m9_analytics.compare import compare_snapshots
+from m9_analytics.insights import generate_insights
 from m9_analytics.talent_kpis import compute_talent_acquisition_metrics
+from m9_analytics.threshold_config import load_merged_threshold_rules
+from m9_analytics.thresholds import attach_status_to_values, automation_fail_rate_pct, evaluate_status
 
 _drill_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
@@ -25,13 +29,17 @@ def _cache_key(parts: Dict[str, Any]) -> str:
 async def load_merged_kpi_definitions(db) -> List[Dict[str, Any]]:
     defaults = {d["kpi_id"]: dict(d) for d in default_kpi_definitions()}
     overrides = await db[COL_M9_KPI_DEFINITIONS].find({}, {"_id": 0}).to_list(500)
+    override_ids = {row.get("kpi_id") for row in overrides if row.get("kpi_id")}
     for row in overrides:
         kid = row.get("kpi_id")
         if not kid:
             continue
         base = defaults.get(kid, {"kpi_id": kid})
         merged = {**base, **{k: v for k, v in row.items() if v is not None and k != "_id"}}
+        merged["has_override"] = True
         defaults[kid] = merged
+    for kid, row in defaults.items():
+        row.setdefault("has_override", kid in override_ids)
     return sorted(defaults.values(), key=lambda x: x["kpi_id"])
 
 
@@ -120,14 +128,41 @@ async def get_kpi_pack(db, *, horizon_months: int = 3, window_days: int = 30) ->
             "note": "null if no fit_scores in window",
         },
     }
+    fail_rate = automation_fail_rate_pct(
+        data["automation_runs_succeeded_30d"],
+        data["automation_runs_failed_30d"],
+    )
+    if fail_rate is not None:
+        values["automation_fail_rate_pct"] = {
+            "value": fail_rate,
+            "unit": "percent",
+            "as_of": gen,
+            "source": "workflow_automation_runs",
+        }
+
+    threshold_rules = await load_merged_threshold_rules(db)
+    values_with_status = attach_status_to_values(values, threshold_rules)
+    insights = generate_insights(
+        dashboard=data,
+        freshness=freshness,
+        talent=talent,
+        skill_coverage_scope="org",
+    )
+
     return {
         "catalog_version": CATALOG_VERSION,
         "definitions": definitions,
-        "values": values,
+        "values": values_with_status,
         "freshness": freshness,
         "horizon_months": horizon_months,
         "window_days": window_days,
         "talent_acquisition": talent,
+        "insights": insights,
+        "strategic_summary": {
+            "generated_at": gen,
+            "skill_coverage_pct": skill_coverage_pct,
+            "skill_coverage_scope": "org",
+        },
     }
 
 
@@ -139,14 +174,19 @@ async def get_drill_dashboard_cached(
     department: Optional[str],
     manager_root_id: Optional[str],
     role_title_contains: Optional[str],
+    compare_period: Optional[str] = None,
+    compare_against: Optional[str] = None,
 ) -> Dict[str, Any]:
     key = _cache_key(
         {
+            "v": 2,
             "h": horizon_months,
             "w": window_days,
             "d": department,
             "m": manager_root_id,
             "r": role_title_contains,
+            "cp": compare_period,
+            "ca": compare_against,
         }
     )
     now = time.monotonic()
@@ -168,6 +208,34 @@ async def get_drill_dashboard_cached(
         window_days=window_days,
         scope_employee_ids=scope_ids,
     )
+    talent = await compute_talent_acquisition_metrics(db, window_days=window_days)
+    freshness = await compute_source_freshness(db)
+
+    compare = None
+    if compare_period:
+        compare = await compare_snapshots(db, period=compare_period, against_period=compare_against)
+
+    threshold_rules = await load_merged_threshold_rules(db)
+    metric_status = {
+        "attrition_rate_pct": evaluate_status("attrition_rate_pct", data.get("attrition_rate_pct"), threshold_rules),
+        "skill_coverage_pct": evaluate_status("skill_coverage_pct", data.get("skill_coverage_pct"), threshold_rules),
+        "forecast_gap_total": evaluate_status("forecast_gap_total", data.get("forecast_gap_total"), threshold_rules),
+        "retention_avg_risk_score": evaluate_status(
+            "retention_avg_risk_score", data.get("retention_avg_risk_score"), threshold_rules
+        ),
+        "engagement_avg_rating": evaluate_status(
+            "engagement_avg_rating", data.get("engagement_avg_rating"), threshold_rules
+        ),
+    }
+
+    insights = generate_insights(
+        dashboard=data,
+        freshness=freshness,
+        talent=talent,
+        compare=compare,
+        skill_coverage_scope=str(data.get("skill_coverage_scope") or "org"),
+    )
+
     payload = {
         "filters": {
             "department": department,
@@ -176,6 +244,11 @@ async def get_drill_dashboard_cached(
         },
         "scope_employee_count": len(scope_ids) if scope_ids is not None else None,
         "dashboard": data,
+        "talent_acquisition": talent,
+        "freshness": freshness,
+        "insights": insights,
+        "metric_status": metric_status,
+        "compare": compare,
         "cache": {"hit": False, "ttl_sec": DRILL_DASHBOARD_CACHE_TTL_SEC},
     }
     _drill_cache[key] = (now, payload)

@@ -57,6 +57,12 @@ async def _merged_skill_rows(db, scope_ids: Optional[Set[str]]) -> List[Dict[str
     return out
 
 
+def _skill_coverage_from_rows(skill_rows: List[Dict[str, Any]]) -> float:
+    demand_total = sum(max(0, int(s.get("demand_count") or 0)) for s in skill_rows)
+    supply_total = sum(max(0, int(s.get("supply_count") or 0)) for s in skill_rows)
+    return round((supply_total / demand_total) * 100, 2) if demand_total else 100.0
+
+
 async def build_strategic_dashboard_data(
     db,
     *,
@@ -107,6 +113,8 @@ async def build_strategic_dashboard_data(
                 "estimated_cost_saved_usd_30d": 0.0,
                 "drill_window_days": window_days,
                 "analytics_window_days": window_days,
+                "skill_coverage_pct": 0.0,
+                "skill_coverage_scope": "filtered",
             }
         emp_query["id"] = {"$in": list(scope_employee_ids)}
 
@@ -271,6 +279,9 @@ async def build_strategic_dashboard_data(
     fail_m7 = [r for r in runs_m7 if (r.get("status") or "").upper() == "FAILED"]
     totals_m7 = compute_savings_totals(successful_runs=ok_m7, baselines=bmap_m7)
 
+    skill_coverage_pct = _skill_coverage_from_rows(skill_rows)
+    skill_coverage_scope = "filtered" if scope_employee_ids is not None else "org"
+
     return {
         "generated_at": generated_at,
         "employee_count": employee_count,
@@ -297,4 +308,6 @@ async def build_strategic_dashboard_data(
         "estimated_cost_saved_usd_30d": float(totals_m7["estimated_cost_saved_usd"]),
         "drill_window_days": window_days,
         "analytics_window_days": window_days,
+        "skill_coverage_pct": skill_coverage_pct,
+        "skill_coverage_scope": skill_coverage_scope,
     }

@@ -30,6 +30,8 @@ export const applicationsApi = {
   list: (params) => axios.get(`${API_URL}/applications`, { params }),
   create: (data) => axios.post(`${API_URL}/applications`, data),
   updateStage: (id, data) => axios.put(`${API_URL}/applications/${id}/stage`, data),
+  updateOfferStatus: (id, data) => axios.patch(`${API_URL}/applications/${id}/offer-status`, data),
+  getStageHistory: (id) => axios.get(`${API_URL}/applications/${id}/stage-history`),
   getPipeline: (jobId) => axios.get(`${API_URL}/pipeline/${jobId}`)
 };
 
@@ -46,14 +48,67 @@ export const referralsApi = {
 
 // Assessments API
 export const assessmentsApi = {
-  list: (jobId) => axios.get(`${API_URL}/assessments`, { params: { job_id: jobId } }),
+  list: (params = {}) => axios.get(`${API_URL}/assessments`, { params }),
   get: (id) => axios.get(`${API_URL}/assessments/${id}`),
-  generate: (jobId, data) => axios.post(`${API_URL}/assessments/generate/${jobId}`, data)
+  generate: (jobId, data, publish = false) =>
+    axios.post(`${API_URL}/assessments/generate/${jobId}`, data, { params: { publish } }),
+  update: (id, data) => axios.put(`${API_URL}/assessments/${id}`, data),
+  publish: (id) => axios.post(`${API_URL}/assessments/${id}/publish`),
+  archive: (id) => axios.post(`${API_URL}/assessments/${id}/archive`),
+  setPrimary: (id) => axios.post(`${API_URL}/assessments/${id}/set-primary`),
+  duplicate: (id) => axios.post(`${API_URL}/assessments/${id}/duplicate`),
+  regenerateQuestion: (assessmentId, questionId) =>
+    axios.post(`${API_URL}/assessments/${assessmentId}/questions/${questionId}/regenerate`),
+  suggestPassThreshold: (id) => axios.post(`${API_URL}/assessments/${id}/suggest-pass-threshold`),
+  invite: (id, data) => axios.post(`${API_URL}/assessments/${id}/invite`, data),
+  itemAnalysis: (id) => axios.get(`${API_URL}/assessments/${id}/item-analysis`),
+  auditLog: (params = {}) => axios.get(`${API_URL}/assessments/audit-log`, { params }),
+  analyticsSummary: (params = {}) => axios.get(`${API_URL}/assessments/analytics/summary`, { params }),
+  analyticsFunnel: (params = {}) => axios.get(`${API_URL}/assessments/analytics/funnel`, { params }),
+  analyticsPassRate: (params = {}) => axios.get(`${API_URL}/assessments/analytics/pass-rate-by-type`, { params }),
+  analyticsScoreDistribution: (params = {}) =>
+    axios.get(`${API_URL}/assessments/analytics/score-distribution`, { params }),
+  analyticsTrends: (params = {}) => axios.get(`${API_URL}/assessments/analytics/trends`, { params }),
+  analyticsSkillBreakdown: (params = {}) =>
+    axios.get(`${API_URL}/assessments/analytics/skill-breakdown`, { params }),
+  analyticsFitVsScore: (params = {}) => axios.get(`${API_URL}/assessments/analytics/fit-vs-score`, { params }),
+  analyticsTimeVsScore: (params = {}) => axios.get(`${API_URL}/assessments/analytics/time-vs-score`, { params }),
+  analyticsCalibration: (params = {}) => axios.get(`${API_URL}/assessments/analytics/calibration`, { params }),
+  analyticsOutcomeCorrelation: (params = {}) =>
+    axios.get(`${API_URL}/assessments/analytics/outcome-correlation`, { params }),
+  analyticsCoverage: (params = {}) => axios.get(`${API_URL}/assessments/analytics/coverage`, { params }),
+  config: () => axios.get(`${API_URL}/assessments/config`),
+  dispatchInviteEmails: (limit = 100) =>
+    axios.post(`${API_URL}/assessments/admin/dispatch-invite-emails`, null, { params: { limit } }),
+  dispatchReminders: (hoursSinceInvite = 48) =>
+    axios.post(`${API_URL}/assessments/admin/dispatch-reminders`, null, {
+      params: { hours_since_invite: hoursSinceInvite },
+    }),
+  opsStatus: () => axios.get(`${API_URL}/assessments/admin/ops-status`),
+  listSubmissions: (params = {}) => axios.get(`${API_URL}/assessments/submissions`, { params }),
+  getSubmission: (id) => axios.get(`${API_URL}/assessments/submissions/${id}`),
+  startSubmission: (id) => axios.post(`${API_URL}/assessments/submissions/${id}/start`),
+  submitSubmission: (id, data) => axios.post(`${API_URL}/assessments/submissions/${id}/submit`, data),
+  gradeSubmission: (id, data) => axios.patch(`${API_URL}/assessments/submissions/${id}`, data),
+  aiSuggestGrades: (id) => axios.post(`${API_URL}/assessments/submissions/${id}/ai-suggest-grades`),
+  resendSubmissionEmail: (id) => axios.post(`${API_URL}/assessments/submissions/${id}/resend-email`),
+  cancelSubmission: (id) => axios.post(`${API_URL}/assessments/submissions/${id}/cancel`),
+  publicTake: (token) => axios.get(`${API_URL}/assessments/take/${token}`),
+  publicTakeStart: (token) => axios.post(`${API_URL}/assessments/take/${token}/start`),
+  publicTakeDraft: (token, data) => axios.put(`${API_URL}/assessments/take/${token}/draft`, data),
+  publicTakeSubmit: (token, data) => axios.post(`${API_URL}/assessments/take/${token}/submit`, data),
+  listVersions: (id) => axios.get(`${API_URL}/assessments/${id}/versions`),
 };
 
 // Dashboard API
 export const dashboardApi = {
-  getStats: () => axios.get(`${API_URL}/dashboard/stats`)
+  getStats: () => axios.get(`${API_URL}/dashboard/stats`),
+  getHiringPack: (params = {}) => axios.get(`${API_URL}/dashboard/hiring-pack`, { params }),
+  getTrends: (params = {}) => axios.get(`${API_URL}/dashboard/trends`, { params }),
+  getTrendsHealth: () => axios.get(`${API_URL}/dashboard/trends/health`),
+  getHiringAlertDismissals: () => axios.get(`${API_URL}/dashboard/hiring-alerts/dismissals`),
+  dismissHiringAlert: (alertId) =>
+    axios.post(`${API_URL}/dashboard/hiring-alerts/dismissals`, { alert_id: alertId }),
 };
 
 // Fit Scores API
@@ -72,6 +127,8 @@ export const adminApi = {
   dispatchComplianceReminders: () => axios.post(`${API_URL}/admin/compliance/dispatch-document-reminders`),
   listUsers: (params = {}) => axios.get(`${API_URL}/admin/users`, { params }),
   updateUserRole: (userId, data) => axios.put(`${API_URL}/admin/users/${encodeURIComponent(userId)}/role`, data),
+  getHiringDashboardConfig: () => axios.get(`${API_URL}/admin/hiring-dashboard/config`),
+  updateHiringDashboardConfig: (data) => axios.put(`${API_URL}/admin/hiring-dashboard/config`, data),
 };
 
 // Interviews API
@@ -147,6 +204,10 @@ export const executiveApi = {
   getM9KpiDefinitions: () => axios.get(`${API_URL}/executive/m9/kpi-definitions`),
   getM9KpiPack: (horizonMonths = 3, windowDays = 30) =>
     axios.get(`${API_URL}/executive/m9/kpi-pack`, { params: { horizon_months: horizonMonths, window_days: windowDays } }),
+  getM9Trends: (months = 12) => axios.get(`${API_URL}/executive/m9/trends`, { params: { months } }),
+  getM9PredictiveViews: (params = {}) => axios.get(`${API_URL}/executive/m9/predictive-views`, { params }),
+  /** Single round-trip: pack, drill, definitions, trends, drill_options, snapshots */
+  getM9DashboardBundle: (params = {}) => axios.get(`${API_URL}/executive/m9/dashboard-bundle`, { params }),
   createM9MonthlySnapshot: (payload) =>
     axios.post(`${API_URL}/executive/m9/export-packs/monthly-snapshot`, payload),
   /** Week 11: persisted snapshot + JSON/CSV/PDF in one ZIP */
@@ -163,6 +224,17 @@ export const executiveApi = {
     axios.post(`${API_URL}/executive/m9/export-packs/${encodeURIComponent(snapshotId)}/deliver`, {}, {
       params: webhookUrl ? { webhook_url: webhookUrl } : {},
     }),
+};
+
+export const executiveKpiAdminApi = {
+  listThresholds: () => axios.get(`${API_URL}/admin/m9/kpi-thresholds`),
+  updateThreshold: (kpiId, payload) =>
+    axios.put(`${API_URL}/admin/m9/kpi-thresholds/${encodeURIComponent(kpiId)}`, payload),
+  resetThreshold: (kpiId) => axios.delete(`${API_URL}/admin/m9/kpi-thresholds/${encodeURIComponent(kpiId)}`),
+  updateDefinition: (kpiId, payload) =>
+    axios.put(`${API_URL}/admin/m9/kpi-definitions/${encodeURIComponent(kpiId)}`, payload),
+  resetDefinition: (kpiId) =>
+    axios.delete(`${API_URL}/admin/m9/kpi-definitions/${encodeURIComponent(kpiId)}`),
 };
 
 // M7: workflow automation (admin)
@@ -703,6 +775,93 @@ export const employeeLifecycleManagementApi = {
   listAiInsights: () => axios.get(`${API_URL}/employee-lifecycle-management/ai-insights/summary`),
 };
 
+export const careerTrajectoryApi = {
+  analyze: (formData, { background = false } = {}) => {
+    if (background) {
+      formData.append('background', 'true');
+    }
+    return axios.post(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/analyze`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      validateStatus: (s) => (background ? s === 202 || s === 200 : s >= 200 && s < 300),
+    });
+  },
+  analyzeText: (body) => axios.post(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/analyze-text`, body),
+  getSummaries: (candidateIds) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/summaries`, {
+      params: { candidate_ids: Array.isArray(candidateIds) ? candidateIds.join(',') : candidateIds },
+    }),
+  listPhase1ReadyCandidates: (params = { limit: 200 }) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidates/phase1-ready`, {
+      params,
+    }),
+  getInterviewPrep: (candidateId) =>
+    axios.get(
+      `${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidate/${encodeURIComponent(candidateId)}/interview-prep`
+    ),
+  getByCandidate: (candidateId) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidate/${encodeURIComponent(candidateId)}`),
+  getReport: (reportId) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/report/${encodeURIComponent(reportId)}`),
+  reanalyze: (candidateId, { background = false } = {}) =>
+    axios.post(
+      `${API_URL}/ai-hiring/candidate-fit/career-trajectory/reanalyze/${encodeURIComponent(candidateId)}`,
+      null,
+      {
+        params: background ? { background: true } : {},
+        validateStatus: (s) => (background ? s === 202 || s === 200 : s >= 200 && s < 300),
+      }
+    ),
+  retryAnalyzeJob: (jobId) =>
+    axios.post(
+      `${API_URL}/ai-hiring/candidate-fit/career-trajectory/analyze-jobs/${encodeURIComponent(jobId)}/retry`
+    ),
+  listReports: (params) => axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/reports`, { params }),
+  deleteReport: (reportId) =>
+    axios.delete(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/report/${encodeURIComponent(reportId)}`),
+  exportReport: (reportId, format = 'json') =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/report/${encodeURIComponent(reportId)}/export`, {
+      params: { format },
+      responseType: format === 'pdf' || format === 'csv' || format === 'xlsx' ? 'blob' : 'json',
+    }),
+  exportFitPack: (candidateId, format = 'pdf') =>
+    axios.get(
+      `${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidate/${encodeURIComponent(candidateId)}/fit-pack/export`,
+      { params: { format }, responseType: 'blob' }
+    ),
+  getConfig: () => axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/config`),
+  updateConfig: (body) => axios.put(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/config`, body),
+  exportTraining: (params = { format: 'csv', limit: 200 }) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/reports/training-export`, {
+      params,
+      responseType: params.format === 'csv' ? 'blob' : 'json',
+    }),
+  trainMlCalibration: (limit = 200, labelSource = 'trajectory') =>
+    axios.post(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/ml/train-calibration`, null, {
+      params: { limit, label_source: labelSource },
+    }),
+  getFairnessSummary: (params = {}) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/fairness/summary`, { params }),
+  getAnalyzeJob: (jobId) =>
+    axios.get(
+      `${API_URL}/ai-hiring/candidate-fit/career-trajectory/analyze-jobs/${encodeURIComponent(jobId)}`
+    ),
+  analyzeTextBackground: (body) =>
+    axios.post(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/analyze-text`, body),
+};
+
+export const phase2FitApi = {
+  simulate: (body) => axios.post(`${API_URL}/ai-hiring/candidate-fit/phase2/simulate`, body),
+  getByCandidate: (candidateId) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/phase2/candidate/${encodeURIComponent(candidateId)}`),
+  getReport: (reportId) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/phase2/report/${encodeURIComponent(reportId)}`),
+  exportReport: (reportId, format = 'json') =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/phase2/report/${encodeURIComponent(reportId)}/export`, {
+      params: { format },
+      responseType: format === 'pdf' || format === 'csv' || format === 'xlsx' ? 'blob' : 'json',
+    }),
+};
+
 export const complianceApi = {
   listDocuments: (params) => axios.get(`${API_URL}/compliance/documents`, { params }),
   createDocument: (payload) => axios.post(`${API_URL}/compliance/documents`, payload),
@@ -728,4 +887,6 @@ export default {
   employees: employeeApi,
   workforce: workforceApi,
   executive: executiveApi,
+  careerTrajectory: careerTrajectoryApi,
+  phase2Fit: phase2FitApi,
 };

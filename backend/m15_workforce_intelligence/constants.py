@@ -1,44 +1,51 @@
-"""Mongo collections for Workforce Intelligence (M15)."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_SNAPSHOT_RECORDS = "wfi_workforce_snapshot_records"
-COL_HEADCOUNT_RECORDS = "wfi_workforce_headcount_records"
-COL_DEMOGRAPHIC_SNAPSHOTS = "wfi_workforce_demographic_snapshots"
-COL_STATUS_MOVEMENT_RECORDS = "wfi_workforce_status_movement_records"
-COL_SKILL_VISIBILITY_RECORDS = "wfi_workforce_skill_visibility_records"
-COL_UTILIZATION_SNAPSHOTS = "wfi_workforce_utilization_snapshots"
-COL_ATTENDANCE_PATTERN_RECORDS = "wfi_workforce_attendance_pattern_records"
-COL_PERFORMANCE_VISIBILITY_RECORDS = "wfi_workforce_performance_visibility_records"
-COL_ENGAGEMENT_VISIBILITY_RECORDS = "wfi_workforce_engagement_visibility_records"
-COL_COMPLIANCE_VISIBILITY_RECORDS = "wfi_workforce_compliance_visibility_records"
-COL_COST_VISIBILITY_RECORDS = "wfi_workforce_cost_visibility_records"
+COL_SNAPSHOT_RECORDS = 'col_snapshot_records'
 
-COL_WORKFORCE_PLANS = "wfi_workforce_plans"
-COL_DEMAND_SUPPLY_RECORDS = "wfi_workforce_demand_supply_records"
-COL_OPTIMIZATION_RECOMMENDATIONS = "wfi_workforce_optimization_recommendations"
-COL_CAPACITY_RECORDS = "wfi_workforce_capacity_records"
-COL_MOBILITY_PLANNING_RECORDS = "wfi_workforce_mobility_planning_records"
-COL_CAREER_PROGRESSION_RECORDS = "wfi_workforce_career_progression_records"
-COL_LEARNING_CAPABILITY_RECORDS = "wfi_workforce_learning_capability_records"
-COL_SUCCESSION_CONTINUITY_RECORDS = "wfi_workforce_succession_continuity_records"
-COL_RETENTION_STABILITY_RECORDS = "wfi_workforce_retention_stability_records"
-COL_COST_OPTIMIZATION_RECORDS = "wfi_workforce_cost_optimization_records"
-COL_ORG_DESIGN_RECORDS = "wfi_workforce_org_design_records"
-COL_MANAGER_EFFECTIVENESS_RECORDS = "wfi_workforce_manager_effectiveness_records"
-COL_EXPERIENCE_DECISION_RECORDS = "wfi_workforce_experience_decision_records"
-COL_SCENARIO_MODELS = "wfi_workforce_scenario_models"
+COL_HEADCOUNT_RECORDS = 'col_headcount_records'
 
-COL_FORECASTS = "wfi_workforce_forecasts"
-COL_ATTRITION_PREDICTIONS = "wfi_workforce_attrition_predictions"
-COL_BURNOUT_PREDICTIONS = "wfi_workforce_burnout_predictions"
-COL_SKILL_RISK_PREDICTIONS = "wfi_workforce_skill_risk_predictions"
-COL_PRODUCTIVITY_RISK_PREDICTIONS = "wfi_workforce_productivity_risk_predictions"
-COL_COST_RISK_PREDICTIONS = "wfi_workforce_cost_risk_predictions"
-COL_COMPLIANCE_RISK_PREDICTIONS = "wfi_workforce_compliance_risk_predictions"
-COL_AI_RECOMMENDATIONS = "wfi_workforce_ai_recommendations"
-COL_COPILOT_QUERIES = "wfi_workforce_copilot_queries"
-COL_STRATEGIC_RISK_SNAPSHOTS = "wfi_workforce_strategic_risk_snapshots"
-COL_STRATEGIC_OPPORTUNITY_SNAPSHOTS = "wfi_workforce_strategic_opportunity_snapshots"
-COL_EXECUTIVE_SUMMARY_SNAPSHOTS = "wfi_workforce_executive_summary_snapshots"
-COL_ACTIVITY_LOGS = "wfi_workforce_activity_logs"
-COL_POLICY_RULES = "wfi_workforce_policy_rules"
+COL_DEMOGRAPHIC_SNAPSHOTS = 'col_demographic_snapshots'
 
+COL_SKILL_VISIBILITY_RECORDS = 'col_skill_visibility_records'
+
+COL_UTILIZATION_SNAPSHOTS = 'col_utilization_snapshots'
+
+COL_ENGAGEMENT_VISIBILITY_RECORDS = 'col_engagement_visibility_records'
+
+COL_PERFORMANCE_VISIBILITY_RECORDS = 'col_performance_visibility_records'
+
+COL_COMPLIANCE_VISIBILITY_RECORDS = 'col_compliance_visibility_records'
+
+COL_COST_VISIBILITY_RECORDS = 'col_cost_visibility_records'
+
+COL_WORKFORCE_PLANS = 'col_workforce_plans'
+
+COL_DEMAND_SUPPLY_RECORDS = 'col_demand_supply_records'
+
+COL_SCENARIO_MODELS = 'col_scenario_models'
+
+COL_MANAGER_EFFECTIVENESS_RECORDS = 'col_manager_effectiveness_records'
+
+COL_FORECASTS = 'col_forecasts'
+
+COL_ATTRITION_PREDICTIONS = 'col_attrition_predictions'
+
+COL_BURNOUT_PREDICTIONS = 'col_burnout_predictions'
+
+COL_SKILL_RISK_PREDICTIONS = 'col_skill_risk_predictions'
+
+COL_COST_RISK_PREDICTIONS = 'col_cost_risk_predictions'
+
+COL_COMPLIANCE_RISK_PREDICTIONS = 'col_compliance_risk_predictions'
+
+COL_AI_RECOMMENDATIONS = 'col_ai_recommendations'
+
+COL_COPILOT_QUERIES = 'col_copilot_queries'
+
+COL_STRATEGIC_RISK_SNAPSHOTS = 'col_strategic_risk_snapshots'
+
+COL_STRATEGIC_OPPORTUNITY_SNAPSHOTS = 'col_strategic_opportunity_snapshots'
+
+COL_EXECUTIVE_SUMMARY_SNAPSHOTS = 'col_executive_summary_snapshots'
+
+COL_ACTIVITY_LOGS = 'col_activity_logs'

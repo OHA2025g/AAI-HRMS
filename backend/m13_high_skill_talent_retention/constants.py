@@ -1,43 +1,27 @@
-"""Mongo collections and enums for M13 High-Skill Talent Retention."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_CRITICAL_TALENT_PROFILES = "hsr_critical_talent_profiles"
-COL_TALENT_CRITICALITY_TAGS = "hsr_talent_criticality_tags"
-COL_TALENT_SEGMENTS = "hsr_talent_segments"
-COL_RISK_ASSESSMENTS = "hsr_retention_risk_assessments"
-COL_ATTRITION_PREDICTIONS = "hsr_attrition_predictions"
-COL_STAY_INTERVIEWS = "hsr_stay_interviews"
-COL_ENGAGEMENT_SIGNALS = "hsr_engagement_signals"
-COL_RECOGNITION_RECORDS = "hsr_recognition_records"
-COL_RELATIONSHIP_HISTORY = "hsr_talent_relationship_history"
-COL_COMP_COMPETITIVENESS = "hsr_compensation_competitiveness_records"
-COL_RETENTION_INCENTIVES = "hsr_retention_incentives"
-COL_CAREER_GROWTH = "hsr_career_growth_records"
-COL_INTERNAL_MOBILITY = "hsr_internal_mobility_records"
-COL_SKILL_UTILIZATION = "hsr_skill_utilization_records"
-COL_CRITICALITY_MAPPING = "hsr_role_project_criticality_records"
-COL_SUCCESSOR_COVERAGE = "hsr_successor_coverage_records"
-COL_DEVELOPMENT_PLANS = "hsr_personalized_development_plans"
-COL_RETENTION_LEARNING_LINKS = "hsr_retention_learning_links"
-COL_WORKLOAD_WELLBEING = "hsr_workload_wellbeing_records"
-COL_WORK_EXPERIENCE_PREFS = "hsr_work_experience_preferences"
-COL_ENGAGEMENT_ACTION_PLANS = "hsr_engagement_action_plans"
-COL_RETENTION_CASES = "hsr_retention_cases"
-COL_COUNTEROFFER_CASES = "hsr_counteroffer_cases"
-COL_EXIT_RISK_TRIGGERS = "hsr_exit_risk_triggers"
-COL_KNOWLEDGE_DEPENDENCY = "hsr_knowledge_dependency_records"
-COL_CLIENT_CRITICAL = "hsr_client_critical_talent_records"
-COL_PROJECT_CRITICAL = "hsr_project_critical_talent_records"
-COL_BENCH_RISK = "hsr_bench_risk_records"
-COL_PROMOTION_STAGNATION = "hsr_promotion_stagnation_records"
-COL_STABILITY_FORECASTS = "hsr_talent_stability_forecasts"
-COL_AI_RECOMMENDATIONS = "hsr_ai_retention_recommendations"
-COL_AI_FLIGHT_RISK = "hsr_ai_flight_risk_predictions"
-COL_SEARCH_LOGS = "hsr_retention_search_logs"
-COL_STRATEGIC_SNAPSHOTS = "hsr_strategic_retention_intelligence_snapshots"
-COL_DOCUMENTS = "hsr_retention_documents"
-COL_APPROVAL_REQUESTS = "hsr_retention_approval_requests"
-COL_POLICY_RULES = "hsr_retention_policy_rules"
-COL_ACTIVITY_LOGS = "hsr_retention_activity_logs"
+COL_AI_FLIGHT_RISK = 'col_ai_flight_risk'
 
-RISK_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH", "CRITICAL"})
+COL_AI_RECOMMENDATIONS = 'col_ai_recommendations'
 
+COL_ATTRITION_PREDICTIONS = 'col_attrition_predictions'
+
+COL_CRITICAL_TALENT_PROFILES = 'col_critical_talent_profiles'
+
+COL_ENGAGEMENT_ACTION_PLANS = 'col_engagement_action_plans'
+
+COL_EXIT_RISK_TRIGGERS = 'col_exit_risk_triggers'
+
+COL_RISK_ASSESSMENTS = 'col_risk_assessments'
+
+COL_SEARCH_LOGS = 'col_search_logs'
+
+COL_STABILITY_FORECASTS = 'col_stability_forecasts'
+
+COL_STAY_INTERVIEWS = 'col_stay_interviews'
+
+COL_TALENT_CRITICALITY_TAGS = 'col_talent_criticality_tags'
+
+COL_TALENT_SEGMENTS = 'col_talent_segments'
+
+COL_RETENTION_CASES = 'col_retention_cases'

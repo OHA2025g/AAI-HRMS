@@ -1,24 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { normalizeCandidateSourceParam, normalizeDisplayChannelParam } from '../lib/drillQueryParams';
 import { motion } from 'framer-motion';
 import { applicationsApi, candidatesApi, jobsApi } from '../lib/api';
 import { usePlacementFilters } from '../context/PlacementFiltersContext';
 import { BUSINESS_ORG_PILLARS, getDepartmentsForPillar } from '../data/businessOrgHierarchy';
 import { FitScoreCard } from '../components/FitScore';
+import { CareerTrajectorySummary } from '../components/career-trajectory/CareerTrajectorySummary';
+import { useCareerTrajectorySummaries } from '../hooks/useCareerTrajectorySummaries';
+import { useAssessmentClearance } from '../hooks/useAssessmentClearance';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from '../components/ui/pagination';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +37,7 @@ import {
   getCandidateCardBadge,
   getSourceBadgeClass,
 } from '../lib/candidateSource';
+import SmartHiringPageHeader from '../components/hiring/SmartHiringPageHeader';
 
 const STAGE_BADGE = {
   SOURCED: 'bg-sky-100 text-sky-800',
@@ -61,16 +57,30 @@ const NEXT_PIPELINE_STEP = {
   SOURCED: { next: 'SCREENING', label: 'Selected for next round' },
   SCREENING: { next: 'ASSESSMENT_SENT', label: 'Selected for next round' },
   ASSESSMENT_SENT: { next: 'ASSESSMENT_CLEARED', label: 'Mark Cleared' },
-  ASSESSMENT_CLEARED: { next: 'OFFER', label: 'Select for Assessment Round' },
-  INTERVIEW_1: { next: 'OFFER', label: 'Select for Assessment Round' },
-  INTERVIEW_2: { next: 'OFFER', label: 'Select for Assessment Round' },
-  INTERVIEW_3: { next: 'OFFER', label: 'Select for Assessment Round' },
-  HR_ROUND: { next: 'OFFER', label: 'Select for Assessment Round' },
+  ASSESSMENT_CLEARED: { next: 'INTERVIEW_1', label: 'Start interview round' },
+  INTERVIEW_1: { next: 'INTERVIEW_2', label: 'Advance to next interview' },
+  INTERVIEW_2: { next: 'INTERVIEW_3', label: 'Advance to next interview' },
+  INTERVIEW_3: { next: 'HR_ROUND', label: 'Advance to HR round' },
+  HR_ROUND: { next: 'OFFER', label: 'Move to offer' },
   OFFER: { next: 'JOINED', label: 'Mark Joined' },
+};
+
+const DISPLAY_CHANNEL_LABELS = {
+  talent_pool_ex: 'Talent Pool-Ex',
+  talent_pool: 'Talent Pool',
+  linkedin: 'LinkedIn',
+  other: 'Other sources',
 };
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const drillSource = normalizeCandidateSourceParam(searchParams.get('source'));
+  const drillDisplayChannel = normalizeDisplayChannelParam(searchParams.get('display_channel'));
+  const drillFitMin = searchParams.get('fit_min');
+  const drillFitMax = searchParams.get('fit_max');
+  const fitMin = drillFitMin != null && drillFitMin !== '' ? Number(drillFitMin) : null;
+  const fitMax = drillFitMax != null && drillFitMax !== '' ? Number(drillFitMax) : null;
   const fileInputRef = useRef(null);
   const placement = usePlacementFilters();
   const [candidates, setCandidates] = useState([]);
@@ -87,6 +97,7 @@ const CandidatesPage = () => {
   const [openJobs, setOpenJobs] = useState([]);
   const [contextLoading, setContextLoading] = useState(true);
   const [stageUpdatingId, setStageUpdatingId] = useState(null);
+  const { runWithClearanceCheck, clearanceDialog } = useAssessmentClearance();
 
   // Add candidate form state
   const [formData, setFormData] = useState({
@@ -103,14 +114,79 @@ const CandidatesPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (drillSource && drillSource !== sourceFilter) {
+      setSourceFilter(drillSource);
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drillSource]);
+
+  useEffect(() => {
     fetchCandidates();
-  }, [sourceFilter, page, searchQuery]);
+  }, [sourceFilter, page, searchQuery, drillDisplayChannel, fitMin, fitMax]);
+
+  useEffect(() => {
+    if (fitMin != null || fitMax != null) {
+      setPage(1);
+    }
+  }, [fitMin, fitMax]);
+
+  const clearDrillDisplayChannel = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('display_channel');
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  };
+
+  const clearDrillSource = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('source');
+    setSearchParams(next, { replace: true });
+    setSourceFilter('all');
+    setPage(1);
+  };
+
+  const clearFitDrill = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('fit_min');
+    next.delete('fit_max');
+    setSearchParams(next, { replace: true });
+    setPage(1);
+  };
+
+  const fitDrillActive = fitMin != null || fitMax != null;
+  const fitDrillLabel =
+    fitMin != null && fitMax != null
+      ? `${fitMin}–${fitMax}%`
+      : fitMin != null
+        ? `≥ ${fitMin}%`
+        : fitMax != null
+          ? `≤ ${fitMax}%`
+          : null;
+
+  const onSourceFilterChange = (value) => {
+    setSourceFilter(value);
+    setPage(1);
+    if (searchParams.get('display_channel')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('display_channel');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const fetchCandidates = async () => {
     try {
       const params = { page, page_size: pageSize };
-      if (sourceFilter !== 'all') params.source = sourceFilter;
+      if (drillDisplayChannel) {
+        params.display_channel = drillDisplayChannel;
+      } else if (sourceFilter === '__display_talent_pool_ex__') {
+        params.display_channel = 'talent_pool_ex';
+      } else if (sourceFilter !== 'all') {
+        params.source = sourceFilter;
+      }
       if (searchQuery && searchQuery.trim()) params.q = searchQuery.trim();
+      if (fitMin != null) params.fit_min = fitMin;
+      if (fitMax != null) params.fit_max = fitMax;
       const response = await candidatesApi.listPaged(params);
       const data = response.data || {};
       setCandidates(data.items || []);
@@ -188,6 +264,16 @@ const CandidatesPage = () => {
     return ids;
   }, [placementActive, placementOpenJobIds, applications]);
 
+  const listCandidateIds = useMemo(
+    () => (candidates || []).map((c) => c.id).filter(Boolean),
+    [candidates]
+  );
+  const {
+    summaries: trajSummaries,
+    loading: trajLoading,
+    reload: reloadTrajSummaries,
+  } = useCareerTrajectorySummaries(listCandidateIds);
+
   const bestAppByCandidateId = useMemo(() => {
     const map = new Map();
     const jobFilter =
@@ -232,16 +318,24 @@ const CandidatesPage = () => {
   const advanceApplication = async (app) => {
     const step = NEXT_PIPELINE_STEP[app?.stage];
     if (!step?.next || !app?.id) return;
-    setStageUpdatingId(app.id);
-    try {
-      await applicationsApi.updateStage(app.id, { stage: step.next });
-      toast.success('Updated');
-      await loadHiringContext();
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || 'Failed to update stage');
-    } finally {
-      setStageUpdatingId(null);
-    }
+
+    const doUpdate = async (reasonOverride) => {
+      setStageUpdatingId(app.id);
+      try {
+        await applicationsApi.updateStage(app.id, {
+          stage: step.next,
+          ...(reasonOverride ? { reason: reasonOverride } : {}),
+        });
+        toast.success('Updated');
+        await loadHiringContext();
+      } catch (e) {
+        toast.error(e?.response?.data?.detail || 'Failed to update stage');
+      } finally {
+        setStageUpdatingId(null);
+      }
+    };
+
+    await runWithClearanceCheck(app, app.stage, step.next, doUpdate);
   };
 
   const handleAddCandidate = async (e) => {
@@ -329,10 +423,12 @@ const CandidatesPage = () => {
 
   // Full candidate inventory — do not hide rows when header placement filters are set
   // (those filters apply on Pipeline / job-scoped views only).
-  const filteredCandidates = candidates || [];
+  const displayCandidates = candidates;
 
-  const visibleCandidatesCount = filteredCandidates.length;
-  const candidatesCountLabel = `${totalCandidatesCount} total candidates`;
+  const candidatesCountLabel =
+    fitDrillActive && fitDrillLabel
+      ? `${totalCandidatesCount} candidates matching fit ${fitDrillLabel}`
+      : `${totalCandidatesCount} total candidates`;
 
   const goToPage = (p) => {
     const next = Math.min(Math.max(1, p), totalPages || 1);
@@ -364,48 +460,98 @@ const CandidatesPage = () => {
       animate="visible"
       className="space-y-6"
     >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col lg:flex-row lg:items-center lg:flex-nowrap gap-3">
-        <div className="shrink-0">
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-            Candidates
-          </h1>
-          <p className="text-slate-600 mt-1">{candidatesCountLabel}</p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search candidates..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              className="pl-10"
-              data-testid="search-candidates-input"
-            />
+      {drillDisplayChannel ? (
+        <motion.div variants={itemVariants} className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Drill-down from Hiring Dashboard: channel{' '}
+            <strong>{DISPLAY_CHANNEL_LABELS[drillDisplayChannel] || drillDisplayChannel}</strong>
+            <span className="text-indigo-800"> ({totalCandidatesCount} matching)</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/dashboard">Hiring Dashboard</Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearDrillDisplayChannel} aria-label="Clear display channel filter">
+              Clear filter
+            </Button>
           </div>
-          <Select value={sourceFilter} onValueChange={setSourceFilter}>
-            <SelectTrigger className="w-full sm:w-44 shrink-0" data-testid="source-filter">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Source" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Sources</SelectItem>
-              <SelectItem value="DIRECT_UPLOAD">Direct Upload</SelectItem>
-              <SelectItem value="LINKEDIN">LinkedIn</SelectItem>
-              <SelectItem value="NAUKRI">Naukri</SelectItem>
-              <SelectItem value="INDEED">Indeed</SelectItem>
-              <SelectItem value="REFERRAL">Referral</SelectItem>
-              <SelectItem value="TALENT_POOL">Talent Pool</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        </motion.div>
+      ) : null}
 
-        <div className="shrink-0 flex lg:justify-end">
-          <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+      {drillSource ? (
+        <motion.div variants={itemVariants} className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Drill-down from Executive KPIs: source <strong>{formatSourceLabel(drillSource)}</strong>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/executive-kpis">Executive KPIs</Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearDrillSource} aria-label="Clear source filter">
+              Clear filter
+            </Button>
+          </div>
+        </motion.div>
+      ) : null}
+
+      {fitDrillActive && fitDrillLabel ? (
+        <motion.div variants={itemVariants} className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Drill-down from Hiring Dashboard: fit score <strong>{fitDrillLabel}</strong>
+            <span className="text-indigo-800"> ({totalCandidatesCount} matching)</span>
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm" className="h-8 bg-white">
+              <Link to="/dashboard">Hiring Dashboard</Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearFitDrill} aria-label="Clear fit score filter">
+              Clear filter
+            </Button>
+          </div>
+        </motion.div>
+      ) : null}
+
+      <motion.div variants={itemVariants}>
+        <SmartHiringPageHeader
+          title="Candidates"
+          description={candidatesCountLabel}
+          testId="candidates-heading"
+          filters={
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                <Input
+                  placeholder="Search candidates..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-10"
+                  data-testid="search-candidates-input"
+                  aria-label="Search candidates"
+                />
+              </div>
+              <Select value={sourceFilter} onValueChange={onSourceFilterChange}>
+                <SelectTrigger className="w-full sm:w-44 shrink-0" data-testid="source-filter" aria-label="Filter by candidate source">
+                  <Filter className="w-4 h-4 mr-2" aria-hidden />
+                  <SelectValue placeholder="Source" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[min(60vh,360px)]">
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="DIRECT_UPLOAD">Direct Upload</SelectItem>
+                  <SelectItem value="LINKEDIN">LinkedIn</SelectItem>
+                  <SelectItem value="NAUKRI">Naukri</SelectItem>
+                  <SelectItem value="INDEED">Indeed</SelectItem>
+                  <SelectItem value="REFERRAL">Referral</SelectItem>
+                  <SelectItem value="TALENT_POOL">Talent Pool (all)</SelectItem>
+                  <SelectItem value="__display_talent_pool_ex__">Talent Pool-Ex (Excel)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          }
+          actions={
+            <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
             <DialogTrigger asChild>
               <Button className="w-full lg:w-auto bg-indigo-600 hover:bg-indigo-700" data-testid="add-candidate-btn">
                 <Plus className="w-4 h-4 mr-2" />
@@ -426,9 +572,18 @@ const CandidatesPage = () => {
               
               <TabsContent value="upload" className="mt-4">
                 <div className="space-y-4">
-                  <div 
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload candidate resume (PDF or DOCX)"
                     className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-indigo-300 transition-colors cursor-pointer"
                     onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
                   >
                     <input
                       ref={fileInputRef}
@@ -462,7 +617,7 @@ const CandidatesPage = () => {
               
               <TabsContent value="manual" className="mt-4">
                 <form onSubmit={handleAddCandidate} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="col-span-2 space-y-2">
                       <Label htmlFor="full_name">Full Name *</Label>
                       <Input
@@ -560,7 +715,8 @@ const CandidatesPage = () => {
             </Tabs>
             </DialogContent>
           </Dialog>
-        </div>
+          }
+        />
       </motion.div>
 
       {placementActive && (
@@ -572,6 +728,7 @@ const CandidatesPage = () => {
             variant="link"
             className="h-auto p-0 ml-1 text-amber-900 underline"
             onClick={() => placement.clearAll()}
+            aria-label="Clear placement filters"
           >
             Clear placement filters
           </Button>
@@ -583,10 +740,10 @@ const CandidatesPage = () => {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
         </div>
-      ) : filteredCandidates.length > 0 ? (
+      ) : displayCandidates.length > 0 ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCandidates.map((candidate) => {
+            {displayCandidates.map((candidate) => {
             const app = bestAppByCandidateId.get(candidate.id);
             const stage = app?.stage;
             const cardBadge = getCandidateCardBadge(candidate, stage, STAGE_BADGE);
@@ -654,6 +811,14 @@ const CandidatesPage = () => {
                       )}
                     </div>
 
+                    <CareerTrajectorySummary
+                      candidateId={candidate.id}
+                      jobId={app?.job_id}
+                      summary={trajSummaries[candidate.id]}
+                      loading={trajLoading}
+                      onAnalyzed={reloadTrajSummaries}
+                    />
+
                     <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
                       <Link to={`/candidates/${candidate.id}`} className={step?.next ? 'flex-1' : 'w-full'}>
                         <Button variant="outline" size="sm" className="w-full">
@@ -665,6 +830,7 @@ const CandidatesPage = () => {
                           size="sm"
                           className="flex-1 bg-indigo-600 hover:bg-indigo-700"
                           disabled={stageUpdatingId === app.id}
+                          aria-label={step?.label ? `${step.label} for ${candidate.full_name || 'candidate'}` : undefined}
                           onClick={() => advanceApplication(app)}
                         >
                           {stageUpdatingId === app.id ? (
@@ -683,92 +849,44 @@ const CandidatesPage = () => {
           </div>
 
           {!loading && totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      goToPage(page - 1);
-                    }}
-                    className={page <= 1 ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-
-                {pageWindow.start > 1 && (
-                  <>
-                    <PaginationItem>
-                      <PaginationLink
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          goToPage(1);
-                        }}
-                        isActive={page === 1}
-                      >
-                        1
-                      </PaginationLink>
-                    </PaginationItem>
-                    {pageWindow.start > 2 && (
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    )}
-                  </>
-                )}
-
-                {Array.from({ length: pageWindow.end - pageWindow.start + 1 }, (_, i) => pageWindow.start + i).map(
-                  (p) => (
-                    <PaginationItem key={p}>
-                      <PaginationLink
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          goToPage(p);
-                        }}
-                        isActive={p === page}
-                      >
-                        {p}
-                      </PaginationLink>
-                    </PaginationItem>
-                  )
-                )}
-
-                {pageWindow.end < pageWindow.total && (
-                  <>
-                    {pageWindow.end < pageWindow.total - 1 && (
-                      <PaginationItem>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    )}
-                    <PaginationItem>
-                      <PaginationLink
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          goToPage(pageWindow.total);
-                        }}
-                        isActive={page === pageWindow.total}
-                      >
-                        {pageWindow.total}
-                      </PaginationLink>
-                    </PaginationItem>
-                  </>
-                )}
-
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      goToPage(page + 1);
-                    }}
-                    className={page >= totalPages ? 'pointer-events-none opacity-50' : ''}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <nav className="flex items-center justify-center gap-1 pt-2" aria-label="Candidates pagination">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => goToPage(page - 1)}
+                aria-label="Previous page"
+              >
+                Previous
+              </Button>
+              {Array.from({ length: pageWindow.end - pageWindow.start + 1 }, (_, i) => pageWindow.start + i).map(
+                (p) => (
+                  <Button
+                    key={p}
+                    type="button"
+                    variant={p === page ? 'default' : 'ghost'}
+                    size="sm"
+                    className="min-w-9"
+                    onClick={() => goToPage(p)}
+                    aria-current={p === page ? 'page' : undefined}
+                    aria-label={p === page ? `Current page, page ${p}` : `Go to page ${p}`}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => goToPage(page + 1)}
+                aria-label="Next page"
+              >
+                Next
+              </Button>
+            </nav>
           )}
         </div>
       ) : (
@@ -792,6 +910,7 @@ const CandidatesPage = () => {
           </Card>
         </motion.div>
       )}
+      {clearanceDialog}
     </motion.div>
   );
 };

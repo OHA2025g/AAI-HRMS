@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Smart Hiring Dashboard (Phase 6 polish)
+
+- **ChartCard** shared wrapper for hiring-dashboard charts (`TrendsChart`, `PipelineFunnelChart`, `SourceMixChart`).
+- **Storybook** stories for `ChartCard`, `KpiTile`, `PeriodToggle` (see `frontend/STORYBOOK.md`).
+- **TA review / presentation mode** on `/dashboard` (toggle hides filters, enlarges health score).
+- **Health strip** shows top 3 alerts inline with drill links.
+- **Bundled trends** — `GET /dashboard/hiring-pack?include_trends=true` embeds `trends` object (single round-trip).
+- **Event-driven cache invalidation** on application create/stage change and Find Matches.
+- **Slow-query logging** when hiring-pack aggregation exceeds `HIRING_PACK_SLOW_QUERY_SEC` (default 1s).
+- **`hiring_analytics_events`** collection + Find Matches event logging (migration `0017`).
+- **Migration rollback** — `down()` implemented for hiring dashboard indexes (`0015`, `0016`).
+- **Mobile layout** — single-column KPI grid on small viewports; Playwright mobile viewport project.
+- **v1 deprecation** — legacy `/dashboard/stats` UI sunset target documented below.
+
+#### Legacy dashboard v1 deprecation timeline
+
+| Milestone | Target | Action |
+|-----------|--------|--------|
+| v2 GA (default) | **May 2026** | `REACT_APP_HIRING_DASHBOARD_V2` defaults to on; legacy page at `/dashboard/legacy` |
+| Deprecation notice | **Jul 2026** | Banner on legacy dashboard; remove from primary nav |
+| v1 API/UI removal | **Sep 2026** | Remove `LegacyHiringDashboardPage`; keep `GET /dashboard/stats` read-only for integrations until Q4 review |
+
 ### Navigation & IA (Phases 1–10)
 
 - Added canonical navigation map: `docs/navigation-canonical-map.md`.

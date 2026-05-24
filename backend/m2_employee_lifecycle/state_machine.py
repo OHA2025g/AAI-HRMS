@@ -1,94 +1,68 @@
-"""
-Employee status state machine + lifecycle event eligibility (M2-1).
-"""
+"""Employee lifecycle state machine helpers."""
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional
 
-# Canonical employee.status values
-EMPLOYEE_STATUSES = frozenset({"ONBOARDING", "ACTIVE", "INACTIVE", "EXITED"})
+ALLOWED_STATUS = {"ACTIVE", "INACTIVE", "ONBOARDING", "EXITED", "SUSPENDED"}
 
-# Directed edges for direct PATCH/PUT on employees.status (UI / API edits)
-STATUS_TRANSITION_GRAPH: Dict[str, Set[str]] = {
+STATUS_TRANSITIONS = {
     "ONBOARDING": {"ACTIVE", "INACTIVE", "EXITED"},
-    "ACTIVE": {"INACTIVE", "EXITED"},
+    "ACTIVE": {"INACTIVE", "EXITED", "SUSPENDED"},
     "INACTIVE": {"ACTIVE", "EXITED"},
+    "SUSPENDED": {"ACTIVE", "INACTIVE", "EXITED"},
     "EXITED": set(),
 }
 
+EVENT_TARGET_STATUS = {
+    "ONBOARDED": "ONBOARDING",
+    "ACTIVATED": "ACTIVE",
+    "ROLE_CHANGED": None,
+    "DOCUMENT_ADDED": None,
+    "EXITED": "EXITED",
+}
 
-def normalize_status(status: Optional[str]) -> str:
-    s = (status or "ACTIVE").strip().upper()
-    return s if s in EMPLOYEE_STATUSES else "ACTIVE"
+EVENT_ALLOWED_FROM = {
+    "ONBOARDED": {"INACTIVE", "ONBOARDING"},
+    "ACTIVATED": {"ONBOARDING", "INACTIVE"},
+    "ROLE_CHANGED": {"ACTIVE", "ONBOARDING"},
+    "DOCUMENT_ADDED": {"ACTIVE", "ONBOARDING"},
+    "EXITED": {"ACTIVE", "INACTIVE", "ONBOARDING", "SUSPENDED"},
+}
+
+APPROVAL_RULES: Dict[str, Dict[str, Any]] = {
+    "ROLE_CHANGED": {"min_approvers": 1},
+    "EXITED": {"min_approvers": 1},
+}
 
 
 def validate_direct_status_transition(from_status: str, to_status: str) -> Optional[str]:
-    """
-    Returns error message if illegal, else None.
-    """
-    fs = normalize_status(from_status)
-    ts = normalize_status(to_status)
-    if fs == ts:
-        return None
-    allowed = STATUS_TRANSITION_GRAPH.get(fs, set())
-    if ts not in allowed:
-        return f"Illegal status transition {fs} -> {ts}"
+    src = (from_status or "ACTIVE").upper()
+    dst = (to_status or "").upper()
+    if dst not in ALLOWED_STATUS:
+        return f"Invalid status: {dst}"
+    allowed = STATUS_TRANSITIONS.get(src, ALLOWED_STATUS)
+    if dst not in allowed:
+        return f"Cannot transition from {src} to {dst}"
     return None
 
 
 def validate_lifecycle_event_for_status(event_type: str, current_status: str) -> Optional[str]:
-    """
-    Returns error message if this event must not apply from current_status.
-    """
-    cs = normalize_status(current_status)
-    et = (event_type or "").strip().upper()
-
-    if et == "ONBOARDED":
-        if cs == "EXITED":
-            return "Cannot ONBOARDED from EXITED; use HR data correction if needed"
-        return None
-
-    if et == "ACTIVATED":
-        if cs != "ONBOARDING":
-            return "ACTIVATED is only valid when employee status is ONBOARDING"
-        return None
-
-    if et == "EXITED":
-        if cs == "EXITED":
-            return "Employee already EXITED"
-        if cs not in {"ONBOARDING", "ACTIVE", "INACTIVE"}:
-            return f"EXITED not allowed from {cs}"
-        return None
-
-    if et in {"ROLE_CHANGED", "DOCUMENT_ADDED"}:
-        if cs == "EXITED":
-            return f"{et} not allowed for EXITED employees"
-        return None
-
-    return f"Unknown event_type: {et}"
-
-
-def target_status_for_event(event_type: str) -> Optional[str]:
-    """If event implies a canonical status change, return target status."""
-    et = (event_type or "").strip().upper()
-    if et == "ONBOARDED":
-        return "ONBOARDING"
-    if et == "ACTIVATED":
-        return "ACTIVE"
-    if et == "EXITED":
-        return "EXITED"
+    et = (event_type or "").upper()
+    cur = (current_status or "ACTIVE").upper()
+    allowed = EVENT_ALLOWED_FROM.get(et)
+    if allowed is None:
+        return f"Unknown event type: {et}"
+    if cur not in allowed:
+        return f"Event {et} not allowed from status {cur}"
     return None
 
 
-def approval_rule_for_event(event_type: str) -> Optional[Tuple[Tuple[str, ...], int]]:
-    """
-    (allowed_roles, escalation_hours) or None if no approval gate.
-    """
-    et = (event_type or "").strip().upper()
-    if et == "EXITED":
-        # Align with lifecycle_write (recruiter can process exits in demo / TA-heavy orgs)
-        return (("admin", "hr_admin", "recruiter"), 48)
-    if et == "ROLE_CHANGED":
-        return (("admin", "hr_admin", "recruiter"), 24)
-    return None
+def target_status_for_event(event_type: str) -> str:
+    et = (event_type or "").upper()
+    target = EVENT_TARGET_STATUS.get(et)
+    return target or "ACTIVE"
+
+
+def approval_rule_for_event(event_type: str) -> Optional[Dict[str, Any]]:
+    return APPROVAL_RULES.get((event_type or "").upper())

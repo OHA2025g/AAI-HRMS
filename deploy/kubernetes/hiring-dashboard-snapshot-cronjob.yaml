@@ -1,0 +1,54 @@
+# Smart Hiring Dashboard — daily trend snapshot CronJob
+#
+# Apply:
+#   kubectl apply -f deploy/kubernetes/hiring-dashboard-snapshot-cronjob.yaml
+#
+# Requires secret `hiring-snapshot-token` with key HIRING_SNAPSHOT_TOKEN matching the API env.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hiring-dashboard-snapshot
+  labels:
+    app: aai-hrms
+    component: hiring-dashboard-snapshot
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: aai-hrms
+            component: hiring-dashboard-snapshot
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: snapshot
+              image: curlimages/curl:8.5.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: HIRING_SNAPSHOT_URL
+                  value: "http://aai-hrms-api:8000/api/admin/hiring-dashboard/snapshot-cron"
+                - name: HIRING_SNAPSHOT_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: hiring-snapshot-token
+                      key: HIRING_SNAPSHOT_TOKEN
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  code="$(curl -sS -o /tmp/body.txt -w '%{http_code}' \
+                    -X POST \
+                    -H "X-Hiring-Snapshot-Token: ${HIRING_SNAPSHOT_TOKEN}" \
+                    -H "Content-Type: application/json" \
+                    -d '{}' \
+                    "${HIRING_SNAPSHOT_URL}")"
+                  echo "HTTP ${code}"
+                  cat /tmp/body.txt
+                  test "${code}" = "200"

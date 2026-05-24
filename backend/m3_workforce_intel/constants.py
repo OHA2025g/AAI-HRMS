@@ -1,13 +1,19 @@
-from __future__ import annotations
+"""Auto-generated stub — replace with real implementation."""
 
-# Mongo collection names (M3)
-COL_HIST_FEATURES = "workforce_intel_hist_features"
-COL_ETL_RUNS = "workforce_intel_etl_runs"
-COL_MODELS = "workforce_intel_models"
-COL_MODEL_STATE = "workforce_intel_model_state"
-COL_EVAL_RUNS = "workforce_intel_evaluation_runs"
-COL_DRIFT_EVENTS = "workforce_intel_drift_events"
-COL_MONITORING_STATE = "workforce_intel_monitoring_state"
+COL_DRIFT_EVENTS = 'col_drift_events'
 
-MODEL_STATE_DOC_ID = "default"
-MONITORING_STATE_DOC_ID = "default"
+COL_ETL_RUNS = 'col_etl_runs'
+
+COL_EVAL_RUNS = 'col_eval_runs'
+
+COL_HIST_FEATURES = 'col_hist_features'
+
+COL_MODELS = 'col_models'
+
+COL_MODEL_STATE = 'col_model_state'
+
+COL_MONITORING_STATE = 'col_monitoring_state'
+
+MODEL_STATE_DOC_ID = 'model_state_doc_id'
+
+MONITORING_STATE_DOC_ID = 'monitoring_state_doc_id'

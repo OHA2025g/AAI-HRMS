@@ -1,532 +1,446 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { executiveApi } from '../lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Loader2, ExternalLink } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { toast } from 'sonner';
-import { Badge } from '../components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { motion } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
+import { useExecutiveFilters } from '../hooks/executive/useExecutiveFilters';
+import { useExecutiveKpiData } from '../hooks/executive/useExecutiveKpiData';
+import { ExecutivePageHeader } from '../components/executive/ExecutivePageHeader';
+import { ExecutiveFilterBar } from '../components/executive/ExecutiveFilterBar';
+import { DataFreshnessStrip } from '../components/executive/DataFreshnessStrip';
+import { ExecutiveInsightsPanel } from '../components/executive/ExecutiveInsightsPanel';
+import { ExecutiveNarrativePanel } from '../components/executive/ExecutiveNarrativePanel';
+import { ExecutiveQuickLinks } from '../components/executive/ExecutiveQuickLinks';
+import { ExecutiveKpiTile } from '../components/executive/ExecutiveKpiTile';
+import {
+  ExecutiveSection,
+  RetentionRiskTable,
+  SentimentDonut,
+  SkillGapsChart,
+  SourceMixDonut,
+  WorkforceTrendChart,
+} from '../components/executive/ExecutiveCharts';
+import { LeadershipExportSection } from '../components/executive/LeadershipExportSection';
+import { ExecutivePredictivePanel } from '../components/executive/ExecutivePredictivePanel';
+import { ExecutiveDashboardSkeleton } from '../components/executive/ExecutiveDashboardSkeleton';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
+import { TabsContent } from '../components/ui/tabs';
+import { ExecutiveKpiTabs } from '../components/executive/ExecutiveKpiTabs';
+import { cn } from '@/lib/utils';
+import { hasExecutiveDrillFilters } from '../config/executiveKpiConfig';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const TAB_TILE_TARGETS = {
+  '#workforce': 'workforce',
+  '#skills': 'skills',
+  '#people-risk': 'people',
+};
 
 const ExecutiveKpiPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [kpi, setKpi] = useState(null);
-  const [drill, setDrill] = useState(null);
-  const [horizonMonths, setHorizonMonths] = useState(3);
-  const [windowDays, setWindowDays] = useState(30);
-  const [department, setDepartment] = useState('');
-  const [managerRootId, setManagerRootId] = useState('');
-  const [roleContains, setRoleContains] = useState('');
-  const [drillOpts, setDrillOpts] = useState(null);
-  const [freshness, setFreshness] = useState(null);
-  const [snapshots, setSnapshots] = useState([]);
+  const navigate = useNavigate();
+  const { filters, setFilters, clearFilters, activeChips } = useExecutiveFilters();
+  const {
+    loading,
+    refetching,
+    error,
+    pack,
+    drill,
+    drillOpts,
+    trends,
+    snapshots,
+    defById,
+    getDelta,
+    reload,
+    loadSnapshots,
+    narrative,
+    predictive,
+    debouncedRole,
+  } = useExecutiveKpiData(filters);
+
+  const [presentationMode, setPresentationMode] = useState(false);
+
+  useEffect(() => {
+    if (presentationMode) {
+      document.documentElement.classList.add('executive-board-mode');
+    } else {
+      document.documentElement.classList.remove('executive-board-mode');
+    }
+    return () => document.documentElement.classList.remove('executive-board-mode');
+  }, [presentationMode]);
+
   const [periodYm, setPeriodYm] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [exportBusy, setExportBusy] = useState(false);
 
-  const loadSnapshots = useCallback(async () => {
-    try {
-      const res = await executiveApi.listM9ExportPacks(24);
-      setSnapshots(res.data?.items || []);
-    } catch {
-      /* optional */
-    }
-  }, []);
+  const strategic = drill?.dashboard || {};
+  const winDays = strategic?.analytics_window_days ?? filters.windowDays;
+  const gaps = strategic?.top_skill_gaps || [];
+  const ta = drill?.talent_acquisition || pack?.talent_acquisition || {};
+  const freshness = drill?.freshness || pack?.freshness;
+  const insights = drill?.insights || pack?.insights || [];
+  const metricStatus = drill?.metric_status || {};
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await executiveApi.getM9DrillOptions();
-        setDrillOpts(res.data);
-      } catch {
-        setDrillOpts(null);
+  const scopeHint =
+    drill?.scope_employee_count != null
+      ? `${drill.scope_employee_count} employees in scope`
+      : 'Full organization';
+
+  const drillFiltersActive = hasExecutiveDrillFilters(filters);
+
+  const coverage =
+    strategic?.skill_coverage_pct != null
+      ? strategic.skill_coverage_pct
+      : pack?.values?.skill_coverage_pct?.value;
+  const coverageScope = strategic?.skill_coverage_scope || 'org';
+
+  const onHeroTileClick = useCallback(
+    (target) => {
+      if (target === 'attrition') {
+        navigate('/high-skill-talent-retention/dashboard');
+        return;
       }
-    })();
-  }, []);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [res1, res2, res3] = await Promise.all([
-          executiveApi.getKpis(),
-          executiveApi.getStrategicDrill({
-            horizon_months: horizonMonths,
-            window_days: windowDays,
-            department: department || undefined,
-            manager_root_id: managerRootId || undefined,
-            role_title_contains: roleContains.trim() || undefined,
-          }),
-          executiveApi.getM9Freshness(),
-        ]);
-        setKpi(res1.data);
-        setDrill(res2.data);
-        setFreshness(res3.data);
-      } catch (e) {
-        toast.error('Failed to load executive KPIs');
-      } finally {
-        setLoading(false);
+      if (target === 'engagement') {
+        navigate('/employee-satisfaction-engagement/executive-decision-support');
+        return;
       }
-    };
-    load();
-  }, [horizonMonths, windowDays, department, managerRootId, roleContains]);
-
-  useEffect(() => {
-    loadSnapshots();
-  }, [loadSnapshots]);
-
-  const downloadPack = async (snapshotId, format) => {
-    try {
-      const res = await executiveApi.downloadM9ExportPack(snapshotId, format);
-      const blob = new Blob([res.data], {
-        type: format === 'json' ? 'application/json' : format === 'pdf' ? 'application/pdf' : 'text/csv',
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `m9-snapshot-${snapshotId}.${format}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Download failed');
-    }
-  };
-
-  const createSnapshot = async () => {
-    setExportBusy(true);
-    try {
-      const res = await executiveApi.createM9MonthlySnapshot({
-        period: periodYm,
-        horizon_months: horizonMonths,
-        window_days: windowDays,
-      });
-      toast.success(`Snapshot ${res.data?.id?.slice(0, 8)}… created`);
-      if (res.data?.delivery_hook && !res.data.delivery_hook.ok) {
-        toast.message('Webhook not delivered (check M9_LEADERSHIP_WEBHOOK_URL)');
+      const tabId = TAB_TILE_TARGETS[target];
+      if (tabId) {
+        setFilters({ activeTab: tabId });
       }
-      await loadSnapshots();
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || 'Snapshot failed');
-    } finally {
-      setExportBusy(false);
-    }
-  };
+    },
+    [navigate, setFilters],
+  );
 
-  const downloadFullLeadershipPack = async () => {
-    setExportBusy(true);
-    try {
-      const res = await executiveApi.downloadM9FullLeadershipPack({
-        period: periodYm,
-        horizon_months: horizonMonths,
-        window_days: windowDays,
-      });
-      const blob = new Blob([res.data], { type: 'application/zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `m9-full-leadership-pack-${periodYm}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Leadership pack downloaded');
-      await loadSnapshots();
-    } catch (e) {
-      toast.error(e?.response?.data?.detail || 'ZIP export failed');
-    } finally {
-      setExportBusy(false);
-    }
-  };
+  if (loading && !pack) {
+    return <ExecutiveDashboardSkeleton />;
+  }
 
-  if (loading) {
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <div className="p-8 text-center space-y-4">
+        <p className="text-rose-600">{error}</p>
+        <Button onClick={reload}>Retry</Button>
       </div>
     );
   }
 
-  const strategic = drill?.dashboard || {};
-  const winDays = strategic?.analytics_window_days ?? windowDays;
-  const gaps = strategic?.top_skill_gaps || kpi?.top_skill_gaps || [];
-  const forecastGapTotal = strategic?.forecast_gap_total || 0;
-  const shortageTotal = strategic?.resource_total_shortage || 0;
-  const benchTotal = strategic?.resource_total_bench || 0;
-  const engagementAvg = strategic?.engagement_avg_rating ?? 0;
-  const retentionAvgRisk = strategic?.retention_avg_risk_score ?? 0;
-  const topRiskEmployees = strategic?.retention_top_risk_employees || [];
-  const m7RunsOk = strategic?.automation_runs_succeeded_30d ?? 0;
-  const m7RunsFail = strategic?.automation_runs_failed_30d ?? 0;
-  const m7MinSaved = strategic?.estimated_manual_minutes_saved_30d ?? 0;
-  const m7UsdSaved = strategic?.estimated_cost_saved_usd_30d ?? 0;
-  const m7Baselines = strategic?.cost_optimization_baselines_count ?? 0;
-  const ta = kpi?.talent_acquisition || {};
-  const scopeHint =
-    drill?.scope_employee_count != null ? `${drill.scope_employee_count} employees in scope` : 'Full organization';
-
-  const depts = drillOpts?.departments || [];
-  const managers = drillOpts?.manager_roots || [];
+  const m7Ok = strategic?.automation_runs_succeeded_30d ?? 0;
+  const m7Fail = strategic?.automation_runs_failed_30d ?? 0;
+  const m7Total = m7Ok + m7Fail;
+  const m7SuccessPct = m7Total ? Math.round((100 * m7Ok) / m7Total) : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-          Executive KPI Dashboard
-        </h1>
-        <p className="text-slate-600">M9 — semantic KPI layer, drill-down, freshness, leadership exports</p>
-      </div>
+    <motion.div className="relative">
+      {refetching ? (
+        <motion.div
+          className="absolute inset-0 z-20 flex items-start justify-center pt-24 bg-white/50 rounded-xl pointer-events-none"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+        </motion.div>
+      ) : null}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className={cn(
+          'space-y-5 pb-10 transition-opacity duration-200',
+          refetching && 'opacity-60 pointer-events-none',
+          presentationMode && 'executive-presentation bg-slate-50 p-4 md:p-8 rounded-xl',
+        )}
+      >
+        <motion.div variants={itemVariants}>
+          <ExecutivePageHeader
+            generatedAt={strategic?.generated_at || pack?.strategic_summary?.generated_at}
+            onRefresh={reload}
+            refetching={refetching}
+            presentationMode={presentationMode}
+            onPresentationModeChange={setPresentationMode}
+            analystMode={filters.analystMode}
+            onAnalystModeChange={(v) => setFilters({ analystMode: v })}
+          />
+        </motion.div>
 
-      <Card className="border-indigo-100 bg-indigo-50/40">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Related executive views</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 text-sm">
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/dashboard">
-              Hiring dashboard <ExternalLink className="h-3.5 w-3.5 ml-1 opacity-70" />
-            </Link>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/workforce-intelligence/executive-intelligence">WFI executive intelligence</Link>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/employee-satisfaction-engagement/executive-decision-support">ESE executive support</Link>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/cost-optimization-automation/executive-decision-support">COA executive decision support</Link>
-          </Button>
-          <Button asChild variant="secondary" size="sm">
-            <Link to="/high-skill-talent-retention/dashboard">High-skill retention</Link>
-          </Button>
-        </CardContent>
-      </Card>
+        {!presentationMode ? (
+          <motion.div variants={itemVariants}>
+            <ExecutiveQuickLinks />
+          </motion.div>
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>M9 — Drill &amp; time window (linked filters)</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Horizon (forecast)</p>
-              <Select value={String(horizonMonths)} onValueChange={(v) => setHorizonMonths(Number(v))}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Horizon" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 month</SelectItem>
-                  <SelectItem value="3">3 months</SelectItem>
-                  <SelectItem value="6">6 months</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Analytics window</p>
-              <Select value={String(windowDays)} onValueChange={(v) => setWindowDays(Number(v))}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">7 days</SelectItem>
-                  <SelectItem value="30">30 days</SelectItem>
-                  <SelectItem value="90">90 days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[200px] flex-1">
-              <p className="text-xs text-slate-500 mb-1">Department</p>
-              <Select value={department || '__all'} onValueChange={(v) => setDepartment(v === '__all' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All departments" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All departments</SelectItem>
-                  {depts.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[220px] flex-1">
-              <p className="text-xs text-slate-500 mb-1">Team root (manager subtree)</p>
-              <Select value={managerRootId || '__all'} onValueChange={(v) => setManagerRootId(v === '__all' ? '' : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All teams" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all">All teams</SelectItem>
-                  {managers.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {(m.full_name || m.id) + (m.department ? ` — ${m.department}` : '')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[180px] flex-1">
-              <p className="text-xs text-slate-500 mb-1">Role contains</p>
-              <Input
-                placeholder="e.g. Engineer"
-                value={roleContains}
-                onChange={(e) => setRoleContains(e.target.value)}
+        <motion.div variants={itemVariants}>
+          <ExecutiveFilterBar
+            filters={filters}
+            setFilters={setFilters}
+            clearFilters={clearFilters}
+            activeChips={activeChips}
+            drillOpts={drillOpts}
+            scopeHint={scopeHint}
+            snapshots={snapshots}
+          />
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <DataFreshnessStrip freshness={freshness} />
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <ExecutiveKpiTabs
+            value={filters.activeTab}
+            onValueChange={(tab) => setFilters({ activeTab: tab })}
+            presentationMode={presentationMode}
+          >
+            <TabsContent value="summary" className="mt-5 space-y-4 focus-visible:outline-none">
+              <ExecutiveInsightsPanel insights={insights} />
+              <ExecutiveNarrativePanel narrative={narrative} />
+            </TabsContent>
+
+            <TabsContent value="workforce" className="mt-5 space-y-4 focus-visible:outline-none">
+              <motion.div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+                <ExecutiveKpiTile
+                  label="Active headcount"
+                  value={strategic?.active_employee_count ?? pack?.values?.headcount_active?.value}
+                  icon="users"
+                  status={metricStatus.headcount_active || pack?.values?.headcount_active?.status || 'ok'}
+                  definition={defById('headcount_active')}
+                  delta={getDelta('active_employee_count') || getDelta('headcount_active')}
+                  hint={`${strategic?.employee_count ?? '—'} total records`}
+                  onClick={() => onHeroTileClick('#workforce')}
+                />
+                <ExecutiveKpiTile
+                  label="Attrition rate"
+                  value={`${strategic?.attrition_rate_pct ?? pack?.values?.attrition_rate_pct?.value ?? 0}%`}
+                  icon="trending"
+                  status={metricStatus.attrition_rate_pct || pack?.values?.attrition_rate_pct?.status}
+                  definition={defById('attrition_rate_pct')}
+                  delta={getDelta('attrition_rate_pct')}
+                  onClick={() => onHeroTileClick('attrition')}
+                />
+                <ExecutiveKpiTile
+                  label="Skill coverage"
+                  value={`${coverage ?? 0}%`}
+                  icon="target"
+                  status={metricStatus.skill_coverage_pct || pack?.values?.skill_coverage_pct?.status}
+                  definition={defById('skill_coverage_pct')}
+                  delta={getDelta('skill_coverage_pct')}
+                  hint={coverageScope === 'filtered' ? 'Scoped to current filters' : 'Organization-wide'}
+                  onClick={() => onHeroTileClick('#skills')}
+                />
+                <ExecutiveKpiTile
+                  label="Forecast skill gap"
+                  value={strategic?.forecast_gap_total ?? pack?.values?.forecast_gap_total?.value}
+                  icon="alert"
+                  status={metricStatus.forecast_gap_total || pack?.values?.forecast_gap_total?.status}
+                  definition={defById('forecast_gap_total')}
+                  delta={getDelta('forecast_gap_total')}
+                  hint={`${filters.horizonMonths} month horizon`}
+                  onClick={() => onHeroTileClick('#skills')}
+                />
+                <ExecutiveKpiTile
+                  label="Engagement avg"
+                  value={strategic?.engagement_avg_rating ?? pack?.values?.engagement_avg_rating?.value}
+                  icon="heart"
+                  status={metricStatus.engagement_avg_rating || pack?.values?.engagement_avg_rating?.status}
+                  definition={defById('engagement_avg_rating')}
+                  delta={getDelta('engagement_avg_rating')}
+                  hint={`${strategic?.engagement_last_30_days_responses ?? 0} pulses (${winDays}d)`}
+                  onClick={() => onHeroTileClick('engagement')}
+                />
+                <ExecutiveKpiTile
+                  label="Retention risk"
+                  value={strategic?.retention_avg_risk_score ?? pack?.values?.retention_avg_risk_score?.value}
+                  icon="shield"
+                  status={metricStatus.retention_avg_risk_score || pack?.values?.retention_avg_risk_score?.status}
+                  definition={defById('retention_avg_risk_score')}
+                  delta={getDelta('retention_avg_risk_score')}
+                  onClick={() => onHeroTileClick('#people-risk')}
+                />
+              </motion.div>
+              <motion.div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <ExecutiveSection
+                  title="Workforce trend"
+                  description="From monthly leadership snapshots"
+                  refetching={refetching}
+                  skeletonHeight={260}
+                >
+                  <WorkforceTrendChart trends={trends} scopeFiltered={drillFiltersActive} />
+                </ExecutiveSection>
+                <ExecutiveSection
+                  title="Workforce snapshot"
+                  description="Current period headcount composition"
+                  refetching={refetching}
+                  action={
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/workforce-intelligence/dashboard">Workforce module</Link>
+                    </Button>
+                  }
+                >
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-500">Total employees</p>
+                      <p className="text-2xl font-bold">{strategic?.employee_count ?? 0}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-slate-500">Exited (stock)</p>
+                      <p className="text-2xl font-bold">{strategic?.attrition_count ?? 0}</p>
+                    </div>
+                  </div>
+                </ExecutiveSection>
+              </motion.div>
+              <ExecutiveSection
+                title="Predictive workforce outlook"
+                description="Attrition trend projection and M8 retention risk forecast"
+                refetching={refetching}
+                skeletonHeight={320}
+              >
+                <ExecutivePredictivePanel predictive={predictive} refetching={refetching} />
+              </ExecutiveSection>
+            </TabsContent>
+
+            <TabsContent
+              value="skills"
+              className="mt-5 focus-visible:outline-none"
+              data-testid="executive-section-skills"
+            >
+              <ExecutiveSection
+                title="Skill gaps"
+                description="Demand vs supply — click a bar to open Workforce Intelligence"
+                refetching={refetching}
+                skeletonHeight={280}
+              >
+                <SkillGapsChart gaps={gaps} analystMode={filters.analystMode} />
+              </ExecutiveSection>
+            </TabsContent>
+
+            <TabsContent value="people" className="mt-5 space-y-4 focus-visible:outline-none">
+              <motion.div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <ExecutiveSection
+                  title="Engagement sentiment"
+                  description={`Pulse responses in ${winDays}-day window`}
+                  refetching={refetching}
+                >
+                  <SentimentDonut counts={strategic?.engagement_sentiment_counts} />
+                  <Button asChild variant="link" className="mt-2 px-0 text-indigo-600">
+                    <Link to="/employee-satisfaction-engagement/dashboard">Engagement dashboard →</Link>
+                  </Button>
+                </ExecutiveSection>
+                <ExecutiveSection
+                  title="Strategic capacity"
+                  description="Shortage, bench, and forecast indicators"
+                  refetching={refetching}
+                >
+                  <motion.div className="grid grid-cols-2 gap-3">
+                    <MiniStat label="Resource shortage" value={strategic?.resource_total_shortage} />
+                    <MiniStat label="Resource bench" value={strategic?.resource_total_bench} />
+                    <MiniStat label="Forecast gap" value={strategic?.forecast_gap_total} />
+                    <MiniStat label="Avg skills / employee" value={strategic?.avg_skills_per_employee} />
+                  </motion.div>
+                </ExecutiveSection>
+              </motion.div>
+              <ExecutiveSection
+                title="Top at-risk employees"
+                description="Critical skill shortage exposure — click a row for retention module"
+                refetching={refetching}
+                skeletonHeight={280}
+                id="people-risk"
+              >
+                <RetentionRiskTable
+                  employees={strategic?.retention_top_risk_employees || []}
+                  analystMode={filters.analystMode}
+                />
+              </ExecutiveSection>
+            </TabsContent>
+
+            <TabsContent value="hiring" className="mt-5 focus-visible:outline-none">
+              <motion.div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <ExecutiveSection
+                  title={`Hiring quality (${winDays}d)`}
+                  description="Talent acquisition executive metrics"
+                  refetching={refetching}
+                >
+                  <motion.div className="grid grid-cols-2 gap-4 mb-4">
+                    <MiniStat label="Candidates added" value={ta.candidates_created_in_window} />
+                    <MiniStat
+                      label="Match precision"
+                      value={ta.top_match_precision_proxy_pct != null ? `${ta.top_match_precision_proxy_pct}%` : '—'}
+                    />
+                    <MiniStat label="Dedup events" value={ta.dedup_audit_events_in_window} />
+                    <MiniStat
+                      label="Source concentration"
+                      value={ta.primary_source_concentration_pct != null ? `${ta.primary_source_concentration_pct}%` : '—'}
+                    />
+                  </motion.div>
+                  <Button asChild variant="link" className="px-0 text-indigo-600">
+                    <Link to="/candidates">View candidates →</Link>
+                  </Button>
+                </ExecutiveSection>
+                <ExecutiveSection
+                  title="Candidate source mix"
+                  description="New candidates by channel"
+                  refetching={refetching}
+                >
+                  <SourceMixDonut mix={ta.source_mix_by_channel} />
+                </ExecutiveSection>
+              </motion.div>
+            </TabsContent>
+
+            <TabsContent value="automation" className="mt-5 focus-visible:outline-none">
+              <ExecutiveSection
+                title={`Automation & savings (${winDays}d)`}
+                description="Estimated ROI from workflow automation"
+                refetching={refetching}
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/cost-optimization-automation/executive-decision-support">COA executive view</Link>
+                  </Button>
+                }
+              >
+                <motion.div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+                  <MiniStat label="Runs succeeded" value={m7Ok} />
+                  <MiniStat label="Runs failed" value={m7Fail} highlight={m7Fail > 0} />
+                  <MiniStat label="Success rate" value={m7SuccessPct != null ? `${m7SuccessPct}%` : '—'} />
+                  <MiniStat label="Minutes saved (est.)" value={strategic?.estimated_manual_minutes_saved_30d} />
+                  <MiniStat label="USD saved (est.)" value={`$${strategic?.estimated_cost_saved_usd_30d ?? 0}`} />
+                </motion.div>
+              </ExecutiveSection>
+            </TabsContent>
+
+            <TabsContent value="reports" className="mt-5 focus-visible:outline-none" id="reports">
+              <LeadershipExportSection
+                periodYm={periodYm}
+                setPeriodYm={setPeriodYm}
+                horizonMonths={filters.horizonMonths}
+                windowDays={filters.windowDays}
+                snapshots={snapshots}
+                onSnapshotsReload={loadSnapshots}
+                department={filters.department}
+                managerRootId={filters.managerRootId}
+                roleContains={debouncedRole}
               />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-            <Badge variant="secondary">{scopeHint}</Badge>
-            {drill?.cache?.hit != null && (
-              <Badge variant="outline">Drill cache {drill.cache.hit ? 'hit' : 'miss'}</Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {freshness?.checks?.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Data freshness (SLA)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {freshness.checks.map((c) => (
-              <Badge key={c.source} variant={c.sla_ok ? 'outline' : 'destructive'}>
-                {c.source}: {c.sla_ok ? 'OK' : 'STALE'}
-                {c.age_hours != null ? ` (${c.age_hours}h)` : ''}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Employees</p>
-            <p className="text-2xl font-bold">{strategic?.employee_count ?? kpi?.employee_count ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Active Employees</p>
-            <p className="text-2xl font-bold">{strategic?.active_employee_count ?? kpi?.active_employee_count ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Attrition Rate</p>
-            <p className="text-2xl font-bold">{strategic?.attrition_rate_pct ?? kpi?.attrition_rate_pct ?? 0}%</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Skill Coverage</p>
-            <p className="text-2xl font-bold">{kpi?.skill_coverage_pct || 0}%</p>
-            {(department || managerRootId || roleContains.trim()) && (
-              <p className="text-xs text-slate-400 mt-1">Org-wide (see skill gaps chart for scoped supply)</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>M7 — Automation &amp; estimated savings ({winDays}d window)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div>
-            <p className="text-sm text-slate-500">Runs OK</p>
-            <p className="text-2xl font-bold">{m7RunsOk}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Runs failed</p>
-            <p className="text-2xl font-bold">{m7RunsFail}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Baselines</p>
-            <p className="text-2xl font-bold">{m7Baselines}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Est. minutes saved</p>
-            <p className="text-2xl font-bold">{m7MinSaved}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Est. USD saved</p>
-            <p className="text-2xl font-bold">{m7UsdSaved}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Strategic horizon</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">Forecast Gap Total: {forecastGapTotal}</Badge>
-            <Badge variant="outline">Resource Shortage: {shortageTotal}</Badge>
-            <Badge variant="outline">Resource Bench: {benchTotal}</Badge>
-            <Badge variant="outline">Engagement Avg: {engagementAvg}</Badge>
-            <Badge variant="outline">Retention Avg Risk: {retentionAvgRisk}</Badge>
-            <Badge variant="outline">Pulse responses ({winDays}d): {strategic?.engagement_last_30_days_responses ?? 0}</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Talent acquisition — executive KPIs (30d window)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-sm text-slate-500">Dedup audit events</p>
-            <p className="text-2xl font-bold">{ta.dedup_audit_events_in_window ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Candidates in window</p>
-            <p className="text-2xl font-bold">{ta.candidates_created_in_window ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Top-match precision proxy</p>
-            <p className="text-2xl font-bold">
-              {ta.top_match_precision_proxy_pct != null ? `${ta.top_match_precision_proxy_pct}%` : '—'}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-500">Primary source concentration</p>
-            <p className="text-2xl font-bold">
-              {ta.primary_source_concentration_pct != null ? `${ta.primary_source_concentration_pct}%` : '—'}
-            </p>
-          </div>
-          <div className="col-span-full text-xs text-slate-500">
-            Source mix:{' '}
-            {ta.source_mix_by_channel && Object.keys(ta.source_mix_by_channel).length
-              ? Object.entries(ta.source_mix_by_channel)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(' · ')
-              : '—'}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>M9 — Leadership export packs</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2 items-end">
-            <div>
-              <p className="text-xs text-slate-500 mb-1">Period (YYYY-MM)</p>
-              <Input className="w-[140px]" value={periodYm} onChange={(e) => setPeriodYm(e.target.value)} />
-            </div>
-            <Button onClick={createSnapshot} disabled={exportBusy}>
-              {exportBusy ? 'Working…' : 'Generate monthly snapshot'}
-            </Button>
-            <Button variant="secondary" onClick={downloadFullLeadershipPack} disabled={exportBusy}>
-              Download full leadership pack (ZIP)
-            </Button>
-          </div>
-          {snapshots.length === 0 ? (
-            <p className="text-slate-500 text-sm">No snapshots yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Downloads</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {snapshots.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{s.period}</TableCell>
-                    <TableCell className="text-xs text-slate-600">{s.created_at}</TableCell>
-                    <TableCell className="space-x-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => downloadPack(s.id, 'csv')}>
-                        CSV
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => downloadPack(s.id, 'pdf')}>
-                        PDF
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => downloadPack(s.id, 'json')}>
-                        JSON
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Skill Gaps</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {gaps.length === 0 ? (
-            <p className="text-slate-500">No skill gap data yet.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={gaps.slice(0, 8)}>
-                <XAxis dataKey="skill_name" tick={{ fontSize: 11 }} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="gap" fill="#6366F1" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Top At-Risk Employees (Retention)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {topRiskEmployees.length === 0 ? (
-            <p className="text-slate-500">No retention risk data yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Critical Skills Matched</TableHead>
-                  <TableHead>Risk Label</TableHead>
-                  <TableHead>Risk Score</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topRiskEmployees.slice(0, 10).map((e) => (
-                  <TableRow key={e.employee_code}>
-                    <TableCell>
-                      <div className="font-medium">{e.full_name || '-'}</div>
-                      <div className="text-xs text-slate-500">{e.employee_code}</div>
-                    </TableCell>
-                    <TableCell>{e.critical_skills_matched}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          e.risk_label === 'HIGH' ? 'destructive' : e.risk_label === 'MEDIUM' ? 'outline' : 'secondary'
-                        }
-                      >
-                        {e.risk_label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{e.risk_score}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            </TabsContent>
+          </ExecutiveKpiTabs>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   );
 };
+
+function MiniStat({ label, value, highlight }) {
+  return (
+    <div className={cn('rounded-lg border p-3', highlight ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100')}>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-xl font-bold text-slate-900 mt-0.5">{value ?? '—'}</p>
+    </div>
+  );
+}
 
 export default ExecutiveKpiPage;

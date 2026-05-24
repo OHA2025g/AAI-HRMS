@@ -1,9 +1,13 @@
-"""Mongo collections for M5 Training & Skill Development."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_LEARNING_PATH_TEMPLATES = "training_learning_path_templates"
-COL_ASSIGNMENTS = "training_employee_assignments"
-COL_LMS_COURSES = "training_lms_courses"
-COL_LMS_SYNC_RUNS = "training_lms_sync_runs"
-COL_CERTIFICATIONS = "training_certifications"
+COL_ASSIGNMENTS = 'col_assignments'
 
-DEFAULT_LMS_PROVIDER = "stub"
+COL_CERTIFICATIONS = 'col_certifications'
+
+COL_LEARNING_PATH_TEMPLATES = 'col_learning_path_templates'
+
+COL_LMS_COURSES = 'col_lms_courses'
+
+COL_LMS_SYNC_RUNS = 'col_lms_sync_runs'
+
+DEFAULT_LMS_PROVIDER = 'default_lms_provider'

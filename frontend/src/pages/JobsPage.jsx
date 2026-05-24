@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { jobsApi } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -36,24 +36,41 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { toast } from 'sonner';
+import { orderJobsSeededExcelPattern } from '../lib/jobSource';
+import SmartHiringPageHeader from '../components/hiring/SmartHiringPageHeader';
 
 const JobsPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
+  const withoutMatches = searchParams.get('without_matches') === '1';
+  const lowFit = searchParams.get('low_fit') === '1';
+
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) setStatusFilter(status);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchJobs();
-  }, [statusFilter]);
+  }, [statusFilter, withoutMatches, lowFit]);
 
   const fetchJobs = async () => {
+    setFetchError(null);
     try {
-      const params = statusFilter !== 'all' ? statusFilter : undefined;
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (withoutMatches) params.without_fit_scores = true;
+      if (lowFit) params.low_fit = true;
       const response = await jobsApi.list(params);
       setJobs(response.data);
     } catch (error) {
+      setFetchError('Failed to load jobs. Check your connection and try again.');
+      setJobs([]);
       toast.error('Failed to fetch jobs');
     } finally {
       setLoading(false);
@@ -83,6 +100,11 @@ const JobsPage = () => {
     const q = (searchQuery || '').toLowerCase();
     return title.includes(q) || location.includes(q) || orgSearchBlob(job).includes(q);
   });
+
+  const displayJobs = useMemo(
+    () => orderJobsSeededExcelPattern(filteredJobs),
+    [filteredJobs]
+  );
 
   const totalJobsCount = jobs.length;
   const visibleJobsCount = filteredJobs.length;
@@ -119,49 +141,48 @@ const JobsPage = () => {
       animate="visible"
       className="space-y-6"
     >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col lg:flex-row lg:items-center lg:flex-nowrap gap-3">
-        <div className="shrink-0">
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-            Jobs
-          </h1>
-          <p className="text-slate-600 mt-1">{jobsCountLabel}</p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-0">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-              data-testid="search-jobs-input"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-44 shrink-0" data-testid="status-filter">
-              <Filter className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="OPEN">Open</SelectItem>
-              <SelectItem value="PAUSED">Paused</SelectItem>
-              <SelectItem value="CLOSED">Closed</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="shrink-0 flex lg:justify-end">
-          <Link to="/jobs/new" className="w-full lg:w-auto">
-            <Button className="w-full lg:w-auto bg-indigo-600 hover:bg-indigo-700" data-testid="create-job-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Job
-            </Button>
-          </Link>
-        </div>
+      <motion.div variants={itemVariants}>
+        <SmartHiringPageHeader
+          title="Jobs"
+          description={jobsCountLabel}
+          testId="jobs-heading"
+          filters={
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
+                <Input
+                  placeholder="Search jobs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  data-testid="search-jobs-input"
+                  aria-label="Search jobs"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-44 shrink-0" data-testid="status-filter" aria-label="Filter jobs by status">
+                  <Filter className="w-4 h-4 mr-2" aria-hidden />
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="PAUSED">Paused</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          }
+          actions={
+            <Link to="/jobs/new" className="w-full sm:w-auto">
+              <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700" data-testid="create-job-btn">
+                <Plus className="w-4 h-4 mr-2" />
+                Create Job
+              </Button>
+            </Link>
+          }
+        />
       </motion.div>
 
       {/* Jobs Grid */}
@@ -169,9 +190,23 @@ const JobsPage = () => {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
         </div>
-      ) : filteredJobs.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobs.map((job) => (
+      ) : fetchError ? (
+        <motion.div variants={itemVariants}>
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <h3 className="text-lg font-semibold text-red-900" style={{ fontFamily: 'Outfit' }}>
+                Could not load jobs
+              </h3>
+              <p className="text-red-700 text-sm max-w-md">{fetchError}</p>
+              <Button variant="outline" onClick={fetchJobs} aria-label="Retry loading jobs">
+                Try again
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      ) : displayJobs.length > 0 ? (
+        <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="jobs-grid">
+          {displayJobs.map((job) => (
             <div key={job.id}>
               <Card className="card-hover group h-full" data-testid={`job-card-${job.id}`}>
                 <CardContent className="p-5">
@@ -188,7 +223,7 @@ const JobsPage = () => {
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Job actions for ${job.title}`}>
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -303,7 +338,7 @@ const JobsPage = () => {
               </Card>
             </div>
           ))}
-        </div>
+        </motion.div>
       ) : (
         <motion.div variants={itemVariants}>
           <Card className="border-dashed">

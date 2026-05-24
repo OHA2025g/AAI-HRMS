@@ -53,6 +53,7 @@ import {
   BookOpen,
   LineChart,
   Armchair,
+  Filter,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
@@ -81,6 +82,14 @@ import { getEmployeeLifecycleNavChildren } from '../employee-lifecycle-managemen
 import { getWorkforceIntelNavChildren } from '../workforce-intelligence/navConfig';
 import { getCostOptimizationNavChildren } from '../cost-optimization-automation/navConfig';
 import { getEmployeeSatisfactionEngagementNavChildren } from '../employee-satisfaction-engagement/navConfig';
+import PlacementHeaderFilters from './hiring/PlacementHeaderFilters';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '../components/ui/sheet';
 
 function isPathActive(pathname, itemPath) {
   if (pathname === itemPath) return true;
@@ -106,6 +115,10 @@ function flattenNavItems(groups) {
   return out;
 }
 
+function nestedNavKey(groupId, child) {
+  return `${groupId}::${child.path || child.label}`;
+}
+
 function buildNavGroups(user) {
   const role = user?.role;
   const isAdmin = role === 'admin';
@@ -122,7 +135,6 @@ function buildNavGroups(user) {
       label: 'Analytics & Executive Dashboard',
       icon: BarChart2,
       children: [
-        { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/executive-kpis', label: 'Executive KPIs', icon: BarChart3 },
       ],
     },
@@ -131,12 +143,34 @@ function buildNavGroups(user) {
       label: 'Smart Hiring (Talent Acquisition)',
       icon: Briefcase,
       children: [
+        { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/jobs', label: 'Jobs', icon: Briefcase },
         { path: '/candidates', label: 'Candidates', icon: Users },
         { path: '/pipeline', label: 'Pipeline', icon: GitBranch },
         { path: '/interviews', label: 'Interviews', icon: Calendar },
         { path: '/referrals', label: 'Referrals', icon: UserPlus },
         { path: '/assessments', label: 'Assessments', icon: ClipboardCheck },
+        {
+          label: 'AI Hiring Intelligence',
+          icon: Sparkles,
+          children: [
+            {
+              path: '/ai-hiring/candidate-fit/career-trajectory',
+              label: 'Career Trajectory',
+              icon: Sparkles,
+            },
+            {
+              path: '/ai-hiring/candidate-fit/career-trajectory/compare',
+              label: 'Compare Trajectories',
+              icon: Sparkles,
+            },
+            {
+              path: '/ai-hiring/candidate-fit/phase2',
+              label: 'Phase 2 Fit Simulation',
+              icon: Sparkles,
+            },
+          ],
+        },
       ],
     },
     {
@@ -292,6 +326,9 @@ function buildNavGroups(user) {
       icon: Layers,
       children: [
         { path: '/admin/integrations', label: 'Admin Settings & Connectors', icon: Settings },
+        { path: '/admin/executive-kpi', label: 'Executive KPI config', icon: BarChart3 },
+        { path: '/admin/hiring-dashboard-config', label: 'Hiring dashboard config', icon: BarChart3 },
+        { path: '/admin/career-trajectory-config', label: 'Career trajectory weights', icon: Sparkles },
         { path: '/admin/roles', label: 'Role Management', icon: UserCog },
       ],
     });
@@ -322,6 +359,7 @@ const Layout = ({ children }) => {
   const [openGroups, setOpenGroups] = useState(() => new Set());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [placementFiltersOpen, setPlacementFiltersOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
 
@@ -336,7 +374,7 @@ const Layout = ({ children }) => {
           const grand = c.children || [];
           if (grand.some((gc) => isPathActive(location.pathname, gc.path))) {
             next.add(g.id);
-            if (c.path) next.add(`${g.id}::${c.path}`);
+            next.add(nestedNavKey(g.id, c));
           }
         });
       });
@@ -489,6 +527,63 @@ const Layout = ({ children }) => {
     });
   };
 
+  const applyPillarChange = (next) => {
+    placement.setPillarId(next);
+    placement.setDepartmentId('');
+    placement.setSubDepartment('');
+    placement.setProjectId('');
+    setPipelineParam('pillar', next);
+    setPipelineParam('dept', '');
+    setPipelineParam('sub', '');
+    setPipelineParam('project', '');
+  };
+
+  const applyDepartmentChange = (next) => {
+    placement.setDepartmentId(next);
+    placement.setSubDepartment('');
+    placement.setProjectId('');
+    setPipelineParam('dept', next);
+    setPipelineParam('sub', '');
+    setPipelineParam('project', '');
+  };
+
+  const applySubDepartmentChange = (next) => {
+    placement.setSubDepartment(next);
+    placement.setProjectId('');
+    setPipelineParam('sub', next);
+    setPipelineParam('project', '');
+  };
+
+  const applyProjectChange = (next) => {
+    placement.setProjectId(next);
+    setPipelineParam('project', next);
+  };
+
+  const clearPlacementFilters = () => {
+    placement.clearAll();
+    setPipelineParam('pillar', '');
+    setPipelineParam('dept', '');
+    setPipelineParam('sub', '');
+    setPipelineParam('project', '');
+  };
+
+  const placementFilterProps = {
+    pillarId,
+    departmentId,
+    subDepartment,
+    projectId,
+    departmentOptions: pipelineDepartmentOptions,
+    subDepartmentOptions: pipelineSubDepartmentOptions,
+    projectOptions: pipelineProjectOptions,
+    onPillarChange: applyPillarChange,
+    onDepartmentChange: applyDepartmentChange,
+    onSubDepartmentChange: applySubDepartmentChange,
+    onProjectChange: applyProjectChange,
+    onClearAll: clearPlacementFilters,
+  };
+
+  const placementFilterActive = !!(pillarId || departmentId || subDepartment || projectId);
+
   const renderNavBody = (opts) => {
     const { forMobile } = opts;
     const closeMobile = forMobile ? () => setMobileMenuOpen(false) : undefined;
@@ -517,18 +612,29 @@ const Layout = ({ children }) => {
                   <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 border-b border-slate-700 mb-1">
                     {group.label}
                   </div>
-                  {group.children.map((child) => {
-                    const CIcon = child.icon;
-                    const active = isPathActive(location.pathname, child.path);
+                  {flattenNavItems([group]).map((item) => {
+                    const CIcon = item.icon;
+                    const active = isPathActive(location.pathname, item.path);
+                    const breadcrumb =
+                      item.parentLabels.length > 0 ? `${item.parentLabels.join(' › ')} › ` : '';
                     return (
-                      <DropdownMenuItem key={child.path} asChild className="focus:bg-slate-800 focus:text-white cursor-pointer">
+                      <DropdownMenuItem
+                        key={item.path}
+                        asChild
+                        className="focus:bg-slate-800 focus:text-white cursor-pointer"
+                      >
                         <Link
-                          to={child.path}
-                          className={`flex items-center gap-2 ${active ? 'text-indigo-300' : ''}`}
-                          data-testid={navTestId(child.label)}
+                          to={item.path}
+                          className={`flex flex-col gap-0.5 ${active ? 'text-indigo-300' : ''}`}
+                          data-testid={navTestId(item.label)}
                         >
-                          <CIcon className="w-4 h-4" />
-                          {child.label}
+                          <span className="flex items-center gap-2">
+                            <CIcon className="w-4 h-4 shrink-0" />
+                            {item.label}
+                          </span>
+                          {breadcrumb ? (
+                            <span className="text-[10px] text-slate-500 pl-6 truncate">{breadcrumb.slice(0, -3)}</span>
+                          ) : null}
                         </Link>
                       </DropdownMenuItem>
                     );
@@ -568,7 +674,8 @@ const Layout = ({ children }) => {
                     const hasKids = Array.isArray(child.children) && child.children.length > 0;
                     const active = isPathActive(location.pathname, child.path);
                     const nestedActive = anyChildActive(location.pathname, child) && !active;
-                    const nestedExpanded = openGroups.has(`${group.id}::${child.path}`);
+                    const nestedKey = nestedNavKey(group.id, child);
+                    const nestedExpanded = openGroups.has(nestedKey);
                     if (!hasKids) {
                       return (
                         <Link
@@ -576,7 +683,7 @@ const Layout = ({ children }) => {
                           to={child.path}
                           onClick={closeMobile}
                           data-testid={navTestId(child.label)}
-                          className={`sidebar-item mb-0.5 text-sm !py-2 ${active ? 'active' : ''}`}
+                          className={`sidebar-item flex items-center gap-2 mb-0.5 text-sm !py-2 ${active ? 'active' : ''}`}
                         >
                           <CIcon className="w-4 h-4 flex-shrink-0" />
                           <span className="font-medium truncate">{child.label}</span>
@@ -584,10 +691,10 @@ const Layout = ({ children }) => {
                       );
                     }
                     return (
-                      <div key={child.path} className="mb-1">
+                      <div key={nestedKey} className="mb-1">
                         <button
                           type="button"
-                          onClick={() => toggleGroup(`${group.id}::${child.path}`)}
+                          onClick={() => toggleGroup(nestedKey)}
                           data-testid={navTestId(child.label)}
                           className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left text-sm font-semibold transition-colors ${
                             nestedActive ? 'text-white bg-slate-800/50' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -610,7 +717,7 @@ const Layout = ({ children }) => {
                                   to={grand.path}
                                   onClick={closeMobile}
                                   data-testid={navTestId(grand.label)}
-                                  className={`sidebar-item mb-0.5 text-sm !py-2 ${gActive ? 'active' : ''}`}
+                                  className={`sidebar-item flex items-center gap-2 mb-0.5 text-sm !py-2 ${gActive ? 'active' : ''}`}
                                 >
                                   <GI className="w-4 h-4 flex-shrink-0" />
                                   <span className="font-medium truncate">{grand.label}</span>
@@ -635,6 +742,7 @@ const Layout = ({ children }) => {
     <div className="min-h-screen bg-[#F8FAFC] flex">
       {/* Desktop Sidebar */}
       <aside
+        data-app-sidebar
         className={`hidden lg:flex flex-col bg-slate-900 text-slate-200 transition-all duration-300 ${
           sidebarCollapsed ? 'w-16' : 'w-72'
         }`}
@@ -703,126 +811,36 @@ const Layout = ({ children }) => {
               {pageTitle}
             </h1>
 
-            {/* Placement filters (Pipeline & job-scoped views); Jobs/Candidates lists stay unfiltered */}
-            <div className="hidden xl:flex items-center gap-2 min-w-0 ml-2">
-                <Select
-                  value={pillarId || ALL}
-                  onValueChange={(v) => {
-                    const next = v === ALL ? '' : v;
-                    placement.setPillarId(next);
-                    placement.setDepartmentId('');
-                    placement.setSubDepartment('');
-                    placement.setProjectId('');
-
-                    // Keep pipeline URL in sync when on /pipeline
-                    setPipelineParam('pillar', next);
-                    setPipelineParam('dept', '');
-                    setPipelineParam('sub', '');
-                    setPipelineParam('project', '');
-                  }}
-                >
-                  <SelectTrigger className="w-44" data-testid="pipeline-pillar-filter">
-                    <SelectValue placeholder="Pillar (All)" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[min(60vh,420px)]">
-                    <SelectItem value={ALL}>All</SelectItem>
-                    {BUSINESS_ORG_PILLARS.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={departmentId || ALL}
-                  onValueChange={(v) => {
-                    const next = v === ALL ? '' : v;
-                    placement.setDepartmentId(next);
-                    placement.setSubDepartment('');
-                    placement.setProjectId('');
-
-                    setPipelineParam('dept', next);
-                    setPipelineParam('sub', '');
-                    setPipelineParam('project', '');
-                  }}
-                  disabled={!pillarId}
-                >
-                  <SelectTrigger className="w-44" data-testid="pipeline-department-filter">
-                    <SelectValue placeholder={pillarId ? 'Department (All)' : 'Dept (select pillar)'} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[min(60vh,420px)]">
-                    <SelectItem value={ALL}>All</SelectItem>
-                    {pipelineDepartmentOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={subDepartment || ALL}
-                  onValueChange={(v) => {
-                    const next = v === ALL ? '' : v;
-                    placement.setSubDepartment(next);
-                    placement.setProjectId('');
-
-                    setPipelineParam('sub', next);
-                    setPipelineParam('project', '');
-                  }}
-                  disabled={!departmentId}
-                >
-                  <SelectTrigger className="w-52" data-testid="pipeline-subdepartment-filter">
-                    <SelectValue placeholder={departmentId ? 'Sub-dept (All)' : 'Sub-dept (select dept)'} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[min(60vh,420px)]">
-                    <SelectItem value={ALL}>All</SelectItem>
-                    {pipelineSubDepartmentOptions.map((sub) => (
-                      <SelectItem key={sub} value={sub}>
-                        {sub}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={projectId || ALL}
-                  onValueChange={(v) => {
-                    const next = v === ALL ? '' : v;
-                    placement.setProjectId(next);
-                    setPipelineParam('project', next);
-                  }}
-                  disabled={pipelineProjectOptions.length === 0}
-                >
-                  <SelectTrigger className="w-36" data-testid="pipeline-projectid-filter">
-                    <SelectValue placeholder={pipelineProjectOptions.length > 0 ? 'Project (All)' : 'Project (none)'} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[min(60vh,420px)]">
-                    <SelectItem value={ALL}>All</SelectItem>
-                    {pipelineProjectOptions.map((pid) => (
-                      <SelectItem key={pid} value={pid}>
-                        {pid}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  data-testid="clear-placement-filters"
-                  onClick={() => {
-                    placement.clearAll();
-                    setPipelineParam('pillar', '');
-                    setPipelineParam('dept', '');
-                    setPipelineParam('sub', '');
-                    setPipelineParam('project', '');
-                  }}
-                >
-                  Clear filters
-                </Button>
+            {/* Placement filters — desktop inline; mobile sheet below lg */}
+            <div className="hidden lg:flex items-center gap-2 min-w-0 ml-2">
+              <PlacementHeaderFilters {...placementFilterProps} layout="inline" />
+            </div>
+            <div className="lg:hidden ml-1 shrink-0">
+              <Sheet open={placementFiltersOpen} onOpenChange={setPlacementFiltersOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    data-testid="mobile-placement-filters-btn"
+                    aria-label="Open org scope filters"
+                  >
+                    <Filter className="w-4 h-4" />
+                    Scope
+                    {placementFilterActive ? (
+                      <span className="ml-0.5 h-2 w-2 rounded-full bg-indigo-600" aria-hidden />
+                    ) : null}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[min(100vw,340px)]">
+                  <SheetHeader>
+                    <SheetTitle>Org scope filters</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6">
+                    <PlacementHeaderFilters {...placementFilterProps} layout="stacked" />
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
 
@@ -853,7 +871,7 @@ const Layout = ({ children }) => {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative" data-testid="notifications-btn">
+                <Button variant="ghost" size="icon" className="relative" data-testid="notifications-btn" aria-label="Notifications">
                   <Bell className="w-5 h-5 text-slate-500" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-600 text-white text-xs rounded-full flex items-center justify-center">

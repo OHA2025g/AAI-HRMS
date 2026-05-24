@@ -27,8 +27,18 @@ next-env.d.ts
 
 # Production builds
 /build
+frontend/build/
 dist/
 dist
+
+# Python test cache
+.pytest_cache/
+**/.pytest_cache/
+
+# Accidental downloads
+*.crdownload
+/Candidates*.xlsx
+/Job Descriptions*.xlsx
 
 # Environment files (comprehensive coverage)
 

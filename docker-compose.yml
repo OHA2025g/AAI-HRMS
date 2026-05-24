@@ -69,6 +69,14 @@ services:
       AUTO_IMPORT_EXCEL: ${AUTO_IMPORT_EXCEL:-1}
       CANDIDATES_EXCEL_PATH: ${CANDIDATES_EXCEL_PATH:-/data/excel/Candidates 1.xlsx}
       EXCEL_PATH: ${EXCEL_PATH:-/data/excel/Job Descriptions 1.xlsx}
+      CAREER_TRAJECTORY_AUTO_ANALYZE: ${CAREER_TRAJECTORY_AUTO_ANALYZE:-true}
+      CAREER_TRAJECTORY_AUTO_PHASE2: ${CAREER_TRAJECTORY_AUTO_PHASE2:-true}
+      CAREER_TRAJECTORY_ASYNC_ANALYZE: ${CAREER_TRAJECTORY_ASYNC_ANALYZE:-true}
+      CAREER_TRAJECTORY_USE_SHAP: ${CAREER_TRAJECTORY_USE_SHAP:-1}
+      CAREER_TRAJECTORY_ML_CALIBRATION: ${CAREER_TRAJECTORY_ML_CALIBRATION:-true}
+      # Daily hiring dashboard snapshots for trend charts (see backend/docker-entrypoint.sh)
+      HIRING_SNAPSHOT_TOKEN: ${HIRING_SNAPSHOT_TOKEN:-docker_dev_hiring_snapshot_token}
+      HIRING_SNAPSHOT_ON_BOOT: ${HIRING_SNAPSHOT_ON_BOOT:-1}
     volumes:
       - ./Candidates 1.xlsx:/data/excel/Candidates 1.xlsx:ro
       - ./Job Descriptions 1.xlsx:/data/excel/Job Descriptions 1.xlsx:ro
@@ -86,9 +94,35 @@ services:
     restart: unless-stopped
     ports:
       - "3001:80"
+    environment:
+      API_UPSTREAM: api:8000
     depends_on:
       api:
         condition: service_healthy
+
+  hiring-snapshot-cron:
+    image: curlimages/curl:8.5.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      HIRING_SNAPSHOT_TOKEN: ${HIRING_SNAPSHOT_TOKEN:-docker_dev_hiring_snapshot_token}
+      HIRING_SNAPSHOT_INTERVAL_SECONDS: ${HIRING_SNAPSHOT_INTERVAL_SECONDS:-86400}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Hiring snapshot cron: interval $${HIRING_SNAPSHOT_INTERVAL_SECONDS}s"
+        while true; do
+          curl -sfS -X POST \
+            -H "X-Hiring-Snapshot-Token: $${HIRING_SNAPSHOT_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            http://api:8000/api/admin/hiring-dashboard/snapshot-cron \
+            || echo "Hiring snapshot cron warning (non-fatal)"
+          sleep "$${HIRING_SNAPSHOT_INTERVAL_SECONDS}"
+        done
 
 volumes:
   aai_hrms_mongo_data:

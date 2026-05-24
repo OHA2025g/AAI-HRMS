@@ -239,7 +239,7 @@ const CreateJobPage = () => {
     >
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn" aria-label="Back to jobs">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>

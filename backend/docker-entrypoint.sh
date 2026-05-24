@@ -40,6 +40,14 @@ _import_excel_data() {
   else
     echo "No jobs workbook at $jobs (place 'Job Descriptions 1.xlsx' in repo root for Docker mount)."
   fi
+
+  echo "Per-job AI fit candidates (for AI Matches grid)..."
+  python scripts/seed_job_posting_fit_candidates.py || echo "Fit-candidate seed warning (non-fatal)"
+
+  echo "Bulk talent pool candidates (if collection is sparse)..."
+  BULK_SEED_CANDIDATES="${BULK_SEED_CANDIDATES:-2500}" \
+  BULK_SEED_EMPLOYEES="${BULK_SEED_EMPLOYEES:-100}" \
+  python scripts/bulk_seed_candidates_employees.py || echo "Bulk seed warning (non-fatal)"
 }
 
 if [ "${AUTO_IMPORT_EXCEL:-1}" = "1" ]; then
@@ -80,6 +88,12 @@ _run_demo_seeds() {
   python scripts/seed_cost_optimization_automation_demo.py || echo "Cost Optimization seed warning (non-fatal)"
 
   python scripts/seed_employee_satisfaction_engagement_demo.py || echo "Employee Satisfaction & Engagement seed warning (non-fatal)"
+
+  echo "Executive KPI Dashboard (M9) synthetic demo..."
+  python scripts/seed_executive_kpi_demo.py || echo "Executive KPI demo seed warning (non-fatal)"
+
+  echo "Smart Hiring assessment submissions demo..."
+  python scripts/seed_assessment_submissions_demo.py || echo "Assessment submissions seed warning (non-fatal)"
 }
 
 if [ "${SKIP_DEMO_SEEDS:-0}" = "1" ]; then
@@ -97,5 +111,34 @@ else
   python scripts/docker_bootstrap.py mark
 fi
 
+if [ "${HIRING_SNAPSHOT_ON_BOOT:-0}" = "1" ] && [ -n "${HIRING_SNAPSHOT_TOKEN:-}" ]; then
+  echo "Scheduling hiring dashboard snapshot after API boot (HIRING_SNAPSHOT_ON_BOOT=1)..."
+  (
+    sleep 25
+    curl -sS -X POST \
+      -H "X-Hiring-Snapshot-Token: ${HIRING_SNAPSHOT_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d '{}' \
+      "http://127.0.0.1:8000/api/admin/hiring-dashboard/snapshot-cron" \
+      || echo "Hiring snapshot on boot warning (non-fatal)"
+  ) &
+fi
+
+if [ "${ASSESSMENT_EMAIL_ON_BOOT:-0}" = "1" ] && [ -n "${ASSESSMENT_EMAIL_CRON_TOKEN:-}" ]; then
+  echo "Scheduling assessment email dispatch after API boot (ASSESSMENT_EMAIL_ON_BOOT=1)..."
+  (
+    sleep 30
+    curl -sS -X POST \
+      -H "Authorization: Bearer ${ASSESSMENT_EMAIL_CRON_TOKEN}" \
+      "http://127.0.0.1:8000/api/assessments/admin/dispatch-invite-emails?limit=100" \
+      || echo "Assessment invite dispatch on boot warning (non-fatal)"
+    curl -sS -X POST \
+      -H "Authorization: Bearer ${ASSESSMENT_EMAIL_CRON_TOKEN}" \
+      "http://127.0.0.1:8000/api/assessments/admin/dispatch-reminders?hours_since_invite=48" \
+      || echo "Assessment reminder dispatch on boot warning (non-fatal)"
+  ) &
+fi
+
 echo "Starting uvicorn..."
+python scripts/validate_assessment_ops.py || echo "Assessment ops validation warning (non-fatal)"
 exec uvicorn server:app --host 0.0.0.0 --port 8000

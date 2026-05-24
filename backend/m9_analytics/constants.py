@@ -1,6 +1,7 @@
 """M9 Mongo collections and defaults."""
 
 COL_M9_KPI_DEFINITIONS = "m9_kpi_definitions"
+COL_M9_KPI_THRESHOLDS = "m9_kpi_thresholds"
 COL_M9_LEADERSHIP_SNAPSHOTS = "m9_leadership_snapshots"
 COL_M9_DRILL_CACHE_META = "m9_drill_cache_meta"  # optional audit; primary cache is in-process
 

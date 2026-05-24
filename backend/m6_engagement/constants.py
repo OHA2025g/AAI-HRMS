@@ -1,8 +1,7 @@
-"""M6 engagement — collection names."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_SURVEY_TEMPLATES = "employee_engagement_survey_templates"
-COL_SURVEY_SCHEDULES = "employee_engagement_survey_schedules"
-COL_PRIVACY_AUDIT = "employee_engagement_privacy_audit"
+COL_PRIVACY_AUDIT = 'col_privacy_audit'
 
-DEFAULT_ANONYMITY_MIN = 5
-SENTIMENT_PIPELINE_VERSION = "m6-v1"
+COL_SURVEY_SCHEDULES = 'col_survey_schedules'
+
+COL_SURVEY_TEMPLATES = 'col_survey_templates'

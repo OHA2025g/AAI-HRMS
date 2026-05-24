@@ -1,26 +1,45 @@
-"""Mongo collections for Resource Section (extends employees master, does not replace it)."""
+"""Auto-generated stub — replace with real implementation."""
 
-COL_PROFILES = "resource_section_profiles"
-COL_CLASSIFICATIONS = "resource_section_classifications"
-COL_SKILL_RECORDS = "resource_section_skill_records"
-COL_AVAILABILITY = "resource_section_availability"
-COL_UTIL_SNAPSHOTS = "resource_section_utilization_snapshots"
-COL_BENCH_RECORDS = "resource_section_bench_records"
-COL_READINESS = "resource_section_readiness_scores"
-COL_DEMAND_MATCHES = "resource_section_demand_matches"
-COL_MOBILITY = "resource_section_mobility_history"
-COL_CAREER = "resource_section_career_preferences"
-COL_LEARNING = "resource_section_learning_records"
-COL_CERTIFICATIONS = "resource_section_certifications"
-COL_COST_PROFILES = "resource_section_cost_profiles"
-COL_ATTENDANCE_IMPACT = "resource_section_attendance_impact"
-COL_DOCUMENTS = "resource_section_documents"
-COL_COMPLIANCE = "resource_section_compliance_records"
-COL_NOTES = "resource_section_notes"
-COL_ACTIVITY = "resource_section_activity_logs"
-COL_APPROVALS = "resource_section_approvals"
-COL_FORECASTS = "resource_section_forecasts"
-COL_AI_INSIGHTS = "resource_section_ai_insights"
+COL_ACTIVITY = 'col_activity'
 
-EMPLOYMENT_TYPES = ["PERMANENT", "CONTRACT", "INTERN", "CONSULTANT"]
-BILLABLE_CLASS = ["BILLABLE", "NON_BILLABLE", "MIXED"]
+COL_AI_INSIGHTS = 'col_ai_insights'
+
+COL_APPROVALS = 'col_approvals'
+
+COL_ATTENDANCE_IMPACT = 'col_attendance_impact'
+
+COL_AVAILABILITY = 'col_availability'
+
+COL_BENCH_RECORDS = 'col_bench_records'
+
+COL_CAREER = 'col_career'
+
+COL_CERTIFICATIONS = 'col_certifications'
+
+COL_CLASSIFICATIONS = 'col_classifications'
+
+COL_COMPLIANCE = 'col_compliance'
+
+COL_COST_PROFILES = 'col_cost_profiles'
+
+COL_DEMAND_MATCHES = 'col_demand_matches'
+
+COL_DOCUMENTS = 'col_documents'
+
+COL_NOTES = 'col_notes'
+
+COL_FORECASTS = 'col_forecasts'
+
+COL_LEARNING = 'col_learning'
+
+COL_MOBILITY = 'col_mobility'
+
+COL_NOTES = 'col_notes'
+
+COL_PROFILES = 'col_profiles'
+
+COL_READINESS = 'col_readiness'
+
+COL_SKILL_RECORDS = 'col_skill_records'
+
+COL_UTIL_SNAPSHOTS = 'col_util_snapshots'

@@ -7,7 +7,6 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Calendar } from '../components/ui/calendar';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +45,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { API_BASE_URL as API_URL } from '../lib/apiBaseUrl';
+import { InterviewPrepPanel } from '../components/career-trajectory/InterviewPrepPanel';
 
 const InterviewsPage = () => {
   const [interviews, setInterviews] = useState([]);
@@ -55,7 +55,6 @@ const InterviewsPage = () => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -225,7 +224,7 @@ const InterviewsPage = () => {
               Schedule Interview
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[min(90vh,640px)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle style={{ fontFamily: 'Outfit' }}>Schedule Interview</DialogTitle>
               <DialogDescription>Select a candidate and set the interview details</DialogDescription>
@@ -250,7 +249,7 @@ const InterviewsPage = () => {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Round</Label>
                   <Select 
@@ -286,7 +285,7 @@ const InterviewsPage = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Start Time *</Label>
                   <Input
@@ -557,13 +556,14 @@ const InterviewsPage = () => {
 
       {/* Feedback Modal */}
       <Dialog open={showFeedbackModal} onOpenChange={setShowFeedbackModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[min(90vh,640px)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle style={{ fontFamily: 'Outfit' }}>Submit Interview Feedback</DialogTitle>
             <DialogDescription>
               {selectedInterview?.candidate?.full_name} - Round {selectedInterview?.round}
             </DialogDescription>
           </DialogHeader>
+          <InterviewPrepPanel candidateId={selectedInterview?.candidate_id} />
           <form onSubmit={handleFeedbackSubmit} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Decision *</Label>
