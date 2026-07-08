@@ -1,6 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@/index.css";
+import "@/styles/hiring-dashboard-mock-exact.css";
+import "@/styles/hiring-dashboard-mock-overrides.css";
+import "@/styles/job-detail-overview-mock.css";
+import "@/styles/create-job-command-mock.css";
+import "@/styles/add-candidate-popup-mock.css";
+import "@/styles/schedule-interview-popup-mock.css";
+import "@/styles/submit-referral-popup-mock.css";
 import App from "@/App";
 
 /** Remove Emergent “Made with Emergent” badge if still present (cached index.html or late-injected script). */

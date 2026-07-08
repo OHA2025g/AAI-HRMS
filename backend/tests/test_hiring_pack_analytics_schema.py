@@ -6,6 +6,7 @@ from talent_acquisition.hiring_dashboard_schemas import (
     HiringDashboardPack,
     HiringDashboardTrends,
     HiringSnapshotHealth,
+    TrendPoint,
 )
 
 
@@ -19,6 +20,14 @@ def test_hiring_pack_analytics_fields_on_schema():
         "bottleneck_slow_hires",
         "hire_journeys",
         "interview_round_metrics",
+        "hero_risk_metrics",
+        "tab_kpis",
+        "smart_actions",
+        "department_risk",
+        "talent_intelligence",
+        "recruiter_performance",
+        "signal_strength",
+        "analytics_summary",
     ):
         assert name in fields
 
@@ -79,3 +88,8 @@ def test_hire_journey_row_model():
         joined_at="2026-02-01T00:00:00+00:00",
     )
     assert row.total_days == 40.0
+
+
+def test_trend_point_includes_offer_acceptance_pct():
+    point = TrendPoint(period="2026-01-01", label="Jan 1", offer_acceptance_pct=82.5)
+    assert point.offer_acceptance_pct == 82.5

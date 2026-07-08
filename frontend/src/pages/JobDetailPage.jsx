@@ -1,33 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { jobsApi, applicationsApi } from '../lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { FitScoreCard } from '../components/FitScore';
-import { ApplicationScoresSection } from '../components/career-trajectory/ApplicationScoresSection';
 import { useCareerTrajectorySummaries } from '../hooks/useCareerTrajectorySummaries';
 import { useAssessmentClearance } from '../hooks/useAssessmentClearance';
-import { 
-  ArrowLeft,
-  MapPin,
+import {
   Users,
-  Sparkles,
-  Play,
-  Briefcase,
   Target,
-  FileText,
   Plus,
   Loader2,
-  CheckCircle,
-  XCircle,
-  Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCandidateCardBadge } from '../lib/candidateSource';
-import { orderJobMatchesForGrid } from '../lib/matchOrdering';
+import { orderJobMatchesForGrid, orderJobMatchesLinkedInFirst } from '../lib/matchOrdering';
+import { useAuth } from '../context/AuthContext';
+import { useHiringPermissions } from '../hooks/useHiringPermissions';
+import JobDetailOverviewTab from '../components/job-detail/JobDetailOverviewTab';
+import JobDetailCandidatesTab from '../components/job-detail/JobDetailCandidatesTab';
+import JobDetailMatchesTab from '../components/job-detail/JobDetailMatchesTab';
+import { statusBadgeClass } from '../lib/jobDetailOverviewUtils';
+import { filterUiMatchRows } from '../lib/jobDetailMatchesUtils';
 
 const JOB_DETAIL_STAGE_BADGE = {
   SOURCED: 'bg-slate-100 text-slate-600',
@@ -54,9 +48,19 @@ const NEXT_PIPELINE_STEP = {
   OFFER: { next: 'JOINED', label: 'Mark Joined' },
 };
 
+function canAdvanceApplicationStage(app, perms) {
+  if (perms.pipelineReadOnly || !perms.canAdvancePipeline) return false;
+  const step = NEXT_PIPELINE_STEP[app?.stage];
+  if (!step) return false;
+  if (step.next === 'OFFER' || step.next === 'JOINED') return perms.canMoveToOffer;
+  return true;
+}
+
 const JobDetailPage = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const perms = useHiringPermissions(user);
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(() =>
@@ -67,6 +71,8 @@ const JobDetailPage = () => {
   const [matchingCandidates, setMatchingCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [matching, setMatching] = useState(false);
+  const [apifyPipeline, setApifyPipeline] = useState(null);
+  const [matchOrderMode, setMatchOrderMode] = useState('grid');
   const [demoGenerating, setDemoGenerating] = useState(false);
   const [stageUpdatingId, setStageUpdatingId] = useState(null);
   const { runWithClearanceCheck, clearanceDialog } = useAssessmentClearance();
@@ -91,11 +97,46 @@ const JobDetailPage = () => {
     }
   }, [tabParam]);
 
+  useEffect(() => {
+    const status = apifyPipeline?.status;
+    if (!jobId || !status || !['search_running', 'enrich_running'].includes(status)) {
+      return undefined;
+    }
+    const timer = setInterval(async () => {
+      try {
+        const res = await jobsApi.getApifyLinkedInRun(jobId);
+        const pipeline = res.data?.pipeline || null;
+        setApifyPipeline(pipeline);
+        if (pipeline?.status === 'completed') {
+          clearInterval(timer);
+          toast.success(
+            `LinkedIn search complete — ${pipeline.candidates_ingested || 0} profile(s) imported`
+          );
+          setMatching(true);
+          try {
+            const matchRes = await jobsApi.match(jobId, { linkedin_first: true });
+            setMatchingCandidates(filterUiMatchRows(matchRes.data.matches || []));
+            setMatchOrderMode('linkedin_first');
+            setActiveTab('matches');
+          } finally {
+            setMatching(false);
+          }
+        } else if (pipeline?.status === 'failed') {
+          clearInterval(timer);
+          toast.error(pipeline.error || 'LinkedIn Apify search failed');
+        }
+      } catch {
+        /* ignore transient poll errors */
+      }
+    }, 12000);
+    return () => clearInterval(timer);
+  }, [jobId, apifyPipeline?.status, apifyPipeline?.id]);
+
   const fetchJobDetails = async () => {
     try {
       const [jobRes, appsRes] = await Promise.all([
         jobsApi.get(jobId),
-        applicationsApi.list({ job_id: jobId })
+        applicationsApi.list({ job_id: jobId }),
       ]);
       setJob(jobRes.data);
       setApplications(appsRes.data);
@@ -114,23 +155,62 @@ const JobDetailPage = () => {
     return error?.message || 'Request failed';
   };
 
-  const displayMatches = useMemo(
-    () => orderJobMatchesForGrid(matchingCandidates, { jobId }),
-    [matchingCandidates, jobId]
+  const displayMatches = useMemo(() => {
+    if (matchOrderMode === 'linkedin_first') {
+      return orderJobMatchesLinkedInFirst(matchingCandidates, { jobId });
+    }
+    return orderJobMatchesForGrid(matchingCandidates, { jobId });
+  }, [matchingCandidates, jobId, matchOrderMode]);
+
+  const setTab = (tab) => {
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    navigate({ search: next.toString() ? `?${next.toString()}` : '' }, { replace: true });
+  };
+
+  const uiMatchCount = useMemo(
+    () => filterUiMatchRows(matchingCandidates).length,
+    [matchingCandidates]
   );
+
+  const handleApifyLinkedInSearch = async () => {
+    try {
+      setMatchOrderMode('linkedin_first');
+      setTab('matches');
+      const res = await jobsApi.startApifyLinkedInSearch(jobId);
+      setApifyPipeline(res.data?.pipeline || null);
+      if (res.data?.started) {
+        toast.info('LinkedIn search started via Apify');
+      } else {
+        toast.message(res.data?.message || 'Apify search not started');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to start LinkedIn search');
+    }
+  };
 
   const handleFindMatches = async () => {
     setMatching(true);
+    setMatchOrderMode('grid');
+    setTab('matches');
     try {
       const response = await jobsApi.match(jobId);
-      const matches = response.data.matches || [];
+      const matches = filterUiMatchRows(response.data.matches || []);
       setMatchingCandidates(matches);
+      setApifyPipeline(response.data.apify_pipeline || null);
       const ex = response.data.excel_count;
       const tp = response.data.talent_pool_count;
       const ai = response.data.ai_high_match_count;
-      if (typeof ex === 'number' && typeof tp === 'number' && typeof ai === 'number') {
+      const li = response.data.linkedin_count;
+      const pipeline = response.data.apify_pipeline;
+      if (pipeline && ['search_running', 'enrich_running'].includes(pipeline.status)) {
+        toast.info('Searching LinkedIn via Apify — profiles will appear in a few minutes.');
+      } else if (typeof ex === 'number' && typeof tp === 'number' && typeof ai === 'number') {
+        const liPart = typeof li === 'number' ? `, ${li} LinkedIn` : '';
         toast.success(
-          `Found ${matches.length} matches (${ex} Excel, ${tp} talent pool, ${ai} AI 90%+)`
+          `Found ${matches.length} matches (${ex} Excel, ${tp} talent pool, ${ai} AI 90%+${liPart})`
         );
       } else {
         toast.success(`Found ${matches.length} matching candidates`);
@@ -213,402 +293,146 @@ const JobDetailPage = () => {
     );
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'OPEN': return 'bg-emerald-100 text-emerald-700';
-      case 'PAUSED': return 'bg-amber-100 text-amber-700';
-      case 'CLOSED': return 'bg-slate-100 text-slate-700';
-      default: return 'bg-blue-100 text-blue-700';
-    }
-  };
-
-  const fmtOrg = (v) => (v != null && String(v).trim() !== '' ? String(v).trim() : '—');
+  const matchesEmpty = uiMatchCount === 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn" aria-label="Back to jobs">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Briefcase className="w-7 h-7 text-indigo-600" />
-            </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-                  {job.title}
-                </h1>
-                <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
-              </div>
-              {job.normalized_title && job.normalized_title !== job.title && (
-                <div className="flex items-center gap-1 text-sm text-indigo-600 mt-1">
-                  <Sparkles className="w-3 h-3" />
-                  AI: {job.normalized_title}
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-600">
-                {job.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    {job.location}
-                  </span>
-                )}
-                {job.work_mode && <Badge variant="secondary">{job.work_mode}</Badge>}
-                {job.seniority && <Badge variant="secondary">{job.seniority}</Badge>}
-                {job.domain && <Badge variant="secondary">{job.domain}</Badge>}
-              </div>
-            </div>
+    <div className="job-detail-root" data-testid="job-detail-root">
+      <Link to="/jobs" className="jd-back" data-testid="back-btn">
+        ← Back to Jobs
+      </Link>
+
+      <div className="jd-hero">
+        <div className="jd-job-icon" aria-hidden>
+          ▣
+        </div>
+        <div>
+          <div className="jd-title-row">
+            <h1 data-testid="job-detail-title">{job.title}</h1>
+            <span className={`jd-badge ${statusBadgeClass(job.status)}`}>{job.status}</span>
+          </div>
+          {job.normalized_title ? (
+            <div className="jd-ai-line">✣ AI: {job.normalized_title}</div>
+          ) : null}
+          <div className="jd-meta">
+            {job.location ? <span>⌖ {job.location}</span> : null}
+            {job.work_mode ? <span className="jd-pill">{job.work_mode}</span> : null}
+            {job.seniority ? <span className="jd-pill">{job.seniority}</span> : null}
+            {job.business_department ? <span className="jd-pill">{job.business_department}</span> : null}
           </div>
         </div>
-        <div className="flex gap-3 ml-12 lg:ml-0">
-          <Link to={`/pipeline?job=${job.id}`}>
-            <Button variant="outline">
-              <Users className="w-4 h-4 mr-2" />
-              Pipeline ({applications.length})
-            </Button>
+        <div className="jd-actions">
+          <Link to={`/pipeline?job=${job.id}`} className="jd-action">
+            ♙ Pipeline ({applications.length})
           </Link>
-          {matchingCandidates.length === 0 && (
-            <Button
+          {uiMatchCount === 0 ? (
+            <button
+              type="button"
+              className="jd-action jd-action-outline"
               onClick={handleGenerateDemoCandidates}
               disabled={demoGenerating || matching || !(job?.title && job?.description && job?.skills?.length > 0)}
-              variant="outline"
-              className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
               data-testid="play-demo-btn"
             >
-              {demoGenerating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Play className="w-4 h-4 mr-2" />
-              )}
-              {demoGenerating ? 'Generating...' : 'Play Demo (Generate 50)'}
-            </Button>
-          )}
-          <Button 
+              {demoGenerating ? 'Generating…' : '▷ Play Demo (Generate 50)'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="jd-action jd-action-blue"
+            onClick={handleApifyLinkedInSearch}
+            disabled={
+              matching ||
+              (apifyPipeline && ['search_running', 'enrich_running'].includes(apifyPipeline.status))
+            }
+            data-testid="search-linkedin-apify-btn"
+          >
+            Search LinkedIn
+          </button>
+          <button
+            type="button"
+            className="jd-action jd-action-primary"
             onClick={handleFindMatches}
             disabled={matching}
-            className="bg-indigo-600 hover:bg-indigo-700"
             data-testid="find-matches-btn"
           >
-            {matching ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Target className="w-4 h-4 mr-2" />
-            )}
-            Find Matches
-          </Button>
+            {matching ? 'Finding…' : '◎ Find Matches'}
+          </button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="candidates">Candidates ({applications.length})</TabsTrigger>
-          <TabsTrigger value="matches">AI Matches ({matchingCandidates.length})</TabsTrigger>
-        </TabsList>
+      <nav className="jd-tabs" role="tablist" aria-label="Job sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'overview'}
+          className={`jd-tab ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'candidates'}
+          className={`jd-tab ${activeTab === 'candidates' ? 'active' : ''}`}
+          onClick={() => setTab('candidates')}
+        >
+          Candidates <b>{applications.length}</b>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'matches'}
+          className={`jd-tab ${activeTab === 'matches' ? 'active' : ''}`}
+          onClick={() => setTab('matches')}
+        >
+          AI Matches <b>{uiMatchCount}</b>
+        </button>
+      </nav>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base" style={{ fontFamily: 'Outfit' }}>
-                <Layers className="w-5 h-5 text-slate-500" />
-                Organizational placement
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <dt className="text-slate-500 font-medium mb-1">Pillar</dt>
-                  <dd className="text-slate-900">{fmtOrg(job.business_pillar)}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500 font-medium mb-1">Department</dt>
-                  <dd className="text-slate-900">{fmtOrg(job.business_department)}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500 font-medium mb-1">Sub-department</dt>
-                  <dd className="text-slate-900">{fmtOrg(job.business_sub_department)}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500 font-medium mb-1">Project ID</dt>
-                  <dd className="text-slate-900 font-mono text-xs sm:text-sm">{fmtOrg(job.project_id)}</dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
+      {activeTab === 'overview' ? (
+        <JobDetailOverviewTab job={job} applications={applications} matchingCandidates={matchingCandidates} />
+      ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Description */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ fontFamily: 'Outfit' }}>
-                  <FileText className="w-5 h-5 text-slate-500" />
-                  Job Description
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600 whitespace-pre-line">{job.description}</p>
-              </CardContent>
-            </Card>
+      {activeTab === 'candidates' ? (
+        <div className="jd-tab-panel">
+          <JobDetailCandidatesTab
+            applications={applications}
+            jobId={jobId}
+            trajSummaries={trajSummaries}
+            trajLoading={trajLoading}
+            reloadTrajSummaries={reloadTrajSummaries}
+            perms={perms}
+            stageUpdatingId={stageUpdatingId}
+            advanceApplicationStage={advanceApplicationStage}
+            canAdvanceApplicationStage={canAdvanceApplicationStage}
+            nextPipelineStep={NEXT_PIPELINE_STEP}
+            onFindMatches={handleFindMatches}
+          />
+        </div>
+      ) : null}
 
-            {/* Scoring Rubric */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ fontFamily: 'Outfit' }}>
-                  <Target className="w-5 h-5 text-slate-500" />
-                  Scoring Rubric
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {job.scoring_rubric ? (
-                  <>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Min Skill Match</span>
-                        <span className="font-medium text-slate-900">{job.scoring_rubric.min_skill_match_pct}%</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-600">Min Activity Match</span>
-                        <span className="font-medium text-slate-900">{job.scoring_rubric.min_activity_match_pct}%</span>
-                      </div>
-                    </div>
-                    <div className="pt-3 border-t">
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-2">Weights</p>
-                      {Object.entries(job.scoring_rubric.weights || {}).map(([key, value]) => (
-                        <div key={key} className="flex justify-between text-sm py-1">
-                          <span className="text-slate-600 capitalize">{key}</span>
-                          <span className="font-medium text-slate-900">{(value * 100).toFixed(0)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-slate-500 text-sm">Default scoring applied</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Skills */}
-          <Card>
-            <CardHeader>
-              <CardTitle style={{ fontFamily: 'Outfit' }}>Required Skills</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {job.skills?.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {job.skills.map((skill, i) => (
-                    <Badge 
-                      key={i}
-                      className={`text-sm py-1 px-3 ${
-                        skill.skill_type === 'MUST_HAVE' ? 'badge-must-have' : 'badge-good-to-have'
-                      }`}
-                    >
-                      {skill.skill_name}
-                      {skill.skill_type === 'MUST_HAVE' && (
-                        <span className="ml-1 text-xs opacity-70">Required</span>
-                      )}
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-slate-500">No skills specified</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Activities */}
-          {job.activities?.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ fontFamily: 'Outfit' }}>
-                  <Sparkles className="w-5 h-5 text-indigo-500" />
-                  AI-Extracted Responsibilities
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {job.activities.map((activity, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                      <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span>{activity.activity_text}</span>
-                      {activity.priority === 'HIGH' && (
-                        <Badge variant="outline" className="text-xs">High Priority</Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Candidates Tab — same rich card pattern as Pipeline / AI fit (name, email, stage, full FitScoreCard, actions) */}
-        <TabsContent value="candidates" className="mt-6">
-          {applications.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {applications.map((app) => {
-                const step = NEXT_PIPELINE_STEP[app.stage];
-                const cardBadge = getCandidateCardBadge(
-                  app.candidate,
-                  app.stage,
-                  JOB_DETAIL_STAGE_BADGE
-                );
-
-                return (
-                  <Card key={app.id} className="card-hover h-full bg-white border border-slate-200">
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p
-                            className="font-semibold text-slate-900 truncate"
-                            style={{ fontFamily: 'Outfit' }}
-                          >
-                            {app.candidate?.full_name || 'Candidate'}
-                          </p>
-                          <p className="text-sm text-slate-500 truncate">
-                            {app.candidate?.email || app.candidate?.headline || ''}
-                          </p>
-                        </div>
-                        <Badge className={`shrink-0 text-xs ${cardBadge.className}`}>
-                          {cardBadge.label}
-                        </Badge>
-                      </div>
-
-                      <ApplicationScoresSection
-                        app={app}
-                        jobId={jobId}
-                        trajSummaries={trajSummaries}
-                        trajLoading={trajLoading}
-                        onTrajRefresh={reloadTrajSummaries}
-                      />
-
-                      <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-                        <Link
-                          to={`/candidates/${app.candidate_id}`}
-                          className={step?.next ? 'flex-1' : 'w-full'}
-                        >
-                          <Button variant="outline" size="sm" className="w-full">
-                            View Profile
-                          </Button>
-                        </Link>
-                        {step?.next ? (
-                          <Button
-                            size="sm"
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                            disabled={stageUpdatingId === app.id}
-                            onClick={() => advanceApplicationStage(app)}
-                          >
-                            {stageUpdatingId === app.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              step.label
-                            )}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Users className="w-12 h-12 text-slate-300 mb-4" />
-                <h3 className="font-semibold text-slate-900 mb-2">No candidates yet</h3>
-                <p className="text-slate-500 text-center mb-4">
-                  Find matching candidates or add referrals
-                </p>
-                <Button onClick={handleFindMatches} className="bg-indigo-600 hover:bg-indigo-700">
-                  <Target className="w-4 h-4 mr-2" />
-                  Find Matches
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* AI Matches Tab */}
-        <TabsContent value="matches" className="mt-6">
-          {displayMatches.length > 0 ? (
-            <div className="space-y-4">
-              <p className="text-sm text-slate-500">
-                Grid order: Excel import · Talent pool · AI generated (90%+ fit), repeating for each row.
-              </p>
-              <div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-                data-testid="job-matches-grid"
-              >
-                {displayMatches.map((match) => {
-                  const sourceBadge = getCandidateCardBadge(match.candidate, null, {});
-                  return (
-                    <Card key={match.candidate.id} className="card-hover">
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between mb-3 gap-2">
-                          <div className="min-w-0">
-                            <h3 className="font-semibold text-slate-900 truncate">
-                              {match.candidate.full_name}
-                            </h3>
-                            <p className="text-sm text-slate-500 truncate">
-                              {match.candidate.headline || match.candidate.email}
-                            </p>
-                          </div>
-                          {sourceBadge ? (
-                            <Badge className={`shrink-0 ${sourceBadge.className}`}>
-                              {sourceBadge.label}
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <FitScoreCard fitScore={match.fit_score} showDetails />
-
-                        <div className="mt-4 pt-4 border-t flex gap-2">
-                          <Button
-                            onClick={() => handleAddToApplication(match.candidate.id)}
-                            className="flex-1 bg-indigo-600 hover:bg-indigo-700"
-                            size="sm"
-                          >
-                            <Plus className="w-4 h-4 mr-1" />
-                            Add to Pipeline
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Target className="w-12 h-12 text-slate-300 mb-4" />
-                <h3 className="font-semibold text-slate-900 mb-2">No matches yet</h3>
-                <p className="text-slate-500 text-center mb-4">
-                  Click "Find Matches" to discover candidates that fit this role
-                </p>
-                <Button 
-                  onClick={handleFindMatches}
-                  disabled={matching}
-                  className="bg-indigo-600 hover:bg-indigo-700"
-                >
-                  {matching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  Find AI Matches
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+      {activeTab === 'matches' ? (
+        <div
+          className={`jd-tab-panel ${
+            matchesEmpty ? 'jd-tab-panel--matches-empty' : 'jd-tab-panel--matches-found'
+          }`}
+        >
+          <JobDetailMatchesTab
+            job={job}
+            matching={matching}
+            matchingCandidates={matchingCandidates}
+            displayMatches={displayMatches}
+            apifyPipeline={apifyPipeline}
+            matchOrderMode={matchOrderMode}
+            onFindMatches={handleFindMatches}
+            onAddToPipeline={handleAddToApplication}
+            onGenerateDemo={handleGenerateDemoCandidates}
+            demoGenerating={demoGenerating}
+          />
+        </div>
+      ) : null}
       {clearanceDialog}
-    </motion.div>
+    </div>
   );
 };
 

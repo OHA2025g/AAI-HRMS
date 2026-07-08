@@ -1,8 +1,8 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-const email = process.env.PLAYWRIGHT_USER_EMAIL || 'admin@example.com';
-const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'secret123';
+const email = process.env.PLAYWRIGHT_USER_EMAIL || 'qa_admin@aai-hrms.local';
+const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'QA_Seed_ChangeMe!';
 const apiURL = process.env.PLAYWRIGHT_API_URL || 'http://127.0.0.1:11001';
 
 async function login(page) {

@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Tuple
 from talent_acquisition.candidate_source import (
     is_ai_generated_candidate,
     is_excel_imported_candidate,
+    is_inhouse_database_candidate,
+    is_real_linkedin_candidate,
     is_talent_pool_only_candidate,
 )
 
@@ -111,6 +113,33 @@ def order_job_match_results(
         pos += 1
 
     return ordered
+
+
+def order_job_match_results_linkedin_first(
+    results: List[Dict[str, Any]],
+    *,
+    total_limit: int = DEFAULT_TOTAL_MATCH_LIMIT,
+) -> List[Dict[str, Any]]:
+    """LinkedIn search flow: real LinkedIn profiles first, then inhouse talent database."""
+    total_limit = max(1, int(total_limit))
+    linkedin: List[Dict[str, Any]] = []
+    inhouse: List[Dict[str, Any]] = []
+    other: List[Dict[str, Any]] = []
+
+    for row in results:
+        cand = row.get("candidate") or {}
+        if is_real_linkedin_candidate(cand):
+            linkedin.append(row)
+        elif is_inhouse_database_candidate(cand):
+            inhouse.append(row)
+        else:
+            other.append(row)
+
+    linkedin.sort(key=_final_score, reverse=True)
+    inhouse.sort(key=_final_score, reverse=True)
+    other.sort(key=_final_score, reverse=True)
+    ordered = linkedin + inhouse + other
+    return ordered[:total_limit]
 
 
 def count_match_buckets(

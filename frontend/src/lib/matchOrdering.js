@@ -1,6 +1,8 @@
 import {
   isAiGeneratedCandidate,
   isExcelImportedCandidate,
+  isInhouseDatabaseCandidate,
+  isRealLinkedInCandidate,
   isTalentPoolOnlyCandidate,
 } from './candidateSource';
 
@@ -89,4 +91,37 @@ export function orderJobMatchesForGrid(
   }
 
   return ordered;
+}
+
+/**
+ * LinkedIn search flow: real LinkedIn profiles first, then inhouse talent database, then others.
+ * Each group sorted by fit score (desc).
+ */
+export function orderJobMatchesLinkedInFirst(
+  matches,
+  { totalLimit = DEFAULT_MATCH_LIMIT } = {}
+) {
+  if (!Array.isArray(matches) || matches.length === 0) return [];
+
+  const linkedin = [];
+  const inhouse = [];
+  const other = [];
+  const byScore = (a, b) => getMatchFinalScore(b) - getMatchFinalScore(a);
+
+  for (const row of matches) {
+    const c = row?.candidate;
+    if (isRealLinkedInCandidate(c)) {
+      linkedin.push(row);
+    } else if (isInhouseDatabaseCandidate(c)) {
+      inhouse.push(row);
+    } else {
+      other.push(row);
+    }
+  }
+
+  linkedin.sort(byScore);
+  inhouse.sort(byScore);
+  other.sort(byScore);
+
+  return [...linkedin, ...inhouse, ...other].slice(0, totalLimit);
 }

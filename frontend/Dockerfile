@@ -2,7 +2,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 ARG REACT_APP_BACKEND_URL=
+ARG REACT_APP_SMART_HIRING_ONLY=1
 ENV REACT_APP_BACKEND_URL=$REACT_APP_BACKEND_URL
+ENV REACT_APP_SMART_HIRING_ONLY=$REACT_APP_SMART_HIRING_ONLY
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
     if [ -f package-lock.json ]; then npm ci; else npm install; fi

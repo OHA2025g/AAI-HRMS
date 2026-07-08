@@ -70,8 +70,35 @@ print("  open_jobs:", headline["open_jobs"].get("value"))
 print("  pending_offers:", headline.get("pending_offers", {}).get("value"))
 print("  good_fit_pct:", headline["good_fit_pct"].get("value"))
 print("  alerts:", len(alerts))
+print("  ai_insights_source:", d.get("ai_insights_source"))
 print("  offer_funnel stages:", len(d.get("offer_funnel") or []))
 PY
+
+echo "Admin hiring dashboard config (admin token required) ..."
+config_code="$(curl -s -o /tmp/hiring_admin_config.json -w "%{http_code}" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  "${BASE}/api/admin/hiring-dashboard/config")"
+if [[ "$config_code" != "200" ]]; then
+  echo "warning: admin config returned ${config_code} (non-admin token?)" >&2
+else
+  python3 <<'PY'
+import json, sys
+with open("/tmp/hiring_admin_config.json") as f:
+    c = json.load(f)
+for key in ("rule_flags", "llm_insights_enabled", "audit_trail"):
+    if key not in c:
+        print("error: admin config missing key:", key, file=sys.stderr)
+        sys.exit(1)
+flags = c.get("rule_flags") or {}
+for flag in ("low_fit", "stuck_stage", "stale_req", "trend_target", "no_pipeline", "no_ai_matches", "high_fit_recent"):
+    if flag not in flags:
+        print("error: rule_flags missing:", flag, file=sys.stderr)
+        sys.exit(1)
+print("ok: admin config smoke passed")
+print("  rule_flags:", len(flags))
+print("  audit_trail entries:", len(c.get("audit_trail") or []))
+PY
+fi
 
 echo "Hiring trends ..."
 trends_code="$(curl -s -o /tmp/hiring_trends.json -w "%{http_code}" \

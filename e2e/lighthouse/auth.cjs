@@ -1,7 +1,7 @@
 /** Puppeteer script for Lighthouse CI — logs in before auditing /dashboard. */
 module.exports = async (browser) => {
-  const email = process.env.PLAYWRIGHT_USER_EMAIL || 'ci_e2e@example.com';
-  const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'secret123';
+  const email = process.env.PLAYWRIGHT_USER_EMAIL || 'qa_admin@aai-hrms.local';
+  const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'QA_Seed_ChangeMe!';
   const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:3000';
 
   const page = await browser.newPage();
@@ -16,5 +16,7 @@ module.exports = async (browser) => {
   );
   await page.goto(`${baseURL}/dashboard`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('[data-testid="dashboard-heading"]', { timeout: 30_000 });
+  await page.waitForSelector('[data-testid="dashboard-hero-health"]', { timeout: 30_000 });
+  await page.waitForSelector('[data-testid="dash-overview"]', { timeout: 30_000 });
   await page.close();
 };

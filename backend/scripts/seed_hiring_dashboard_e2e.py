@@ -40,6 +40,14 @@ async def main() -> int:
     client = AsyncIOMotorClient(mongo_url)
     try:
         db = client[db_name]
+
+        backfill = await db.applications.update_many(
+            {"status": {"$exists": False}},
+            {"$set": {"status": "ACTIVE"}},
+        )
+        if backfill.modified_count:
+            print(f"Backfilled status=ACTIVE on {backfill.modified_count} application(s).")
+
         if await db[COL].find_one({"marker": SEED_MARKER}, {"_id": 0}) and os.environ.get("HIRING_E2E_SEED_FORCE") != "1":
             print(f"Hiring dashboard E2E seed already applied ({SEED_MARKER}).")
             return 0
@@ -100,6 +108,7 @@ async def main() -> int:
                     "job_id": job_id,
                     "candidate_id": candidate_id,
                     "stage": "SCREENING",
+                    "status": "ACTIVE",
                     "created_at": stuck_entered,
                     "updated_at": stuck_entered,
                     "seed_marker": SEED_MARKER,
@@ -108,7 +117,7 @@ async def main() -> int:
         else:
             await db.applications.update_one(
                 {"id": app_id},
-                {"$set": {"stage": "SCREENING", "updated_at": stuck_entered, "job_id": job_id}},
+                {"$set": {"stage": "SCREENING", "status": "ACTIVE", "updated_at": stuck_entered, "job_id": job_id}},
             )
 
         await db.application_stage_history.delete_many({"application_id": app_id, "seed_marker": SEED_MARKER})

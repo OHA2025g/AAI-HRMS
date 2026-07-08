@@ -10,7 +10,18 @@ import MiniKpiTile from './MiniKpiTile';
 import StageAgingHeatmap from './StageAgingHeatmap';
 import TopJobsTable from './TopJobsTable';
 import AlertsPanel from './AlertsPanel';
+import DashboardHeroHealth from './DashboardHeroHealth';
+import DashboardOrgFilterBar from './DashboardOrgFilterBar';
+import HiringVelocityChart from './HiringVelocityChart';
+import TimeToFillTrendChart from './TimeToFillTrendChart';
+import OverviewTabContent from './tabs/OverviewTabContent';
+import PipelineTabContent from './tabs/PipelineTabContent';
+import OffersTabContent from './tabs/OffersTabContent';
+import InterviewsTabContent from './tabs/InterviewsTabContent';
+import SignalsTabContent from './tabs/SignalsTabContent';
+import AnalyticsTabContent from './tabs/AnalyticsTabContent';
 import { Sparkles } from 'lucide-react';
+import { mockHiringPack, mockTrendPoints } from './fixtures/hiringPackFixture';
 
 export default {
   title: 'Hiring Dashboard/Charts',
@@ -162,5 +173,119 @@ export const AlertsPanelStory = {
       dismissedIds={[]}
       onDismiss={() => {}}
     />
+  ),
+};
+
+export const HeroHealth = {
+  decorators: [withRouter],
+  render: () => (
+    <DashboardHeroHealth
+      score={57}
+      status="watch"
+      asOf="2026-06-12T12:30:00Z"
+      heroRisk={{ reqs_at_risk: 12, jobs_miss_sla: 4, high_fit_awaiting_review: 78 }}
+      aiRecommendation={{
+        title: 'Increase recruiter capacity',
+        message: 'Engineering bottleneck detected',
+        impact_days: 14,
+        action_path: '/pipeline',
+      }}
+    />
+  ),
+};
+
+export const OrgFilterBar = {
+  render: () => (
+    <DashboardOrgFilterBar
+      filterOptions={{
+        pillars: ['Engineering'],
+        departments: ['Technology'],
+        sub_departments: ['Backend'],
+        project_ids: ['PRJ-001'],
+      }}
+      pillar=""
+      department=""
+      subDepartment=""
+      projectId=""
+      onPillarChange={() => {}}
+      onDepartmentChange={() => {}}
+      onSubDepartmentChange={() => {}}
+      onProjectIdChange={() => {}}
+      onClear={() => {}}
+    />
+  ),
+};
+
+export const HiringVelocity = {
+  render: () => (
+    <HiringVelocityChart
+      points={mockTrendPoints}
+      headline={mockHiringPack.headline}
+      pipelineByStage={mockHiringPack.pipeline_by_stage}
+    />
+  ),
+};
+
+export const TimeToFillTrend = {
+  render: () => (
+    <TimeToFillTrendChart points={mockTrendPoints} avgDays={42} />
+  ),
+};
+
+export const OverviewTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <OverviewTabContent pack={mockHiringPack} trends={{ points: mockTrendPoints }} />
+    </div>
+  ),
+};
+
+export const PipelineTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <PipelineTabContent pack={mockHiringPack} alerts={mockHiringPack.alerts} dismissed={[]} onDismiss={() => {}} />
+    </div>
+  ),
+};
+
+export const OffersTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <OffersTabContent pack={mockHiringPack} />
+    </div>
+  ),
+};
+
+export const InterviewsTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <InterviewsTabContent pack={mockHiringPack} />
+    </div>
+  ),
+};
+
+export const SignalsTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <SignalsTabContent pack={mockHiringPack} />
+    </div>
+  ),
+};
+
+export const AnalyticsTab = {
+  decorators: [withRouter],
+  render: () => (
+    <div className="max-w-6xl">
+      <AnalyticsTabContent
+        pack={mockHiringPack}
+        trends={{ points: mockTrendPoints, data_source: 'synthetic' }}
+        trendsHealth={null}
+      />
+    </div>
   ),
 };

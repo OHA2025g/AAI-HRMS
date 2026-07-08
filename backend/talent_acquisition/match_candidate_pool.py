@@ -1,4 +1,4 @@
-"""Build a diverse candidate pool for job AI matching (Excel, talent pool, AI fit seeds)."""
+"""Build a diverse candidate pool for job AI matching (Excel, talent pool, LinkedIn RSC, AI fit seeds)."""
 
 from __future__ import annotations
 
@@ -51,6 +51,48 @@ def _excel_marker_clause() -> Dict[str, Any]:
     }
 
 
+def _job_reference_values(job: Dict[str, Any]) -> List[str]:
+    """External job posting keys used to tie LinkedIn exports to HRMS jobs."""
+    refs: List[str] = []
+    seen: Set[str] = set()
+    for field in ("id", "job_code", "requisition_id", "external_id", "partner_requisition_id"):
+        v = job.get(field)
+        if v is None:
+            continue
+        s = str(v).strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        refs.append(s)
+    return refs
+
+
+def _linkedin_rsc_export_base_clause() -> Dict[str, Any]:
+    """Real LinkedIn imports — RSC exports and Apify pipeline results; exclude AI fit/demo seeds."""
+    rsc_clause: Dict[str, Any] = {
+        "source": "LINKEDIN",
+        "seed_marker": {"$ne": FIT_SEED_MARKER},
+        "email": {"$not": {"$regex": r"^fitseed\.", "$options": "i"}},
+        "$or": [
+            {"seed_job_id": {"$exists": False}},
+            {"seed_job_id": None},
+        ],
+    }
+    apify_clause: Dict[str, Any] = {
+        "source": "LINKEDIN",
+        "import_metadata.provider": "apify",
+    }
+    return {"$or": [rsc_clause, apify_clause]}
+
+
+def _linkedin_rsc_export_clause(job: Dict[str, Any], *, job_scoped: bool) -> Dict[str, Any]:
+    base = _linkedin_rsc_export_base_clause()
+    refs = _job_reference_values(job)
+    if job_scoped and refs:
+        return {"$and": [base, {"linkedin_external_job_id": {"$in": refs}}]}
+    return base
+
+
 async def gather_job_match_candidates(
     db,
     job: Dict[str, Any],
@@ -62,8 +104,8 @@ async def gather_job_match_candidates(
     max_total: int = 600,
 ) -> List[Dict[str, Any]]:
     """
-    Pull candidates from three sources so matching can interleave:
-    per-job AI fit seeds, internal talent pool (BULK_SEED), then Excel imports.
+    Pull candidates from multiple sources so matching can interleave:
+    per-job AI fit seeds, talent pool, LinkedIn RSC exports, and Excel imports.
 
     Talent and AI buckets are fetched without skill filters so executive / sparse-skill
     jobs still get grid diversity; Excel uses skills when present for relevance.
@@ -144,6 +186,25 @@ async def gather_job_match_candidates(
         .to_list(per_bucket)
     )
     _append_unique(out, excel_all, seen, applied_ids, max_total)
+
+    # 3b) LinkedIn RSC exports — job-scoped first, then recent org-wide imports
+    linkedin_job_filter = _linkedin_rsc_export_clause(job, job_scoped=True)
+    linkedin_job_rows = await (
+        db.candidates.find(linkedin_job_filter, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(per_bucket)
+        .to_list(per_bucket)
+    )
+    _append_unique(out, linkedin_job_rows, seen, applied_ids, max_total)
+
+    linkedin_all_filter = _linkedin_rsc_export_clause(job, job_scoped=False)
+    linkedin_all_rows = await (
+        db.candidates.find(linkedin_all_filter, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(per_bucket)
+        .to_list(per_bucket)
+    )
+    _append_unique(out, linkedin_all_rows, seen, applied_ids, max_total)
 
     # 4) Skill-based filler when the pool is still thin
     if len(out) < 100 and skill_or:

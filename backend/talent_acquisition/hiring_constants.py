@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+
 # In-process TTL for hiring-pack (seconds)
 HIRING_PACK_CACHE_TTL_SEC = 60
+HIRING_LLM_INSIGHTS_CACHE_TTL_SEC = int(os.environ.get("HIRING_LLM_INSIGHTS_CACHE_TTL_SEC", "300"))
 
 # Map application stage ids → Pipeline page tab keys
 STAGE_TO_PIPELINE_TAB = {

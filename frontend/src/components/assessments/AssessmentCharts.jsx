@@ -1,6 +1,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Line, ComposedChart, Legend, ReferenceLine, ScatterChart, Scatter, ZAxis, CartesianGrid } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 const COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#3B82F6'];
 
@@ -21,7 +22,7 @@ export function AssessmentFunnelChart({ funnel = [] }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Assessment funnel
+          {chartTitleCase('Assessment funnel')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -62,7 +63,7 @@ export function AssessmentPassRateChart({ data = [] }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Pass rate by type
+          {chartTitleCase('Pass rate by type')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -95,7 +96,7 @@ export function AssessmentScoreHistogram({ buckets = [], passThresholdPct = 70, 
     <Card data-testid="assessment-score-histogram">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Score distribution
+          {chartTitleCase('Score distribution')}
         </CardTitle>
         {onBucketClick ? (
           <p className="text-xs text-slate-500 mt-1">Click a bar to filter scored results</p>
@@ -141,7 +142,7 @@ export function AssessmentTrendsChart({ trends = [] }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Invites & completions
+          {chartTitleCase('Invites & completions')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -176,7 +177,7 @@ export function AssessmentSkillChart({ skills = [] }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Skill performance
+          {chartTitleCase('Skill performance')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -216,7 +217,7 @@ export function FitVsScoreScatterChart({ points = [], threshold = 70 }) {
     <Card data-testid="fit-vs-score-chart">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Fit score vs assessment score
+          {chartTitleCase('Fit score vs assessment score')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -268,7 +269,7 @@ export function TimeVsScoreScatterChart({ points = [] }) {
     <Card data-testid="time-vs-score-chart">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-          Time vs score
+          {chartTitleCase('Time vs score')}
         </CardTitle>
       </CardHeader>
       <CardContent>

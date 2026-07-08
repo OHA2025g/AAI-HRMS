@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import { CHART_COLORS } from '../../config/executiveKpiConfig';
 import { normalizeCandidateSourceParam, normalizeSentimentParam } from '../../lib/drillQueryParams';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 import { ExecutiveSectionSkeleton } from './ExecutiveSectionSkeleton';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 
@@ -459,7 +460,7 @@ export function ExecutiveSection({ id, title, description, children, action, ref
     <Card id={id} className="scroll-mt-28">
       <CardHeader className="flex flex-row items-start justify-between gap-2">
         <div>
-          <CardTitle>{title}</CardTitle>
+          <CardTitle>{chartTitleCase(title)}</CardTitle>
           {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
         </div>
         {action}

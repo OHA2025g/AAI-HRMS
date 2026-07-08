@@ -55,6 +55,7 @@ export function Phase2CandidateSelect({
   onSelect,
   disabled = false,
   preferSessionFilter = true,
+  commandStyle = false,
 }) {
   const [allReady, setAllReady] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -104,8 +105,71 @@ export function Phase2CandidateSelect({
       report_id: row?.report_id,
       job_id: row?.job_id || jobId || undefined,
       phase1Ready: Boolean(row?.report_id),
+      full_name: row?.full_name,
+      primary_archetype: row?.primary_archetype,
+      overall_score: row?.overall_score,
     });
   };
+
+  if (commandStyle) {
+    return (
+      <div className="p2-field" data-testid="phase2-candidate-select-block">
+        <label htmlFor="phase2-candidate-select">Candidate</label>
+        <select
+          className="p2-input"
+          id="phase2-candidate-select"
+          value={candidateId || NONE}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled || loading}
+          data-testid="phase2-candidate-select"
+        >
+          <option value={NONE}>
+            {loading ? 'Loading Phase 1–ready candidates…' : 'Select a candidate…'}
+          </option>
+          {options.map((row) => (
+            <option key={row.candidate_id} value={row.candidate_id}>
+              {candidateLabel(row)}
+            </option>
+          ))}
+        </select>
+
+        {sessionIds.length > 0 ? (
+          <label className="p2-check-row">
+            <input
+              type="checkbox"
+              checked={sessionOnly}
+              onChange={(e) => setSessionOnly(e.target.checked)}
+              data-testid="phase2-session-only-filter"
+            />
+            Show only candidates from this session ({sessionIds.length})
+          </label>
+        ) : null}
+
+        {loading ? (
+          <p className="p2-muted p2-loading-text">
+            <Loader2 className="p2-btn-spinner" aria-hidden />
+            Loading candidates with Phase 1 results…
+          </p>
+        ) : null}
+
+        {!loading && allReady.length === 0 ? (
+          <p className="p2-warn-text">
+            No candidates have Phase 1 trajectory reports yet.{' '}
+            <Link className="p2-link" to="/ai-hiring/candidate-fit/career-trajectory">
+              Run Phase 1 analysis
+            </Link>{' '}
+            first.
+          </p>
+        ) : null}
+
+        {!loading && candidateId && !phase1Ready ? (
+          <p className="p2-warn-text">
+            This candidate does not have a completed Phase 1 report. Pick someone from the list above.
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 max-w-xl" data-testid="phase2-candidate-select-block">

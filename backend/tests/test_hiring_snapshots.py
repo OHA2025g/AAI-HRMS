@@ -6,6 +6,7 @@ import pytest
 
 from talent_acquisition.hiring_dashboard_config import (
     COL_HIRING_DASHBOARD_CONFIG,
+    COL_HIRING_DASHBOARD_CONFIG_AUDIT,
     upsert_hiring_dashboard_config,
     config_to_json,
     HiringDashboardConfig,
@@ -15,6 +16,7 @@ from talent_acquisition.hiring_snapshots import (
     _resolve_monthly_hire_target,
     _snapshot_metadata,
     _week_fit_metrics,
+    _week_offer_acceptance_pct,
     get_hiring_dashboard_trends,
     get_hiring_snapshot_health,
     resolve_trends_data_source,
@@ -83,10 +85,27 @@ class _FakeQueryCollection:
     def find(self, query, projection=None):
         return _FakeCursor([])
 
+    def aggregate(self, pipeline):
+        return _FakeCursor([])
+
+
+class _FakeAuditCollection:
+    def __init__(self):
+        self.rows = []
+
+    async def insert_one(self, doc):
+        self.rows.append(doc)
+
+    def find(self, query, projection=None):
+        config_id = query.get("config_id")
+        filtered = [r for r in self.rows if r.get("config_id") == config_id]
+        return _FakeCursor(filtered)
+
 
 class _FakeDb:
     def __init__(self, *, fit_scores=None, applications_count=0, jobs_open=0, snapshots=None):
         self._config = _FakeCollection()
+        self._audit = _FakeAuditCollection()
         self._snapshots = _FakeCollection()
         for row in snapshots or []:
             self._snapshots.docs[row["period"]] = row
@@ -98,6 +117,8 @@ class _FakeDb:
     def __getitem__(self, name):
         if name == COL_HIRING_DASHBOARD_CONFIG:
             return self._config
+        if name == COL_HIRING_DASHBOARD_CONFIG_AUDIT:
+            return self._audit
         if name == COL_SNAPSHOTS:
             return self._snapshots
         raise KeyError(name)
@@ -132,6 +153,20 @@ async def test_resolve_hire_target_from_db_config():
         {**config_to_json(HiringDashboardConfig()), "monthly_hire_target": 15},
     )
     assert await _resolve_monthly_hire_target(db) == 15
+
+
+@pytest.mark.asyncio
+async def test_resolve_hire_target_none_when_trend_target_disabled():
+    db = _FakeDb()
+    await upsert_hiring_dashboard_config(
+        db,
+        {
+            **config_to_json(HiringDashboardConfig()),
+            "monthly_hire_target": 15,
+            "rule_flags": {"low_fit": True, "stuck_stage": True, "stale_req": True, "trend_target": False},
+        },
+    )
+    assert await _resolve_monthly_hire_target(db) is None
 
 
 @pytest.mark.asyncio
@@ -266,3 +301,35 @@ async def test_synthetic_trends_include_high_fit_when_scores_exist():
     assert trends["points"]
     assert any(p.get("high_fit_pct") is not None for p in trends["points"])
     assert all(p.get("hire_target") == 8 for p in trends["points"])
+
+
+@pytest.mark.asyncio
+async def test_week_offer_acceptance_pct_computes_from_status_counts():
+    class _OfferApps:
+        def aggregate(self, pipeline):
+            return _FakeCursor([{"_id": "ACCEPTED", "count": 8}, {"_id": "SENT", "count": 2}])
+
+    db = type("DB", (), {"applications": _OfferApps()})()
+    pct = await _week_offer_acceptance_pct(db, "2026-01-01T00:00:00+00:00", "2026-02-01T00:00:00+00:00")
+    assert pct == 80.0
+
+
+@pytest.mark.asyncio
+async def test_write_snapshot_persists_offer_acceptance_pct():
+    db = _FakeDb(applications_count=10)
+    pack = {
+        "window_days": 30,
+        "health_score": 70,
+        "headline": {
+            "open_jobs": {"value": 5},
+            "new_applications": {"value": 10},
+            "hires": {"value": 1},
+            "offer_acceptance_pct": {"value": 82},
+        },
+        "funnel": [],
+        "stage_aging_summary": [],
+    }
+    doc = await write_hiring_dashboard_snapshot(db, pack)
+    assert doc.get("offer_acceptance_pct") == 82.0
+    assert doc.get("new_applications") == 10
+    assert doc.get("hires") == 10

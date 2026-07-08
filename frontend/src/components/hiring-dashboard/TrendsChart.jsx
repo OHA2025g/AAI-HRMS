@@ -12,6 +12,7 @@ import {
 import { Badge } from '../ui/badge';
 import ChartCard from './ChartCard';
 import ChartAccessibleTable from './ChartAccessibleTable';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 const TRENDS_SOURCE_LABELS = {
   snapshots: 'Daily snapshots',
@@ -186,7 +187,7 @@ export default function TrendsChart({
         </LineChart>
       </ResponsiveContainer>
       <ChartAccessibleTable
-        caption="Six-month hiring trends"
+        caption={chartTitleCase('Six-month hiring trends')}
         columns={[
           { key: 'label', label: 'Period' },
           { key: 'applications', label: 'Applications' },

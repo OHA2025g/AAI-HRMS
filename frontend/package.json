@@ -55,6 +55,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:legacy": "craco test",
+    "sync-mock-css": "node scripts/sync-mock-overview-css.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

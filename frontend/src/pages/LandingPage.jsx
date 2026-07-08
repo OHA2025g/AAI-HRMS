@@ -32,7 +32,17 @@ import {
   Orbit,
   Radio,
   Activity,
+  FileSpreadsheet,
+  Link2,
+  Lock,
+  Target,
 } from 'lucide-react';
+import { SMART_HIRING_ONLY } from '../config/appModules';
+
+const PRODUCT_NAME = SMART_HIRING_ONLY ? 'AAI Smart Hiring' : 'AAI-HRMS';
+const PRODUCT_TAGLINE = SMART_HIRING_ONLY
+  ? 'Talent acquisition from requisition to signed offer'
+  : 'Enterprise workforce systems';
 
 const outfit = { fontFamily: "'Outfit', system-ui, sans-serif" };
 const syne = { fontFamily: "'Syne', 'Outfit', system-ui, sans-serif" };
@@ -131,20 +141,36 @@ function SectionHeading({ eyebrow, title, description, light }) {
   );
 }
 
-const MARQUEE_ITEMS = [
-  'Smart hiring',
-  'Skills intelligence',
-  'Project master',
-  'Allocations',
-  'Executive KPIs',
-  'HR Copilot',
-  'Lifecycle',
-  'Engagement',
-  'Retention',
-  'Workflow automation',
-  'Demand forecast',
-  'Governance',
-];
+const MARQUEE_ITEMS = SMART_HIRING_ONLY
+  ? [
+      'Hiring dashboard',
+      'Pending offers',
+      'Offer ageing',
+      'Jobs & JDs',
+      'Excel import',
+      'Pipeline & stages',
+      'Assessments',
+      'Interviews',
+      'Referrals',
+      'AI fit scoring',
+      'Career trajectory',
+      'LinkedIn RSC',
+      'HM / TM / PM roles',
+    ]
+  : [
+      'Smart hiring',
+      'Skills intelligence',
+      'Project master',
+      'Allocations',
+      'Executive KPIs',
+      'HR Copilot',
+      'Lifecycle',
+      'Engagement',
+      'Retention',
+      'Workflow automation',
+      'Demand forecast',
+      'Governance',
+    ];
 
 const LandingPage = () => {
   const { isAuthenticated } = useAuth();
@@ -153,71 +179,172 @@ const LandingPage = () => {
   const m = useLandingMotion();
   const prefersReducedMotion = useReducedMotion();
 
-  const highlights = [
-    {
-      icon: BarChart2,
-      title: 'Executive visibility',
-      text: 'Dashboards and KPI packs—health, cost, and workforce signals in one glass pane.',
-      to: '/executive-kpis',
-      span: 'md:col-span-2 md:row-span-1',
-    },
-    {
-      icon: Briefcase,
-      title: 'AI-assisted hiring',
-      text: 'Requisitions, talent pool, resume intelligence, pipeline, interviews.',
-      to: '/jobs',
-      span: 'md:col-span-2',
-    },
-    {
-      icon: UserCog,
-      title: 'Employee lifecycle',
-      text: 'Master data, org context, approvals, compliant transitions.',
-      to: '/employees',
-      span: 'md:col-span-1',
-    },
-    {
-      icon: TrendingUp,
-      title: 'Demand & supply',
-      text: 'Skill inventory and forecasts aligned to hiring and mobility.',
-      to: '/workforce-intelligence',
-      span: 'md:col-span-1',
-    },
-    {
-      icon: FolderKanban,
-      title: 'Projects & resources',
-      text: 'Optimization, project hub, allocation bridge, resource intelligence overlays.',
-      to: '/resource-optimization',
-      span: 'md:col-span-2',
-    },
-    {
-      icon: Layers,
-      title: 'Resource intelligence',
-      text: 'Bench, readiness, demand fit, forecasting hooks, and AI-ready workforce signals.',
-      to: '/resource-project-optimization/resource/dashboard',
-      span: 'md:col-span-2',
-    },
-    {
-      icon: GraduationCap,
-      title: 'Learning paths',
-      text: 'Recommendations and assignments tied to role growth.',
-      to: '/training-recommendations',
-      span: 'md:col-span-1',
-    },
-    {
-      icon: Heart,
-      title: 'Engagement',
-      text: 'Pulse, programs, and HR-owned follow-through.',
-      to: '/employee-engagement',
-      span: 'md:col-span-1',
-    },
-    {
-      icon: Zap,
-      title: 'Automation & copilot',
-      text: 'HR Copilot, transformation roadmap, workflow engine.',
-      to: '/hr-copilot',
-      span: 'md:col-span-2',
-    },
-  ];
+  const highlights = useMemo(() => {
+    const all = [
+      {
+        icon: LayoutDashboard,
+        title: 'Hiring dashboard',
+        text: 'Pending offers, funnel conversion, offer ageing, bottlenecks, interview-round metrics, and trends.',
+        to: '/dashboard',
+        span: 'md:col-span-2',
+        smartHiring: true,
+      },
+      {
+        icon: Briefcase,
+        title: 'Jobs & requisitions',
+        text: 'AI skill extraction, scoring rubrics, Find Matches, and hiring-team assignment per role.',
+        to: '/jobs',
+        span: 'md:col-span-2',
+        smartHiring: true,
+      },
+      {
+        icon: Users,
+        title: 'Candidates',
+        text: 'Profiles, resume parsing, fit scores, talent pool, and deduplicated sourcing.',
+        to: '/candidates',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: GitBranch,
+        title: 'Pipeline',
+        text: 'Multi-round stages, offer sub-stages, SLA alerts, and HM/TM offer-stage approvals.',
+        to: '/pipeline',
+        span: 'md:col-span-2',
+        smartHiring: true,
+      },
+      {
+        icon: ClipboardCheck,
+        title: 'Assessments',
+        text: 'Mistral-powered generation, 25 questions per type, invite, grade, and item analysis.',
+        to: '/assessments',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: Calendar,
+        title: 'Interviews',
+        text: 'Schedule rounds, capture feedback, and align with pipeline stage history.',
+        to: '/interviews',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: UserPlus,
+        title: 'Referrals',
+        text: 'Employee referrals linked to open jobs with team-scoped visibility.',
+        to: '/referrals',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: Sparkles,
+        title: 'AI candidate fit',
+        text: 'Career trajectory analysis, side-by-side compare, and phase-2 fit simulation.',
+        to: '/ai-hiring/candidate-fit/career-trajectory',
+        span: 'md:col-span-2',
+        smartHiring: true,
+      },
+      {
+        icon: FileSpreadsheet,
+        title: 'Excel bulk import',
+        text: 'Upload, map columns, validate, and commit candidates with audit history.',
+        to: '/candidates/import',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: Link2,
+        title: 'Integrations',
+        text: 'LinkedIn Recruiter export, webhooks, connector health, and ingestion queue.',
+        to: '/admin/integrations',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: Lock,
+        title: 'Role-based access',
+        text: 'Hiring Manager, Technical Manager, and Project Manager scopes per job team.',
+        to: '/admin/roles',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: Target,
+        title: 'Dashboard config',
+        text: 'SLA thresholds, alert rules, and hiring-pack tuning for your organization.',
+        to: '/admin/hiring-dashboard-config',
+        span: 'md:col-span-1',
+        smartHiring: true,
+      },
+      {
+        icon: BarChart2,
+        title: 'Executive visibility',
+        text: 'Dashboards and KPI packs—health, cost, and workforce signals in one glass pane.',
+        to: '/executive-kpis',
+        span: 'md:col-span-2 md:row-span-1',
+        smartHiring: false,
+      },
+      {
+        icon: UserCog,
+        title: 'Employee lifecycle',
+        text: 'Master data, org context, approvals, compliant transitions.',
+        to: '/employees',
+        span: 'md:col-span-1',
+        smartHiring: false,
+      },
+      {
+        icon: TrendingUp,
+        title: 'Demand & supply',
+        text: 'Skill inventory and forecasts aligned to hiring and mobility.',
+        to: '/workforce-intelligence',
+        span: 'md:col-span-1',
+        smartHiring: false,
+      },
+      {
+        icon: FolderKanban,
+        title: 'Projects & resources',
+        text: 'Optimization, project hub, allocation bridge, resource intelligence overlays.',
+        to: '/resource-optimization',
+        span: 'md:col-span-2',
+        smartHiring: false,
+      },
+      {
+        icon: Layers,
+        title: 'Resource intelligence',
+        text: 'Bench, readiness, demand fit, forecasting hooks, and AI-ready workforce signals.',
+        to: '/resource-project-optimization/resource/dashboard',
+        span: 'md:col-span-2',
+        smartHiring: false,
+      },
+      {
+        icon: GraduationCap,
+        title: 'Learning paths',
+        text: 'Recommendations and assignments tied to role growth.',
+        to: '/training-recommendations',
+        span: 'md:col-span-1',
+        smartHiring: false,
+      },
+      {
+        icon: Heart,
+        title: 'Engagement',
+        text: 'Pulse, programs, and HR-owned follow-through.',
+        to: '/employee-engagement',
+        span: 'md:col-span-1',
+        smartHiring: false,
+      },
+      {
+        icon: Zap,
+        title: 'Automation & copilot',
+        text: 'HR Copilot, transformation roadmap, workflow engine.',
+        to: '/hr-copilot',
+        span: 'md:col-span-2',
+        smartHiring: false,
+      },
+    ];
+    const filtered = SMART_HIRING_ONLY ? all.filter((item) => item.smartHiring) : all;
+    return filtered.map(({ smartHiring: _omit, ...item }) => item);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500/40">
@@ -328,9 +455,11 @@ const LandingPage = () => {
             </div>
             <div className="leading-tight min-w-0">
               <span className="font-bold text-lg text-white block truncate" style={outfit}>
-                AAI-HRMS
+                {PRODUCT_NAME}
               </span>
-              <span className="text-[10px] uppercase tracking-widest text-indigo-300/90 hidden sm:block">Systems</span>
+              <span className="text-[10px] uppercase tracking-widest text-indigo-300/90 hidden sm:block">
+                {PRODUCT_TAGLINE}
+              </span>
             </div>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -366,32 +495,58 @@ const LandingPage = () => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
                   </span>
-                  <span className="relative text-xs font-semibold text-slate-200 tracking-wide">Live stack · Agentic AI · Enterprise HR</span>
+                  <span className="relative text-xs font-semibold text-slate-200 tracking-wide">
+                    {SMART_HIRING_ONLY
+                      ? 'Live stack · AI assessments · Offer analytics'
+                      : 'Live stack · Agentic AI · Enterprise HR'}
+                  </span>
                 </div>
 
                 <h1
                   className="text-[2.55rem] sm:text-5xl md:text-6xl lg:text-[4.35rem] font-extrabold text-white leading-[1.02] tracking-tight mb-5"
                   style={inter}
                 >
-                  The workforce layer{' '}
-                  <span className="relative inline-block">
-                    <span
-                      className="absolute -inset-x-2 -inset-y-1 rounded-2xl bg-gradient-to-r from-indigo-600/35 via-violet-600/25 to-fuchsia-600/25 blur-xl"
-                      aria-hidden
-                    />
-                    <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 via-white to-violet-200">
-                      your board actually feels
-                    </span>
-                  </span>
+                  {SMART_HIRING_ONLY ? (
+                    <>
+                      Hire with clarity{' '}
+                      <span className="relative inline-block">
+                        <span
+                          className="absolute -inset-x-2 -inset-y-1 rounded-2xl bg-gradient-to-r from-indigo-600/35 via-violet-600/25 to-fuchsia-600/25 blur-xl"
+                          aria-hidden
+                        />
+                        <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 via-white to-violet-200">
+                          from req to offer
+                        </span>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      The workforce layer{' '}
+                      <span className="relative inline-block">
+                        <span
+                          className="absolute -inset-x-2 -inset-y-1 rounded-2xl bg-gradient-to-r from-indigo-600/35 via-violet-600/25 to-fuchsia-600/25 blur-xl"
+                          aria-hidden
+                        />
+                        <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 via-white to-violet-200">
+                          your board actually feels
+                        </span>
+                      </span>
+                    </>
+                  )}
                 </h1>
 
                 <p className="text-base sm:text-lg md:text-xl text-slate-400 max-w-xl mx-auto lg:mx-0 mb-3 leading-relaxed">
-                  Hiring, skills, projects, bench, and KPIs—woven into one glass pane so HR, PMO, and leadership stop
-                  reconciling three spreadsheets and start steering one truth.
+                  {SMART_HIRING_ONLY
+                    ? 'One workspace for requisitions, pipeline, assessments, interviews, referrals, and offer intelligence—scoped for hiring managers, technical managers, and recruiters.'
+                    : 'Hiring, skills, projects, bench, and KPIs—woven into one glass pane so HR, PMO, and leadership stop reconciling three spreadsheets and start steering one truth.'}
                 </p>
                 <p className="text-sm text-indigo-300/90 font-medium mb-10 flex flex-wrap items-center justify-center lg:justify-start gap-2">
                   <Star className="w-4 h-4 text-amber-300 shrink-0" fill="currentColor" />
-                  <span>Designed to demo like a product—not a slide deck.</span>
+                  <span>
+                    {SMART_HIRING_ONLY
+                      ? 'Built for KPMG / LTI Mindtree Smart Hiring—production-ready modules, not mockups.'
+                      : 'Designed to demo like a product—not a slide deck.'}
+                  </span>
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-12">
@@ -418,9 +573,19 @@ const LandingPage = () => {
                 </div>
 
                 <div className="grid grid-cols-3 gap-6 max-w-md mx-auto lg:mx-0 border-t border-white/10 pt-8">
-                  <CountUpStat end={12} suffix="+" label="Product surfaces" />
-                  <CountUpStat end={1} label="Unified fabric" />
-                  <InfinityReveal label="Scale ceiling" />
+                  {SMART_HIRING_ONLY ? (
+                    <>
+                      <CountUpStat end={12} suffix="+" label="Pipeline stages" />
+                      <CountUpStat end={25} label="Questions / assessment" />
+                      <CountUpStat end={3} label="Hiring team roles" />
+                    </>
+                  ) : (
+                    <>
+                      <CountUpStat end={12} suffix="+" label="Product surfaces" />
+                      <CountUpStat end={1} label="Unified fabric" />
+                      <InfinityReveal label="Scale ceiling" />
+                    </>
+                  )}
                 </div>
               </motion.div>
             </div>
@@ -444,7 +609,9 @@ const LandingPage = () => {
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/80" />
                     </div>
-                    <span className="text-[10px] text-slate-500 font-mono flex-1 text-center truncate">aai-hrms · unified workspace</span>
+                    <span className="text-[10px] text-slate-500 font-mono flex-1 text-center truncate">
+                      {SMART_HIRING_ONLY ? 'smart-hiring · talent workspace' : 'aai-hrms · unified workspace'}
+                    </span>
                     <Radio className="w-3.5 h-3.5 text-emerald-400/90" />
                   </div>
                   <div className="p-5 space-y-4 relative">
@@ -502,7 +669,9 @@ const LandingPage = () => {
                         />
                       </div>
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Hiring funnel · bench · project risk · cost—correlated, not siloed.
+                        {SMART_HIRING_ONLY
+                          ? 'Pending offers · funnel conversion · offer ageing · interview rounds—in one hiring pack.'
+                          : 'Hiring funnel · bench · project risk · cost—correlated, not siloed.'}
                       </p>
                     </div>
                   </div>
@@ -532,12 +701,21 @@ const LandingPage = () => {
       <section className="relative z-10 py-14 md:py-16 border-y border-white/10 bg-gradient-to-b from-slate-950 via-indigo-950/25 to-slate-950">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
-            {[
-              { icon: Cpu, k: 'Agent-ready', v: 'Copilot + APIs', d: 'Hooks for HR copilot, workflows, and integrations.' },
-              { icon: BarChart3, k: 'Executive KPIs', v: 'Board-grade', d: 'Dashboards and packs your CFO will trust.' },
-              { icon: FolderKanban, k: 'Projects ↔ People', v: 'One bridge', d: 'Demands, allocations, bench—same graph.' },
-              { icon: Shield, k: 'Governance', v: 'Approvals built-in', d: 'Lifecycle and staffing gates with audit trails.' },
-            ].map((item, i) => (
+            {(
+              SMART_HIRING_ONLY
+                ? [
+                    { icon: LayoutDashboard, k: 'Analytics', v: 'Offer intelligence', d: 'Pending offers, bottlenecks, and per-offer ageing on the dashboard.' },
+                    { icon: GitBranch, k: 'Pipeline', v: 'Stage control', d: 'Multi-round interviews, offer sub-stages, and team-scoped access.' },
+                    { icon: ClipboardCheck, k: 'Assessments', v: '25 Q / type', d: 'Mistral-generated tests, invite links, grading, and analytics.' },
+                    { icon: FileSpreadsheet, k: 'Import', v: 'Excel ETL', d: 'Bulk candidate upload with validate, map, and commit flows.' },
+                  ]
+                : [
+                    { icon: Cpu, k: 'Agent-ready', v: 'Copilot + APIs', d: 'Hooks for HR copilot, workflows, and integrations.' },
+                    { icon: BarChart3, k: 'Executive KPIs', v: 'Board-grade', d: 'Dashboards and packs your CFO will trust.' },
+                    { icon: FolderKanban, k: 'Projects ↔ People', v: 'One bridge', d: 'Demands, allocations, bench—same graph.' },
+                    { icon: Shield, k: 'Governance', v: 'Approvals built-in', d: 'Lifecycle and staffing gates with audit trails.' },
+                  ]
+            ).map((item, i) => (
               <motion.div
                 key={item.k}
                 initial={{ opacity: 0, y: 16 }}
@@ -594,8 +772,12 @@ const LandingPage = () => {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <SectionHeading
             eyebrow="Surface area"
-            title="Every capability, one orbit"
-            description="Bento-sized previews of what your teams get on day one—click through to the live module."
+            title={SMART_HIRING_ONLY ? 'Smart Hiring capabilities' : 'Every capability, one orbit'}
+            description={
+              SMART_HIRING_ONLY
+                ? 'Requisitions, pipeline, assessments, AI fit, imports, and integrations—click through to the live module.'
+                : 'Bento-sized previews of what your teams get on day one—click through to the live module.'
+            }
             light
           />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-5 auto-rows-fr">
@@ -635,7 +817,8 @@ const LandingPage = () => {
       {/* Light band: deep modules */}
       <section className="relative py-20 md:py-28 bg-[#f4f6fb] text-slate-900">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/50 to-transparent" />
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-20 md:space-y-28">
+        <motion.div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-20 md:space-y-28">
+          {!SMART_HIRING_ONLY ? (
           <motion.div {...fadeUp}>
             <SectionHeading
               eyebrow="Analytics"
@@ -676,21 +859,29 @@ const LandingPage = () => {
               ))}
             </div>
           </motion.div>
+          ) : null}
 
           <motion.div {...fadeUp}>
             <SectionHeading
               eyebrow="Talent"
-              title="Smart hiring — from requisition to signed offer"
-              description="Structured stages, assessments, and interview orchestration so great candidates never slip through cracks."
+              title={SMART_HIRING_ONLY ? 'End-to-end hiring workflow' : 'Smart hiring — from requisition to signed offer'}
+              description={
+                SMART_HIRING_ONLY
+                  ? 'Structured stages, team-based permissions, assessments, and interview orchestration—so great candidates never slip through the cracks.'
+                  : 'Structured stages, assessments, and interview orchestration so great candidates never slip through cracks.'
+              }
             />
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
+                { label: 'Hiring dashboard', to: '/dashboard', icon: LayoutDashboard },
                 { label: 'Jobs & requisitions', to: '/jobs', icon: Briefcase },
                 { label: 'Candidates & profiles', to: '/candidates', icon: Users },
+                { label: 'Bulk Excel import', to: '/candidates/import', icon: FileSpreadsheet },
                 { label: 'Pipeline & stages', to: '/pipeline', icon: GitBranch },
                 { label: 'Interviews', to: '/interviews', icon: Calendar },
                 { label: 'Referrals', to: '/referrals', icon: UserPlus },
                 { label: 'Assessments', to: '/assessments', icon: ClipboardCheck },
+                { label: 'Career trajectory (AI)', to: '/ai-hiring/candidate-fit/career-trajectory', icon: Sparkles },
               ].map((item) => (
                 <Link
                   key={item.label}
@@ -710,6 +901,7 @@ const LandingPage = () => {
             </div>
           </motion.div>
 
+          {!SMART_HIRING_ONLY ? (
           <motion.div {...fadeUp}>
             <SectionHeading
               eyebrow="People & projects"
@@ -758,7 +950,41 @@ const LandingPage = () => {
               </Card>
             </div>
           </motion.div>
+          ) : null}
 
+          {SMART_HIRING_ONLY ? (
+          <motion.div {...fadeUp}>
+            <SectionHeading
+              eyebrow="Governance"
+              title="Admin, access, and connectors"
+              description="Configure SLAs, hiring-team roles, LinkedIn ingest, and career-trajectory AI settings."
+            />
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { icon: Target, t: 'Hiring dashboard config', to: '/admin/hiring-dashboard-config' },
+                { icon: Lock, t: 'Roles & teams', to: '/admin/roles' },
+                { icon: Link2, t: 'Integrations', to: '/admin/integrations' },
+                { icon: Sparkles, t: 'Career trajectory config', to: '/admin/career-trajectory-config' },
+              ].map((x) => (
+                <Link
+                  key={x.t}
+                  to={x.to}
+                  className="flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                >
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center mb-3">
+                    <x.icon className="w-6 h-6 text-indigo-600" />
+                  </div>
+                  <span className="font-bold text-slate-900" style={outfit}>
+                    {x.t}
+                  </span>
+                  <span className="text-xs text-indigo-600 font-semibold mt-2">Open admin</span>
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+          ) : null}
+
+          {!SMART_HIRING_ONLY ? (
           <motion.div {...fadeUp}>
             <SectionHeading
               eyebrow="Culture & ops"
@@ -792,7 +1018,8 @@ const LandingPage = () => {
               ))}
             </div>
           </motion.div>
-        </div>
+          ) : null}
+        </motion.div>
       </section>
 
       {/* CTA */}
@@ -826,10 +1053,14 @@ const LandingPage = () => {
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            Ship the future of HR—without ripping out what works.
+            {SMART_HIRING_ONLY
+              ? 'Run your hiring program on one intelligent stack.'
+              : 'Ship the future of HR—without ripping out what works.'}
           </motion.h2>
           <p className="text-lg text-indigo-100/90 mb-10 max-w-2xl mx-auto">
-            Your workspace is one click away. Permissions follow role—explore the modules that matter to you first.
+            {SMART_HIRING_ONLY
+              ? 'Sign in as recruiter, hiring manager, or technical manager—each role sees only the jobs and candidates on their team.'
+              : 'Your workspace is one click away. Permissions follow role—explore the modules that matter to you first.'}
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button
@@ -859,9 +1090,10 @@ const LandingPage = () => {
             </div>
             <div>
               <p className="text-white font-semibold" style={outfit}>
-                AAI-HRMS Systems
+                {PRODUCT_NAME}
               </p>
-              <p>© {new Date().getFullYear()} All rights reserved.</p>
+              <p className="text-slate-500 text-xs mt-0.5">{PRODUCT_TAGLINE}</p>
+              <p className="mt-1">© {new Date().getFullYear()} AGRAYIAN AI Labs. All rights reserved.</p>
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-8">

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { getTypeColor } from '../../hooks/useAssessmentsWorkspace';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 function cellColor(intensity, count) {
   if (count === 0) return 'bg-slate-50 text-slate-400';
@@ -26,7 +27,7 @@ export default function AssessmentCoverageHeatmap({ matrix }) {
     return (
       <Card data-testid="assessment-coverage-heatmap">
         <CardHeader>
-          <CardTitle>Coverage heatmap</CardTitle>
+          <CardTitle>{chartTitleCase('Coverage heatmap')}</CardTitle>
           <CardDescription>Open jobs × assessment type — darker cells mean more tests and activity</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-slate-500 py-6 text-center">
@@ -39,7 +40,7 @@ export default function AssessmentCoverageHeatmap({ matrix }) {
   return (
     <Card data-testid="assessment-coverage-heatmap">
       <CardHeader>
-        <CardTitle>Coverage heatmap</CardTitle>
+        <CardTitle>{chartTitleCase('Coverage heatmap')}</CardTitle>
         <CardDescription>
           Matrix of assessments per job and type. Cell shows test count; color reflects invites and completions in the
           selected window.

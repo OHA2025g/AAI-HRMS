@@ -9,8 +9,8 @@ Creates / updates:
   - One employee, one workforce skill, one OPEN job (marked with seed_marker)
 
 Env:
-  QA_SEED_ADMIN_EMAIL   (default: qa_admin@aai-hrms.local)
-  QA_SEED_ADMIN_PASSWORD (default: QA_Seed_ChangeMe!)
+  QA_SEED_ADMIN_EMAIL   (default: aghoreshwar@hotmail.com via docker-compose)
+  QA_SEED_ADMIN_PASSWORD (default: Prince@1804 via docker-compose)
   QA_SEED_FORCE         (set to 1 to re-apply even if version recorded)
 
 Run from backend/:
@@ -29,8 +29,13 @@ from pathlib import Path
 import bcrypt
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = BACKEND_DIR / "scripts"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from set_user_password import upsert_user_password
 
 
 def _load_env() -> None:
@@ -42,9 +47,13 @@ def _load_env() -> None:
     apply_secret_store()
 
 
-SEED_VERSION = 1
+SEED_VERSION = 2
 SEED_MARKER = "qa_baseline_v1"
 SEED_COLLECTION = "_qa_seed"
+# Stable ids for E2E / RBAC offer-proposal flows
+QA_SEED_JOB_ID = "qa-seed-job-0001"
+QA_SEED_CAND_INTERVIEW_ID = "qa-seed-cand-interview"
+QA_SEED_APP_INTERVIEW_ID = "qa-seed-app-interview"
 
 
 async def main() -> int:
@@ -57,43 +66,29 @@ async def main() -> int:
 
     from motor.motor_asyncio import AsyncIOMotorClient
 
-    email = (os.environ.get("QA_SEED_ADMIN_EMAIL") or "qa_admin@aai-hrms.local").strip().lower()
-    password = os.environ.get("QA_SEED_ADMIN_PASSWORD") or "QA_Seed_ChangeMe!"
+    email = (os.environ.get("QA_SEED_ADMIN_EMAIL") or "aghoreshwar@hotmail.com").strip().lower()
+    password = os.environ.get("QA_SEED_ADMIN_PASSWORD") or "Prince@1804"
     force = os.environ.get("QA_SEED_FORCE", "").strip() in ("1", "true", "yes")
 
     client = AsyncIOMotorClient(mongo_url)
     try:
         db = client[db_name]
+
+        # Always sync admin credentials from env (idempotent on every API boot).
+        admin_id = await upsert_user_password(
+            email=email,
+            password=password,
+            role="admin",
+            full_name="QA Admin",
+        )
+
         existing = await db[SEED_COLLECTION].find_one({"version": SEED_VERSION}, {"_id": 0})
         if existing and not force:
             print(f"QA seed v{SEED_VERSION} already applied. Set QA_SEED_FORCE=1 to re-run.")
             return 0
 
         now = datetime.now(timezone.utc).isoformat()
-
-        # --- Admin user ---
         pw_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        user = await db.users.find_one({"email": email}, {"_id": 0})
-        if user:
-            admin_id = user["id"]
-            await db.users.update_one(
-                {"id": admin_id},
-                {"$set": {"password": pw_hash, "role": "admin", "full_name": user.get("full_name") or "QA Admin"}},
-            )
-            print("Updated QA admin user:", email)
-        else:
-            admin_id = str(uuid.uuid4())
-            await db.users.insert_one(
-                {
-                    "id": admin_id,
-                    "email": email,
-                    "password": pw_hash,
-                    "full_name": "QA Admin",
-                    "role": "admin",
-                    "created_at": now,
-                }
-            )
-            print("Created QA admin user:", email)
 
         # --- Employee ---
         code = "QASEED001"
@@ -135,31 +130,101 @@ async def main() -> int:
             )
             print("Created workforce skill Python")
 
-        # --- Job (no AI) ---
-        if not await db.jobs.find_one({"seed_marker": SEED_MARKER}, {"_id": 0}):
-            job_id = str(uuid.uuid4())
-            await db.jobs.insert_one(
-                {
-                    "id": job_id,
-                    "title": "QA Seed — Software Engineer",
-                    "normalized_title": "software engineer",
-                    "description": "Baseline job for QA. Safe to delete or close.",
-                    "seniority": "MID",
-                    "domain": "Engineering",
-                    "location": "Remote",
-                    "work_mode": "remote",
-                    "status": "OPEN",
-                    "skills": [
-                        {"skill_name": "Python", "skill_type": "MUST_HAVE", "weight": 1.0},
-                    ],
-                    "activities": [],
-                    "scoring_rubric": None,
-                    "created_by": admin_id,
-                    "created_at": now,
-                    "seed_marker": SEED_MARKER,
-                }
+        # --- Hiring role demo users (HM / TM / PM) ---
+        role_users = [
+            ("qa_hm@aai-hrms.local", "QA Hiring Manager", "hiring_manager"),
+            ("qa_tm@aai-hrms.local", "QA Technical Manager", "technical_manager"),
+            ("qa_pm@aai-hrms.local", "QA Project Manager", "project_manager"),
+        ]
+        role_ids: dict[str, str] = {}
+        for em, name, role in role_users:
+            existing_u = await db.users.find_one({"email": em}, {"_id": 0})
+            if existing_u:
+                role_ids[role] = existing_u["id"]
+                await db.users.update_one(
+                    {"id": existing_u["id"]},
+                    {"$set": {"password": pw_hash, "role": role, "full_name": name}},
+                )
+            else:
+                uid = str(uuid.uuid4())
+                role_ids[role] = uid
+                await db.users.insert_one(
+                    {
+                        "id": uid,
+                        "email": em,
+                        "password": pw_hash,
+                        "full_name": name,
+                        "role": role,
+                        "created_at": now,
+                    }
+                )
+            print(f"QA role user ready: {em} ({role})")
+
+        # --- Job + interview-stage application (RBAC / offer-proposal E2E) ---
+        job_doc = {
+            "id": QA_SEED_JOB_ID,
+            "title": "QA Seed — Software Engineer",
+            "normalized_title": "software engineer",
+            "description": "Baseline job for QA. Safe to delete or close.",
+            "seniority": "MID",
+            "domain": "Engineering",
+            "location": "Remote",
+            "work_mode": "remote",
+            "status": "OPEN",
+            "skills": [{"skill_name": "Python", "skill_type": "MUST_HAVE", "weight": 1.0}],
+            "activities": [],
+            "scoring_rubric": None,
+            "created_by": admin_id,
+            "seed_marker": SEED_MARKER,
+            "hiring_team": {
+                "hiring_manager_id": role_ids.get("hiring_manager"),
+                "technical_manager_id": role_ids.get("technical_manager"),
+                "project_manager_id": role_ids.get("project_manager"),
+                "recruiter_id": admin_id,
+            },
+            "updated_at": now,
+        }
+        legacy = await db.jobs.find_one(
+            {"seed_marker": SEED_MARKER, "id": {"$ne": QA_SEED_JOB_ID}},
+            {"_id": 0, "id": 1},
+        )
+        if legacy:
+            await db.applications.update_many(
+                {"job_id": legacy["id"]},
+                {"$set": {"job_id": QA_SEED_JOB_ID}},
             )
-            print("Created QA seed job", job_id)
+            await db.jobs.delete_one({"id": legacy["id"]})
+        await db.jobs.update_one(
+            {"id": QA_SEED_JOB_ID},
+            {"$set": job_doc, "$setOnInsert": {"created_at": now}},
+            upsert=True,
+        )
+        print("Upserted QA seed job", QA_SEED_JOB_ID)
+
+        cand_doc = {
+            "id": QA_SEED_CAND_INTERVIEW_ID,
+            "full_name": "QA Seed Interview Candidate",
+            "email": "qa.seed.interview@aai-hrms.local",
+            "headline": "Senior Python Engineer",
+            "source": "MANUAL",
+            "created_at": now,
+            "updated_at": now,
+        }
+        await db.candidates.update_one({"id": QA_SEED_CAND_INTERVIEW_ID}, {"$set": cand_doc}, upsert=True)
+
+        app_doc = {
+            "id": QA_SEED_APP_INTERVIEW_ID,
+            "job_id": QA_SEED_JOB_ID,
+            "candidate_id": QA_SEED_CAND_INTERVIEW_ID,
+            "stage": "INTERVIEW_1",
+            "status": "ACTIVE",
+            "updated_at": now,
+        }
+        await db.applications.update_one({"id": QA_SEED_APP_INTERVIEW_ID}, {"$set": app_doc}, upsert=True)
+        await db.offer_stage_proposals.delete_many(
+            {"application_id": QA_SEED_APP_INTERVIEW_ID, "status": "PENDING"}
+        )
+        print("Upserted QA interview application for offer-proposal E2E")
 
         await db[SEED_COLLECTION].update_one(
             {"version": SEED_VERSION},

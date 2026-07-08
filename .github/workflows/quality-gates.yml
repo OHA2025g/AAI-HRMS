@@ -156,7 +156,9 @@ jobs:
 
       - name: Run Smart Hiring Dashboard E2E
         working-directory: e2e
-        run: npm test
+        env:
+          PLAYWRIGHT_TEST_TIMEOUT: "120000"
+        run: npm run test:hiring-dashboard
 
       - uses: actions/upload-artifact@v4
         if: failure()

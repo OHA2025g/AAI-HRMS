@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { pipelinePathForStage } from '../../lib/hiringDashboardDrill';
 import ChartCard from './ChartCard';
 import ChartAccessibleTable from './ChartAccessibleTable';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 export default function OfferAgingChart({ offerAgingBuckets = [] }) {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function OfferAgingChart({ offerAgingBuckets = [] }) {
           </BarChart>
         </ResponsiveContainer>
         <ChartAccessibleTable
-          caption="Offer aging buckets"
+          caption={chartTitleCase('Offer aging buckets')}
           columns={[
             { key: 'label', label: 'Age bucket' },
             { key: 'count', label: 'Pending offers' },

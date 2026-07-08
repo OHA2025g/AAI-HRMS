@@ -36,7 +36,10 @@ from talent_acquisition.candidate_source import (
     is_linkedin_sourced_candidate,
     is_talent_pool_candidate,
 )
-from talent_acquisition.candidate_fit_filter import candidate_ids_matching_fit_range
+from talent_acquisition.candidate_fit_filter import (
+    best_fit_scores_for_candidates,
+    candidate_ids_matching_fit_range,
+)
 from talent_acquisition.match_candidate_pool import (
     applied_ids_excluding_fit_seeds,
     gather_job_match_candidates,
@@ -47,23 +50,28 @@ from talent_acquisition.match_ordering import (
     DEFAULT_TOTAL_MATCH_LIMIT,
     count_match_buckets,
     order_job_match_results,
+    order_job_match_results_linkedin_first,
 )
 from talent_acquisition.hiring_analytics_events import log_find_matches_event
-from talent_acquisition.hiring_dashboard import build_hiring_dashboard_pack
+from talent_acquisition.hiring_dashboard import build_hiring_dashboard_pack, get_dashboard_filter_options
 from talent_acquisition.hiring_dashboard_access import enforce_hiring_dashboard_scope
 from talent_acquisition.hiring_dashboard_perf import log_slow_hiring_pack_query
 from talent_acquisition.hiring_dashboard_schemas import (
     HiringAlertDismissRequest,
     HiringAlertDismissalsResponse,
+    HiringDashboardConfigAuditEntry,
     HiringDashboardConfigResponse,
     HiringDashboardConfigUpdate,
     HiringDashboardPack,
     HiringDashboardTrends,
     HiringSnapshotHealth,
+    DashboardFilterOptions,
 )
 from talent_acquisition.hiring_dashboard_config import (
     config_to_json,
     get_hiring_dashboard_config,
+    get_hiring_dashboard_config_doc,
+    list_config_audit,
     upsert_hiring_dashboard_config,
 )
 from talent_acquisition.hiring_alert_dismissals import (
@@ -82,7 +90,44 @@ from talent_acquisition.hiring_snapshots import (
     seed_hiring_snapshots_if_sparse,
     write_hiring_dashboard_snapshot,
 )
+from talent_acquisition.assessments_constants import ASSESSMENT_QUESTIONS_PER_TYPE
 from talent_acquisition.assessments_routes import create_assessments_router
+from talent_acquisition.hiring_rbac import (
+    HIRING_LOGIN_ROLES,
+    PERM_ASSESSMENT_GENERATE,
+    PERM_ASSESSMENT_GRADE,
+    PERM_ASSESSMENT_PUBLISH,
+    PERM_JOB_ASSIGN_TEAM,
+    PERM_JOB_CREATE,
+    PERM_JOB_DELETE,
+    PERM_JOB_EDIT,
+    PERM_JOB_EDIT_TECHNICAL,
+    PERM_JOB_READ,
+    PERM_INTERVIEW_APPROVE,
+    PERM_MATCH_RUN,
+    PERM_PIPELINE_ADVANCE,
+    PERM_PIPELINE_OFFER,
+    PERM_PIPELINE_READ,
+    allowed_candidate_ids,
+    allowed_job_ids,
+    assert_application_access,
+    assert_can_create_global_candidate,
+    assert_can_request_offer_stage,
+    assert_candidate_access,
+    assert_interview_access,
+    assert_job_access,
+    assert_permission,
+    assert_stage_transition,
+    build_hiring_team,
+    get_hiring_team,
+    hiring_team_recipient_ids,
+    OFFER_STAGES,
+    merge_candidate_query_with_access,
+    merge_job_query_with_access,
+)
+from talent_acquisition.candidate_import.routes import create_candidate_import_router
+from talent_acquisition.linkedin_routes import create_linkedin_router
+from talent_acquisition.apify_routes import create_apify_linkedin_router
 from m2_employee_lifecycle.state_machine import (
     approval_rule_for_event,
     target_status_for_event,
@@ -344,6 +389,8 @@ from secrets_loader import apply_secret_store
 
 apply_secret_store()
 
+from app_modules import is_smart_hiring_only
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -535,6 +582,14 @@ class JobMatchesResponse(BaseModel):
     generated_at: str
     matches: List[CandidateMatch]
 
+
+class JobMatchesUiResponse(BaseModel):
+    """Enriched matches for job detail UI (candidate + fit_score rows)."""
+
+    job_id: str
+    generated_at: str
+    matches: List[Dict[str, Any]]
+
 # Demo candidates
 class DemoCandidatesRequest(BaseModel):
     count: int = 50
@@ -577,9 +632,42 @@ class ConnectorConfigUpdate(BaseModel):
     min_interval_ms: Optional[int] = None
     search_path: Optional[Union[str, List[str]]] = None
 
+    # LinkedIn Talent API (RSC)
+    api_mode: Optional[str] = None
+    linkedin_organization_id: Optional[str] = None
+    linkedin_api_version: Optional[str] = None
+    webhook_secret: Optional[str] = None
+    pending_export_request_ids: Optional[Union[str, List[str]]] = None
+    linkedin_company_name: Optional[str] = None
+
+    # Apify LinkedIn (search + enrich)
+    apify_search_actor_id: Optional[str] = None
+    apify_enrich_actor_id: Optional[str] = None
+    apify_email_actor_id: Optional[str] = None
+    apify_max_results_per_search: Optional[int] = None
+    apify_enrich_batch_size: Optional[int] = None
+    apify_default_geocode: Optional[str] = None
+    apify_email_fallback_enabled: Optional[bool] = None
+
+HIRING_ROLE_LITERAL = Literal[
+    "admin",
+    "recruiter",
+    "hr_admin",
+    "hr_viewer",
+    "hiring_manager",
+    "technical_manager",
+    "project_manager",
+]
+
+
 class AdminUserRoleUpdate(BaseModel):
-    # Roles supported by Phase-1 permissions.
-    role: Literal["admin", "recruiter", "hr_admin", "hr_viewer"]
+    role: HIRING_ROLE_LITERAL
+
+
+class DatabaseFlushRequest(BaseModel):
+    confirm: str
+    preserve_migration_registry: bool = True
+    preserve_current_user: bool = True
 
 
 class CandidateMergeRequest(BaseModel):
@@ -602,6 +690,29 @@ def _normalize_scopes(scopes: Optional[Union[List[str], str]]) -> Optional[List[
 
 async def get_connector_config(name: str) -> Dict[str, Any]:
     return await db[CONNECTOR_CONFIG_COLLECTION].find_one({"name": name}, {"_id": 0}) or {}
+
+
+async def _background_sync_job_to_linkedin(job_id: str) -> None:
+    """Best-effort LinkedIn simpleJobPostings sync (RSC export↔job mapping)."""
+    from talent_acquisition.linkedin_connector import sync_linkedin_job_by_id
+
+    try:
+        result = await sync_linkedin_job_by_id(
+            job_id, db, CONNECTOR_CONFIG_COLLECTION
+        )
+        if not result.get("ok"):
+            logger.info(
+                "LinkedIn job sync skipped/failed for %s: %s",
+                job_id,
+                result.get("message"),
+            )
+    except Exception as e:
+        logger.warning("LinkedIn job sync failed for %s: %s", job_id, e)
+
+
+_LINKEDIN_JOB_SYNC_FIELDS = frozenset(
+    {"title", "description", "location", "work_mode", "status", "job_code"}
+)
 
 
 async def _append_lifecycle_audit(
@@ -804,6 +915,24 @@ def _user_doc_to_response(user: Dict[str, Any]) -> UserResponse:
 
 
 # Job Models
+class JobHiringTeamInput(BaseModel):
+    hiring_manager_id: Optional[str] = None
+    technical_manager_id: Optional[str] = None
+    project_manager_id: Optional[str] = None
+    recruiter_id: Optional[str] = None
+
+
+class JobHiringTeamResponse(BaseModel):
+    hiring_manager_id: Optional[str] = None
+    technical_manager_id: Optional[str] = None
+    project_manager_id: Optional[str] = None
+    recruiter_id: Optional[str] = None
+    hiring_manager: Optional[Dict[str, Any]] = None
+    technical_manager: Optional[Dict[str, Any]] = None
+    project_manager: Optional[Dict[str, Any]] = None
+    recruiter: Optional[Dict[str, Any]] = None
+
+
 class SkillInput(BaseModel):
     skill_name: str
     skill_type: str = "GOOD_TO_HAVE"  # MUST_HAVE or GOOD_TO_HAVE
@@ -821,6 +950,7 @@ class JobCreate(BaseModel):
     business_department: Optional[str] = None
     business_sub_department: Optional[str] = None
     project_id: Optional[str] = None
+    hiring_team: Optional[JobHiringTeamInput] = None
 
 class JobResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -847,6 +977,7 @@ class JobResponse(BaseModel):
     created_by: str
     created_at: str
     candidate_count: int = 0
+    hiring_team: Optional[JobHiringTeamResponse] = None
 
 class JobUpdate(BaseModel):
     title: Optional[str] = None
@@ -860,6 +991,7 @@ class JobUpdate(BaseModel):
     business_sub_department: Optional[str] = None
     project_id: Optional[str] = None
     skills: Optional[List[Dict[str, Any]]] = None
+    hiring_team: Optional[JobHiringTeamInput] = None
 
 # Candidate Models
 class ExperienceInput(BaseModel):
@@ -896,6 +1028,7 @@ class CandidateResponse(BaseModel):
     pin_rank: Optional[int] = None  # higher = listed first (e.g. Excel imports)
     seed_marker: Optional[str] = None
     import_source_file: Optional[str] = None
+    best_fit_score: Optional[float] = None
     created_at: str
 
 class CandidateUpdate(BaseModel):
@@ -949,6 +1082,19 @@ class ApplicationResponse(BaseModel):
     job: Optional[Dict[str, Any]] = None
     created_at: str
     updated_at: str
+
+
+def normalize_application_for_response(app: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure ApplicationResponse required fields exist (legacy rows may omit status/timestamps)."""
+    payload = dict(app)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if not payload.get("created_at"):
+        payload["created_at"] = payload.get("updated_at") or now_iso
+    if not payload.get("updated_at"):
+        payload["updated_at"] = payload.get("created_at") or now_iso
+    if not payload.get("status"):
+        payload["status"] = "ACTIVE"
+    return payload
 
 # Referral Models
 class ReferralCreate(BaseModel):
@@ -2113,6 +2259,41 @@ class InterviewProposalResponse(BaseModel):
     candidate: Optional[Dict[str, Any]] = None
     job: Optional[Dict[str, Any]] = None
 
+# ========================
+# Offer stage proposals (TM → HM approval)
+# ========================
+OfferStageProposalStatus = Literal["PENDING", "APPROVED", "REJECTED"]
+
+
+class OfferStageProposalCreate(BaseModel):
+    reason: Optional[str] = None
+    target_stage: str = "OFFER"
+
+
+class OfferStageProposalRejectRequest(BaseModel):
+    reason: Optional[str] = "Rejected by Hiring Manager"
+
+
+class OfferStageProposalResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    application_id: str
+    job_id: str
+    candidate_id: str
+    from_stage: str
+    target_stage: str = "OFFER"
+    status: OfferStageProposalStatus = "PENDING"
+    reason: Optional[str] = None
+    requested_by: str
+    requested_by_name: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    rejected_reason: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+    candidate: Optional[Dict[str, Any]] = None
+    job: Optional[Dict[str, Any]] = None
+
 # Notification Models
 class NotificationCreate(BaseModel):
     recipient_id: str
@@ -2225,6 +2406,51 @@ async def _hf_chat(system_message: str, user_text: str) -> str:
         r.raise_for_status()
         data = r.json()
         return ((data.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+
+
+async def _mistral_chat(system_message: str, user_text: str) -> str:
+    """
+    Mistral AI chat completion (used for assessment question generation).
+    Env:
+      - MISTRAL_API_KEY (required)
+      - MISTRAL_MODEL (optional, default: mistral-small-latest)
+    """
+    api_key = (os.environ.get("MISTRAL_API_KEY") or "").strip()
+    if not api_key:
+        raise ValueError("Set MISTRAL_API_KEY")
+    model = (os.environ.get("MISTRAL_MODEL") or "mistral-small-latest").strip()
+
+    import httpx
+
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_text},
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+        r = await client.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if r.status_code >= 400:
+            raise RuntimeError(f"Mistral HTTP {r.status_code}: {r.text[:500]}")
+        data = r.json()
+        return ((data.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+
+
+async def _hiring_dashboard_mistral_chat(system_message: str, user_text: str) -> str:
+    """Mistral-only LLM path for Smart Hiring Dashboard insights."""
+    return await _mistral_chat(system_message, user_text)
+
 
 async def _llm_chat(system_message: str, user_text: str) -> str:
     """Call LLM (HF, Emergent, OpenAI). Returns response text."""
@@ -2506,6 +2732,18 @@ def _merge_candidate_docs(existing: Dict[str, Any], incoming: Dict[str, Any]) ->
         "resume_content_hash": _resume_content_hash(incoming.get("resume_text")) or existing.get("resume_content_hash"),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    for key in (
+        "linkedin_url",
+        "linkedin_url_lc",
+        "linkedin_external_job_id",
+        "linkedin_member_urn",
+        "linkedin_export_request_id",
+        "import_metadata",
+    ):
+        if incoming.get(key) is not None:
+            merged[key] = incoming.get(key)
+    if incoming.get("linkedin_url") and not merged.get("linkedin_url_lc"):
+        merged["linkedin_url_lc"] = str(incoming.get("linkedin_url")).strip().lower()
     return merged
 
 async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str, Any]:
@@ -2524,7 +2762,12 @@ async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str
 
     # Generate stable candidate id when possible.
     if not incoming_candidate.get("id"):
-        if email_lc:
+        linkedin_url_raw = (incoming_candidate.get("linkedin_url") or "").strip()
+        if linkedin_url_raw:
+            incoming_candidate["id"] = str(
+                uuid.uuid5(uuid.NAMESPACE_URL, linkedin_url_raw.lower().split("?")[0].rstrip("/"))
+            )
+        elif email_lc:
             incoming_candidate["id"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, email_lc))
         elif resume_hash:
             incoming_candidate["id"] = str(uuid.uuid5(uuid.NAMESPACE_URL, f"resume:{resume_hash}"))
@@ -2535,6 +2778,16 @@ async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str
 
     existing: Optional[Dict[str, Any]] = None
     keys_matched: List[str] = []
+
+    linkedin_url_lc = (
+        str(incoming_candidate.get("linkedin_url")).strip().lower().split("?")[0].rstrip("/")
+        if incoming_candidate.get("linkedin_url")
+        else None
+    )
+    if linkedin_url_lc:
+        existing = await db.candidates.find_one({"linkedin_url_lc": linkedin_url_lc}, {"_id": 0})
+        if existing:
+            keys_matched.append("linkedin_url")
 
     if email_lc:
         existing = await db.candidates.find_one({"email_lc": email_lc}, {"_id": 0})
@@ -2603,6 +2856,19 @@ async def upsert_candidate_dedup(incoming_candidate: Dict[str, Any]) -> Dict[str
         "phone_lc": phone_lc,
         "resume_content_hash": resume_hash,
     }
+    for key in (
+        "linkedin_url",
+        "linkedin_external_job_id",
+        "linkedin_member_urn",
+        "linkedin_export_request_id",
+        "import_metadata",
+    ):
+        if incoming_candidate.get(key) is not None:
+            candidate_doc[key] = incoming_candidate[key]
+    if incoming_candidate.get("linkedin_url"):
+        candidate_doc["linkedin_url_lc"] = (
+            str(incoming_candidate.get("linkedin_url")).strip().lower().split("?")[0].rstrip("/")
+        )
     await db.candidates.insert_one(candidate_doc)
     await _append_dedup_audit(
         candidate_doc["id"],
@@ -2727,6 +2993,40 @@ async def connector_ingest_source(connector_name: str, job: Dict[str, Any], limi
     if not cfg.get("enabled"):
         return []
 
+    if connector_name == "LINKEDIN" and cfg.get("api_mode") == "apify":
+        from talent_acquisition.apify_linkedin_connector import (
+            ingest_apify_linkedin_for_job,
+            validate_apify_config,
+        )
+
+        ok, _ = validate_apify_config(cfg)
+        if ok:
+            return await ingest_apify_linkedin_for_job(
+                cfg,
+                job,
+                limit,
+                db,
+                upsert_candidate_dedup,
+            )
+        return []
+
+    if connector_name == "LINKEDIN" and cfg.get("api_mode", "talent_rsc") != "generic_http":
+        from talent_acquisition.linkedin_connector import (
+            ingest_linkedin_exports_for_job,
+            validate_linkedin_config,
+        )
+
+        ok, _ = validate_linkedin_config(cfg)
+        if ok:
+            return await ingest_linkedin_exports_for_job(
+                cfg,
+                job,
+                limit,
+                db,
+                CONNECTOR_CONFIG_COLLECTION,
+                upsert_candidate_dedup,
+            )
+
     candidates_raw = await fetch_connector_candidates(
         connector_name,
         cfg,
@@ -2832,6 +3132,17 @@ async def admin_put_connector_config(name: str, update: ConnectorConfigUpdate, c
     if "access_token" in update_doc and isinstance(update_doc["access_token"], str) and not update_doc["access_token"].strip():
         update_doc.pop("access_token", None)
 
+    if name == "LINKEDIN":
+        li_existing = await get_connector_config(name)
+        if not update_doc.get("oauth_token_url") and not li_existing.get("oauth_token_url"):
+            update_doc["oauth_token_url"] = "https://www.linkedin.com/oauth/v2/accessToken"
+        if not update_doc.get("api_mode") and not li_existing.get("api_mode"):
+            update_doc["api_mode"] = "talent_rsc"
+        if not update_doc.get("linkedin_api_version") and not li_existing.get("linkedin_api_version"):
+            update_doc["linkedin_api_version"] = "202603"
+        if not update_doc.get("base_url") and not li_existing.get("base_url"):
+            update_doc["base_url"] = "https://api.linkedin.com/rest"
+
     update_doc["name"] = name
     await db[CONNECTOR_CONFIG_COLLECTION].update_one(
         {"name": name},
@@ -2907,7 +3218,7 @@ async def admin_merge_candidates(
 @api_router.get("/admin/users")
 async def admin_list_users(
     q: Optional[str] = None,
-    role: Optional[Literal["admin", "recruiter", "hr_admin", "hr_viewer"]] = None,
+    role: Optional[str] = None,
     page: int = 1,
     page_size: int = 50,
     current_user: dict = Depends(get_current_user),
@@ -2921,7 +3232,10 @@ async def admin_list_users(
 
     query: Dict[str, Any] = {}
     if role:
-        query["role"] = role
+        r = role.strip().lower()
+        if r not in HIRING_LOGIN_ROLES:
+            raise HTTPException(status_code=400, detail=f"Invalid role filter: {role}")
+        query["role"] = r
     if q:
         query["$or"] = [
             {"email": {"$regex": q, "$options": "i"}},
@@ -2969,17 +3283,81 @@ async def admin_update_user_role(
     updated = await db.users.find_one({"id": user_id}, {"_id": 0})
     return _user_doc_to_response(updated)
 
+
+@api_router.get("/admin/database/stats")
+async def admin_database_stats(current_user: dict = Depends(get_current_user)):
+    """Admin-only: collection names and document counts for the active MongoDB database."""
+    _require_admin(current_user)
+    from talent_acquisition.db_flush import get_database_stats
+
+    return await get_database_stats(db)
+
+
+@api_router.post("/admin/database/flush")
+async def admin_database_flush(
+    body: DatabaseFlushRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Admin-only: drop all collections in the current database (destructive)."""
+    _require_admin(current_user)
+    from talent_acquisition.db_flush import flush_database
+
+    preserve_ids = [current_user["id"]] if body.preserve_current_user else []
+    result = await flush_database(
+        db,
+        confirm=body.confirm,
+        preserve_migration_registry=body.preserve_migration_registry,
+        preserve_user_ids=preserve_ids,
+        actor_id=current_user.get("id"),
+    )
+    invalidate_hiring_pack_cache(reason="database_flush")
+    logger.warning(
+        "Database flush by %s: dropped %s collections from %s",
+        current_user.get("email"),
+        len(result.get("dropped_collections") or []),
+        result.get("db_name"),
+    )
+    return result
+
+
 async def generate_and_store_job_matches(job_id: str, top_k: int = 50) -> Dict[str, Any]:
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise ValueError("Job not found")
 
-    # Aggregate across sources (for now: company DB only; external connectors are stubs)
     candidates: List[Dict[str, Any]] = []
     try:
         candidates.extend(await company_db_search_candidates(job, limit=1000))
     except Exception as e:
         logger.error(f"Company DB connector failed: {e}")
+
+    try:
+        await ingest_candidates_for_job(job, total_limit=200)
+    except Exception as e:
+        logger.error(f"External connector ingestion failed for job {job_id}: {e}")
+
+    existing_apps = await db.applications.find({"job_id": job_id}).to_list(1000)
+    applied_ids = applied_ids_excluding_fit_seeds(existing_apps)
+    job_skill_names = [
+        str(s.get("skill_name")).strip()
+        for s in (job.get("skills") or [])
+        if isinstance(s, dict) and s.get("skill_name")
+    ]
+    skill_or = []
+    for sk in job_skill_names[:30]:
+        skill_or.append({"skills.skill_name": {"$regex": re.escape(sk), "$options": "i"}})
+
+    try:
+        extra = await gather_job_match_candidates(
+            db, job, job_id, applied_ids, skill_or, per_bucket=200, max_total=600
+        )
+        seen_ids = {c["id"] for c in candidates if c.get("id")}
+        for c in extra:
+            if c.get("id") and c["id"] not in seen_ids:
+                candidates.append(c)
+                seen_ids.add(c["id"])
+    except Exception as e:
+        logger.error(f"Failed to gather candidates after connector ingest for job {job_id}: {e}")
 
     scored = []
     for c in candidates:
@@ -3007,6 +3385,59 @@ async def generate_and_store_job_matches(job_id: str, top_k: int = 50) -> Dict[s
         upsert=True
     )
     return doc
+
+
+async def enrich_stored_job_matches(
+    job_id: str, rows: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Hydrate flat stored match rows with candidate documents and fit_score for the UI."""
+    if not rows:
+        return []
+
+    if rows[0].get("candidate") and rows[0].get("fit_score"):
+        return rows
+
+    candidate_ids = [r.get("candidate_id") for r in rows if r.get("candidate_id")]
+    if not candidate_ids:
+        return []
+
+    candidates = await db.candidates.find(
+        {"id": {"$in": candidate_ids}}, {"_id": 0}
+    ).to_list(len(candidate_ids))
+    by_id = {c["id"]: c for c in candidates if c.get("id")}
+
+    enriched: List[Dict[str, Any]] = []
+    for row in rows:
+        cid = row.get("candidate_id")
+        candidate = by_id.get(cid)
+        if not candidate:
+            continue
+        score = float(row.get("score") or 0.0)
+        title_score = float(row.get("title_score") or 0.0)
+        skill_score = float(row.get("skill_score") or 0.0)
+        enriched.append(
+            {
+                "candidate": candidate,
+                "fit_score": {
+                    "final_score": score,
+                    "title_score": title_score,
+                    "skill_match_pct": skill_score,
+                    "skill_score": skill_score,
+                    "activity_match_pct": float(row.get("activity_match_pct") or title_score),
+                    "experience_score": float(row.get("experience_score") or title_score),
+                    "must_have_ok": bool(row.get("must_have_ok", True)),
+                    "description_score": float(row.get("description_score") or 0.0),
+                    "score_source": "stored",
+                    "explanation": {
+                        "matched_skills": [],
+                        "missing_must_have": [],
+                        "strengths": [],
+                        "concerns": [],
+                    },
+                },
+            }
+        )
+    return enriched
 
 def generate_default_jd_analysis(title: str, skills_needed: List[str], must_have_skills: List[str]) -> Dict[str, Any]:
     """Fallback JD analysis without AI"""
@@ -3178,10 +3609,78 @@ def compute_basic_fit_score(job: Dict, candidate: Dict) -> Dict[str, Any]:
         },
     }
 
+async def _assessment_llm_chat(system_message: str, prompt: str) -> str:
+    """LLM for assessment generation: Mistral when configured, else legacy providers."""
+    if (os.environ.get("MISTRAL_API_KEY") or "").strip():
+        try:
+            return await _mistral_chat(system_message, prompt)
+        except Exception as e:
+            logger.error("Mistral assessment generation failed, falling back: %s", e)
+    return await _llm_chat(system_message, prompt)
+
+
+def _assessment_type_generation_hints(assessment_type: str) -> str:
+    at = (assessment_type or "CORE_SKILL").upper()
+    hints = {
+        "SCREENING": (
+            "Focus on quick knockout checks: mostly MCQ (EASY/MEDIUM), "
+            "factual and proficiency questions across required skills."
+        ),
+        "CORE_SKILL": (
+            "Deep technical coverage: mix MCQ and SHORT_ANSWER, "
+            "progress EASY → HARD, one question per skill area where possible."
+        ),
+        "WORK_SIMULATION": (
+            "Job-realistic tasks: CASE_STUDY, CODING, SQL, and SHORT_ANSWER tied to "
+            "responsibilities and day-to-day work."
+        ),
+        "BEHAVIORAL": (
+            "Situational and competency-based SHORT_ANSWER questions "
+            "(teamwork, ownership, conflict, leadership, culture fit)."
+        ),
+    }
+    return hints.get(at, hints["CORE_SKILL"])
+
+
+def _normalize_assessment_question_count(
+    payload: Dict[str, Any],
+    job: Dict,
+    assessment_type: str,
+) -> Dict[str, Any]:
+    """Ensure exactly ASSESSMENT_QUESTIONS_PER_TYPE questions (pad or trim)."""
+    target = ASSESSMENT_QUESTIONS_PER_TYPE
+    questions = list(payload.get("questions") or [])
+    if len(questions) > target:
+        payload["questions"] = questions[:target]
+        return payload
+    if len(questions) < target:
+        fallback = generate_default_assessment(job, assessment_type).get("questions") or []
+        seen = {q.get("question_text") for q in questions}
+        for q in fallback:
+            if len(questions) >= target:
+                break
+            text = q.get("question_text")
+            if text not in seen:
+                questions.append(dict(q))
+                seen.add(text)
+        idx = 0
+        while len(questions) < target and fallback:
+            base = dict(fallback[idx % len(fallback)])
+            base["question_text"] = f"{base.get('question_text', 'Question')} (variant {len(questions) + 1})"
+            questions.append(base)
+            idx += 1
+    payload["questions"] = questions[:target]
+    return payload
+
+
 async def generate_assessment_with_ai(job: Dict, assessment_type: str) -> Dict[str, Any]:
-    """Generate assessment questions from JD using AI"""
+    """Generate assessment questions from JD using AI (Mistral preferred when MISTRAL_API_KEY is set)."""
     try:
-        system_message = """You are an assessment designer. Create relevant test questions based on job requirements.
+        n = ASSESSMENT_QUESTIONS_PER_TYPE
+        type_hints = _assessment_type_generation_hints(assessment_type)
+        system_message = f"""You are an assessment designer. Create relevant test questions based on job requirements.
+Assessment type guidance: {type_hints}
+You MUST return exactly {n} questions in the questions array.
 Always respond with valid JSON only. No markdown formatting."""
         prompt = f"""Create an assessment for this job:
 
@@ -3190,7 +3689,7 @@ Required Skills: {json.dumps(job.get('skills', []))}
 Responsibilities: {json.dumps(job.get('activities', []))}
 Assessment Type: {assessment_type}
 
-Generate 10 questions appropriate for {assessment_type}. Return JSON:
+Generate exactly {n} questions appropriate for {assessment_type}. Return JSON:
 {{
   "questions": [
     {{
@@ -3208,41 +3707,105 @@ Generate 10 questions appropriate for {assessment_type}. Return JSON:
     "grading_guide": "description"
   }}
 }}"""
-        response = await _llm_chat(system_message, prompt)
+        response = await _assessment_llm_chat(system_message, prompt)
         try:
             clean_response = response.strip()
             if clean_response.startswith("```"):
                 clean_response = re.sub(r'^```(?:json)?\n?', '', clean_response)
                 clean_response = re.sub(r'\n?```$', '', clean_response)
-            return json.loads(clean_response)
+            parsed = json.loads(clean_response)
+            return _normalize_assessment_question_count(parsed, job, assessment_type)
         except json.JSONDecodeError:
             return generate_default_assessment(job, assessment_type)
     except Exception as e:
         logger.error(f"AI assessment generation failed: {e}")
         return generate_default_assessment(job, assessment_type)
 
+
 def generate_default_assessment(job: Dict, assessment_type: str) -> Dict[str, Any]:
-    """Default assessment without AI"""
-    skills = job.get("skills", [])
-    questions = []
-    
-    for i, skill in enumerate(skills[:5]):
-        questions.append({
-            "question_type": "MCQ",
-            "question_text": f"What is your proficiency level in {skill.get('skill_name', 'this skill')}?",
-            "options": ["Beginner", "Intermediate", "Advanced", "Expert"],
-            "answer_key": "Self-assessment",
+    """Default assessment without AI — fixed count per assessment type."""
+    n = ASSESSMENT_QUESTIONS_PER_TYPE
+    skills = job.get("skills") or []
+    activities = job.get("activities") or []
+    skill_names = [
+        (s.get("skill_name") or "Required skill").strip()
+        for s in skills
+        if (s.get("skill_name") or "").strip()
+    ] or ["Role competency"]
+    activity_names = [
+        (a.get("activity_name") or a.get("name") or "").strip()
+        for a in activities
+        if isinstance(a, dict) and (a.get("activity_name") or a.get("name"))
+    ]
+    title = job.get("title") or "this role"
+    at = (assessment_type or "CORE_SKILL").upper()
+    questions: List[Dict[str, Any]] = []
+
+    for i in range(n):
+        skill = skill_names[i % len(skill_names)]
+        activity = activity_names[i % len(activity_names)] if activity_names else title
+        diff = ["EASY", "MEDIUM", "HARD"][i % 3]
+
+        if at == "SCREENING":
+            qtype = "MCQ"
+            diff = ["EASY", "MEDIUM"][i % 2]
+            text = f"How would you rate your practical readiness in {skill} for {title}?"
+            options = ["No exposure", "Basic awareness", "Hands-on experience", "Expert"]
+            answer_key = "C"
+        elif at == "WORK_SIMULATION":
+            qtype = ["CASE_STUDY", "CODING", "SQL", "SHORT_ANSWER"][i % 4]
+            text = (
+                f"Simulate handling a work scenario involving '{activity}' "
+                f"that requires {skill}. Explain your approach and deliverables."
+            )
+            options = None
+            answer_key = "Rubric: feasibility, correctness, and clarity of approach"
+        elif at == "BEHAVIORAL":
+            qtype = "SHORT_ANSWER"
+            prompts = [
+                "Describe a time you resolved a conflict on a team.",
+                "Give an example of taking ownership beyond your formal role.",
+                "How do you prioritize when deadlines conflict?",
+                "Describe feedback you received and how you applied it.",
+                "How do you handle ambiguity on a new project?",
+            ]
+            text = prompts[i % len(prompts)]
+            options = None
+            answer_key = "Rubric: STAR structure, impact, and self-awareness"
+        else:
+            qtype = "MCQ" if i % 2 == 0 else "SHORT_ANSWER"
+            if qtype == "MCQ":
+                text = f"Which statement best reflects strong competency in {skill}?"
+                options = [
+                    "Cannot perform without guidance",
+                    "Performs routine tasks with supervision",
+                    "Works independently on typical problems",
+                    "Mentors others and handles edge cases",
+                ]
+                answer_key = "D"
+            else:
+                text = f"Explain how you have applied {skill} in a professional context."
+                options = None
+                answer_key = "Rubric: depth, examples, and relevance to the role"
+
+        q: Dict[str, Any] = {
+            "question_type": qtype,
+            "question_text": text,
+            "answer_key": answer_key,
             "max_marks": 10,
-            "difficulty": "EASY",
-            "skill_tested": skill.get("skill_name", "")
-        })
-    
+            "difficulty": diff,
+            "skill_tested": skill,
+        }
+        if options:
+            q["options"] = options
+        questions.append(q)
+
     return {
         "questions": questions,
         "rubric": {
             "pass_threshold": 70,
-            "grading_guide": "Score based on accuracy and depth of answers"
-        }
+            "grading_guide": f"Score based on accuracy and depth across all {n} questions",
+        },
     }
 
 # ========================
@@ -3424,29 +3987,79 @@ async def notify_stage_change(
     new_stage: str,
     candidate_id: str,
     job_title: str,
-    changed_by_name: str
+    changed_by_name: str,
+    job_id: str,
 ):
-    """Send notification for stage change"""
-    # Get all recruiters to notify
-    recruiters = await db.users.find({"role": {"$in": ["recruiter", "admin"]}}, {"_id": 0}).to_list(100)
-    
+    """Send notification for stage change to job hiring team (+ legacy creator)."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        return
+    recipient_ids = await hiring_team_recipient_ids(db, job)
+    if not recipient_ids:
+        recruiters = await db.users.find({"role": {"$in": ["recruiter", "admin"]}}, {"_id": 0}).to_list(100)
+        recipient_ids = [r["id"] for r in recruiters if r.get("id")]
+
     candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
     candidate_name = candidate.get("full_name", "Unknown") if candidate else "Unknown"
-    
-    for recruiter in recruiters:
+
+    for recipient_id in recipient_ids:
         await create_notification(
-            recipient_id=recruiter["id"],
+            recipient_id=recipient_id,
             notification_type="STAGE_CHANGE",
             title=f"Pipeline Update: {candidate_name}",
             message=f"{candidate_name} moved from {old_stage.replace('_', ' ')} to {new_stage.replace('_', ' ')} for {job_title}",
             metadata={
                 "application_id": application_id,
                 "candidate_id": candidate_id,
+                "job_id": job_id,
                 "old_stage": old_stage,
                 "new_stage": new_stage,
-                "changed_by": changed_by_name
-            }
+                "changed_by": changed_by_name,
+            },
         )
+
+
+async def notify_offer_stage_proposal(
+    proposal_id: str,
+    application_id: str,
+    candidate_id: str,
+    job_id: str,
+    job_title: str,
+    requested_by_name: str,
+    target_stage: str,
+):
+    """Notify Hiring Manager (fallback: full hiring team) of TM offer-stage request."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        return
+    team = get_hiring_team(job)
+    recipient_ids: List[str] = []
+    hm_id = team.get("hiring_manager_id")
+    if hm_id:
+        recipient_ids.append(str(hm_id))
+    if not recipient_ids:
+        recipient_ids = await hiring_team_recipient_ids(db, job)
+
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    candidate_name = candidate.get("full_name", "Unknown") if candidate else "Unknown"
+    stage_label = (target_stage or "OFFER").replace("_", " ")
+
+    for recipient_id in recipient_ids:
+        await create_notification(
+            recipient_id=recipient_id,
+            notification_type="OFFER_STAGE_PROPOSAL",
+            title=f"Offer approval requested: {candidate_name}",
+            message=f"{requested_by_name} requested moving {candidate_name} to {stage_label} for {job_title}",
+            metadata={
+                "proposal_id": proposal_id,
+                "application_id": application_id,
+                "candidate_id": candidate_id,
+                "job_id": job_id,
+                "target_stage": target_stage,
+                "requested_by": requested_by_name,
+            },
+        )
+
 
 def _interview_notification_copy(kind: str, candidate_name: str, job_title: str, scheduled_time: str) -> tuple[str, str]:
     """M1-5: centralized templates (extend via env or DB later)."""
@@ -3559,6 +4172,10 @@ async def register(user_data: UserCreate):
 
     # Check if user exists (case-insensitive)
     existing = await db.users.find_one(_user_email_match_query(email_norm), {"_id": 0})
+    role_norm = (user_data.role or "recruiter").strip().lower()
+    if role_norm not in HIRING_LOGIN_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Allowed: {', '.join(sorted(HIRING_LOGIN_ROLES))}")
+
     if existing:
         # If an older/seeded record exists without a password, allow "claiming" it by setting password.
         existing_password = existing.get("password")
@@ -3569,7 +4186,7 @@ async def register(user_data: UserCreate):
                     "email": email_norm,
                     "password": hash_password(user_data.password),
                     "full_name": user_data.full_name,
-                    "role": user_data.role,
+                    "role": role_norm,
                 }}
             )
             user = await db.users.find_one({"id": existing["id"]}, {"_id": 0})
@@ -3584,7 +4201,7 @@ async def register(user_data: UserCreate):
         "email": email_norm,
         "password": hash_password(user_data.password),
         "full_name": user_data.full_name,
-        "role": user_data.role,
+        "role": role_norm,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user_doc)
@@ -3613,8 +4230,155 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # JOB ROUTES
 # ========================
 
+async def _user_summary(db, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not user_id:
+        return None
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "email": 1, "full_name": 1, "role": 1})
+    if not u:
+        return None
+    return {
+        "id": u.get("id"),
+        "email": u.get("email"),
+        "full_name": u.get("full_name"),
+        "role": u.get("role"),
+    }
+
+
+def _user_summary_from_map(user_map: Dict[str, Dict[str, Any]], user_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not user_id:
+        return None
+    u = user_map.get(user_id)
+    if not u:
+        return None
+    return {
+        "id": u.get("id"),
+        "email": u.get("email"),
+        "full_name": u.get("full_name"),
+        "role": u.get("role"),
+    }
+
+
+async def _build_hiring_team_response(db, team: Dict[str, Any]) -> JobHiringTeamResponse:
+    return JobHiringTeamResponse(
+        hiring_manager_id=team.get("hiring_manager_id"),
+        technical_manager_id=team.get("technical_manager_id"),
+        project_manager_id=team.get("project_manager_id"),
+        recruiter_id=team.get("recruiter_id"),
+        hiring_manager=await _user_summary(db, team.get("hiring_manager_id")),
+        technical_manager=await _user_summary(db, team.get("technical_manager_id")),
+        project_manager=await _user_summary(db, team.get("project_manager_id")),
+        recruiter=await _user_summary(db, team.get("recruiter_id")),
+    )
+
+
+def _build_hiring_team_response_from_map(
+    team: Dict[str, Any], user_map: Dict[str, Dict[str, Any]]
+) -> JobHiringTeamResponse:
+    return JobHiringTeamResponse(
+        hiring_manager_id=team.get("hiring_manager_id"),
+        technical_manager_id=team.get("technical_manager_id"),
+        project_manager_id=team.get("project_manager_id"),
+        recruiter_id=team.get("recruiter_id"),
+        hiring_manager=_user_summary_from_map(user_map, team.get("hiring_manager_id")),
+        technical_manager=_user_summary_from_map(user_map, team.get("technical_manager_id")),
+        project_manager=_user_summary_from_map(user_map, team.get("project_manager_id")),
+        recruiter=_user_summary_from_map(user_map, team.get("recruiter_id")),
+    )
+
+
+async def _job_to_response(
+    db,
+    job: Dict[str, Any],
+    *,
+    candidate_count: Optional[int] = None,
+    user_map: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> JobResponse:
+    if candidate_count is None:
+        candidate_count = await db.applications.count_documents({"job_id": job["id"]})
+    team_raw = job.get("hiring_team") or {}
+    if team_raw:
+        if user_map is not None:
+            team_resp = _build_hiring_team_response_from_map(team_raw, user_map)
+        else:
+            team_resp = await _build_hiring_team_response(db, team_raw)
+    else:
+        team_resp = None
+    payload = {k: v for k, v in job.items() if k != "hiring_team"}
+    if not payload.get("description"):
+        payload["description"] = payload.get("title") or ""
+    if not payload.get("created_by"):
+        payload["created_by"] = "system"
+    if not payload.get("created_at"):
+        payload["created_at"] = datetime.now(timezone.utc).isoformat()
+    return JobResponse(**payload, candidate_count=candidate_count, hiring_team=team_resp)
+
+
+async def _enrich_applications_batch(
+    db, applications: List[Dict[str, Any]]
+) -> List[ApplicationResponse]:
+    if not applications:
+        return []
+
+    candidate_ids = list({a["candidate_id"] for a in applications if a.get("candidate_id")})
+    job_ids = list({a["job_id"] for a in applications if a.get("job_id")})
+    fit_score_ids = list({a.get("fit_score_id") for a in applications if a.get("fit_score_id")})
+
+    candidates_coro = db.candidates.find({"id": {"$in": candidate_ids}}, {"_id": 0}).to_list(
+        max(len(candidate_ids), 1)
+    )
+    jobs_coro = db.jobs.find({"id": {"$in": job_ids}}, {"_id": 0, "id": 1, "title": 1}).to_list(
+        max(len(job_ids), 1)
+    )
+    if fit_score_ids:
+        fit_coro = db.fit_scores.find({"id": {"$in": fit_score_ids}}, {"_id": 0}).to_list(len(fit_score_ids))
+        candidates, jobs, fit_scores = await asyncio.gather(candidates_coro, jobs_coro, fit_coro)
+    else:
+        candidates, jobs = await asyncio.gather(candidates_coro, jobs_coro)
+        fit_scores = []
+
+    cand_map = {c["id"]: c for c in candidates}
+    job_map = {j["id"]: j for j in jobs}
+    fit_map = {f["id"]: f for f in fit_scores}
+
+    result: List[ApplicationResponse] = []
+    for app in applications:
+        candidate = cand_map.get(app.get("candidate_id"))
+        job = job_map.get(app.get("job_id"))
+        fit_score = fit_map.get(app.get("fit_score_id")) if app.get("fit_score_id") else None
+        result.append(
+            ApplicationResponse(
+                **normalize_application_for_response(app),
+                fit_score=fit_score,
+                candidate=candidate,
+                job={"id": job["id"], "title": job["title"]} if job else None,
+            )
+        )
+    return result
+
+
+@api_router.get("/hiring/team-members")
+async def list_hiring_team_members(
+    roles: Optional[str] = Query(
+        None,
+        description="Comma-separated roles to include (default: hiring_manager,technical_manager,project_manager,recruiter)",
+    ),
+    current_user: dict = Depends(get_current_user),
+):
+    """Users assignable to job hiring_team (for create/edit job UI)."""
+    assert_permission(current_user, PERM_JOB_READ)
+    default_roles = ("hiring_manager", "technical_manager", "project_manager", "recruiter", "hr_admin", "admin")
+    wanted = [r.strip().lower() for r in (roles or ",".join(default_roles)).split(",") if r.strip()]
+    query: Dict[str, Any] = {"role": {"$in": wanted}} if wanted else {}
+    users = await db.users.find(
+        query,
+        {"_id": 0, "id": 1, "email": 1, "full_name": 1, "role": 1},
+    ).sort("full_name", 1).to_list(500)
+    return {"items": users}
+
+
 @api_router.post("/jobs", response_model=JobResponse)
 async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
+    assert_permission(current_user, PERM_JOB_CREATE)
     job_id = str(uuid.uuid4())
     
     # Analyze JD with AI
@@ -3643,77 +4407,142 @@ async def create_job(job_data: JobCreate, background_tasks: BackgroundTasks, cur
         "activities": analysis.get("activities", []),
         "scoring_rubric": analysis.get("scoring_rubric"),
         "created_by": current_user["id"],
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "hiring_team": build_hiring_team(
+            creator_id=current_user["id"],
+            creator_role=current_user.get("role") or "recruiter",
+            hiring_team=job_data.hiring_team.model_dump() if job_data.hiring_team else None,
+        ),
     }
     await db.jobs.insert_one(job_doc)
     invalidate_hiring_pack_cache(reason="job_created")
 
     # Our in-house aggregator: auto-generate Top 50 matches (company DB + connectors).
     background_tasks.add_task(generate_and_store_job_matches, job_id, 50)
-    
-    return JobResponse(**job_doc, candidate_count=0)
+    background_tasks.add_task(_background_sync_job_to_linkedin, job_id)
+
+    return await _job_to_response(db, job_doc, candidate_count=0)
 
 @api_router.get("/jobs", response_model=List[JobResponse])
 async def list_jobs(status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
-    query = {}
+    query: Dict[str, Any] = {}
     if status:
         query["status"] = status
-    
+    job_ids = await allowed_job_ids(db, current_user)
+    query = merge_job_query_with_access(query, job_ids)
+
     jobs = await db.jobs.find(query, {"_id": 0}).sort([("pin_rank", -1), ("created_at", -1)]).to_list(1000)
-    
-    # Get candidate counts
+    if not jobs:
+        return []
+
+    job_ids = [j["id"] for j in jobs if j.get("id")]
+    count_rows = await db.applications.aggregate(
+        [
+            {"$match": {"job_id": {"$in": job_ids}}},
+            {"$group": {"_id": "$job_id", "count": {"$sum": 1}}},
+        ]
+    ).to_list(len(job_ids))
+    count_map = {row["_id"]: int(row["count"]) for row in count_rows}
+
+    user_ids: Set[str] = set()
     for job in jobs:
-        count = await db.applications.count_documents({"job_id": job["id"]})
-        job["candidate_count"] = count
-    
-    return [JobResponse(**job) for job in jobs]
+        team = job.get("hiring_team") or {}
+        for key in ("hiring_manager_id", "technical_manager_id", "project_manager_id", "recruiter_id"):
+            uid = team.get(key)
+            if uid:
+                user_ids.add(str(uid))
+
+    user_map: Dict[str, Dict[str, Any]] = {}
+    if user_ids:
+        users = await db.users.find(
+            {"id": {"$in": list(user_ids)}},
+            {"_id": 0, "id": 1, "email": 1, "full_name": 1, "role": 1},
+        ).to_list(len(user_ids))
+        user_map = {u["id"]: u for u in users if u.get("id")}
+
+    out: List[JobResponse] = []
+    for job in jobs:
+        out.append(
+            await _job_to_response(
+                db,
+                job,
+                candidate_count=count_map.get(job["id"], 0),
+                user_map=user_map,
+            )
+        )
+    return out
 
 @api_router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    count = await db.applications.count_documents({"job_id": job_id})
-    job["candidate_count"] = count
-    return JobResponse(**job)
+    job = await assert_job_access(db, current_user, job_id, PERM_JOB_READ)
+    return await _job_to_response(db, job)
 
-@api_router.get("/jobs/{job_id}/matches", response_model=JobMatchesResponse)
+@api_router.get("/jobs/{job_id}/matches", response_model=JobMatchesUiResponse)
 async def get_job_matches(job_id: str, limit: int = 50, refresh: bool = False, current_user: dict = Depends(get_current_user)):
     """
-    Returns Top matches computed by our internal ATS/aggregator.
+    Returns stored Top matches for the job detail UI (candidate + fit_score per row).
     - **refresh=true** recomputes now (useful after adding candidates via company DB connector).
     """
+    await assert_job_access(db, current_user, job_id, PERM_JOB_READ)
     if refresh:
         doc = await generate_and_store_job_matches(job_id, min(max(limit, 1), 200))
-        return JobMatchesResponse(**doc)
+        matches = await enrich_stored_job_matches(job_id, doc.get("matches") or [])
+        return JobMatchesUiResponse(
+            job_id=doc["job_id"],
+            generated_at=doc["generated_at"],
+            matches=matches,
+        )
 
     doc = await db.job_candidate_matches.find_one({"job_id": job_id}, {"_id": 0})
     if not doc:
-        # Compute once on demand if background job hasn't run yet.
         doc = await generate_and_store_job_matches(job_id, min(max(limit, 1), 200))
     else:
         doc["matches"] = (doc.get("matches") or [])[: min(max(limit, 1), 200)]
-    return JobMatchesResponse(**doc)
+
+    matches = await enrich_stored_job_matches(job_id, doc.get("matches") or [])
+    return JobMatchesUiResponse(
+        job_id=doc["job_id"],
+        generated_at=doc.get("generated_at") or datetime.now(timezone.utc).isoformat(),
+        matches=matches,
+    )
 
 @api_router.put("/jobs/{job_id}", response_model=JobResponse)
-async def update_job(job_id: str, job_data: JobUpdate, current_user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": job_id})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    update_data = {k: v for k, v in job_data.model_dump().items() if v is not None}
+async def update_job(
+    job_id: str,
+    job_data: JobUpdate,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    job = await assert_job_access(db, current_user, job_id, PERM_JOB_READ)
+    technical_only = {"skills", "activities", "scoring_rubric", "description", "seniority"}
+    raw = job_data.model_dump(exclude_unset=True)
+    if "hiring_team" in raw:
+        assert_permission(current_user, PERM_JOB_ASSIGN_TEAM, job)
+    elif any(k not in technical_only for k in raw if k != "hiring_team"):
+        assert_permission(current_user, PERM_JOB_EDIT, job)
+    else:
+        assert_permission(current_user, PERM_JOB_EDIT_TECHNICAL, job)
+
+    update_data = {k: v for k, v in raw.items() if v is not None and k != "hiring_team"}
+    if job_data.hiring_team is not None:
+        update_data["hiring_team"] = build_hiring_team(
+            creator_id=job.get("created_by") or current_user["id"],
+            creator_role=current_user.get("role") or "recruiter",
+            hiring_team=job_data.hiring_team.model_dump(),
+        )
     if update_data:
         await db.jobs.update_one({"id": job_id}, {"$set": update_data})
         invalidate_hiring_pack_cache(reason="job_updated")
-    
+        if _LINKEDIN_JOB_SYNC_FIELDS.intersection(update_data.keys()):
+            background_tasks.add_task(_background_sync_job_to_linkedin, job_id)
+
     updated_job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    count = await db.applications.count_documents({"job_id": job_id})
-    updated_job["candidate_count"] = count
-    return JobResponse(**updated_job)
+    return await _job_to_response(db, updated_job or job)
 
 @api_router.delete("/jobs/{job_id}")
 async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)):
+    job = await assert_job_access(db, current_user, job_id, PERM_JOB_DELETE)
+    _ = job
     result = await db.jobs.delete_one({"id": job_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -3726,6 +4555,7 @@ async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)
 
 @api_router.post("/candidates", response_model=CandidateResponse)
 async def create_candidate(candidate_data: CandidateCreate, current_user: dict = Depends(get_current_user)):
+    assert_can_create_global_candidate(current_user)
     # Check for duplicate
     if candidate_data.email:
         existing = await db.candidates.find_one({"email": candidate_data.email})
@@ -3776,7 +4606,9 @@ async def list_candidates(
         query["source"] = source
     if skill:
         query["skills.skill_name"] = {"$regex": skill, "$options": "i"}
-    
+    candidate_ids = await allowed_candidate_ids(db, current_user)
+    query = merge_candidate_query_with_access(query, candidate_ids)
+
     candidates = await db.candidates.find(query, {"_id": 0}).sort([("pin_rank", -1), ("created_at", -1)]).to_list(1000)
     return [CandidateResponse(**c) for c in candidates]
 
@@ -3834,18 +4666,21 @@ async def list_candidates_paged(
         fit_clause = {"id": {"$in": fit_ids}}
         query = {"$and": [query, fit_clause]} if query else fit_clause
 
-    total = await db.candidates.count_documents(query)
+    scope_ids = await allowed_candidate_ids(db, current_user)
+    query = merge_candidate_query_with_access(query, scope_ids)
+
+    from talent_acquisition.candidate_dedupe import find_deduped_candidates_paged
+
+    rows, total = await find_deduped_candidates_paged(db, query, page, page_size)
     total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
     page = min(page, total_pages)
-
-    cursor = (
-        db.candidates.find(query, {"_id": 0})
-        .sort([("pin_rank", -1), ("created_at", -1)])
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-    )
-    rows = await cursor.to_list(page_size)
-    items = [CandidateResponse(**c) for c in rows]
+    candidate_ids = [str(c.get("id")) for c in rows if c.get("id")]
+    best_scores = await best_fit_scores_for_candidates(db, candidate_ids)
+    items = []
+    for c in rows:
+        cid = str(c.get("id") or "")
+        payload = {**c, "best_fit_score": best_scores.get(cid)}
+        items.append(CandidateResponse(**payload))
     return CandidatesPagedResponse(
         items=items,
         total=int(total),
@@ -3859,6 +4694,7 @@ async def get_candidate(candidate_id: str, current_user: dict = Depends(get_curr
     candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    await assert_candidate_access(db, current_user, candidate_id)
     return CandidateResponse(**candidate)
 
 @api_router.get("/candidates/{candidate_id}/profile", response_model=CandidateProfileResponse)
@@ -3867,6 +4703,7 @@ async def get_candidate_profile(candidate_id: str, current_user: dict = Depends(
     candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    await assert_candidate_access(db, current_user, candidate_id)
 
     # Avoid passing duplicate kwargs when candidate already includes these keys.
     # (Some ingestion / seed paths persist `education` / `applications` / `interviews` on the candidate doc.)
@@ -3877,8 +4714,12 @@ async def get_candidate_profile(candidate_id: str, current_user: dict = Depends(
     # We pass `education` explicitly below with a default; remove from base dict to prevent double values.
     candidate.pop("education", None)
     
-    # Get all applications for this candidate
-    applications = await db.applications.find({"candidate_id": candidate_id}, {"_id": 0}).to_list(100)
+    # Get all applications for this candidate (scoped for stakeholders)
+    app_query: Dict[str, Any] = {"candidate_id": candidate_id}
+    job_ids = await allowed_job_ids(db, current_user)
+    if job_ids is not None:
+        app_query["job_id"] = {"$in": job_ids or ["__none__"]}
+    applications = await db.applications.find(app_query, {"_id": 0}).to_list(100)
     enriched_apps = []
     for app in applications:
         job = await db.jobs.find_one({"id": app["job_id"]}, {"_id": 0})
@@ -3906,6 +4747,7 @@ async def upload_resume(
     current_user: dict = Depends(get_current_user)
 ):
     """Upload and parse a resume file (PDF or DOCX)"""
+    assert_can_create_global_candidate(current_user)
     # Validate file type
     filename = file.filename.lower()
     if not (filename.endswith('.pdf') or filename.endswith('.docx')):
@@ -4012,6 +4854,7 @@ async def update_candidate(
     current_user: dict = Depends(get_current_user)
 ):
     """Update candidate information"""
+    assert_can_create_global_candidate(current_user)
     candidate = await db.candidates.find_one({"id": candidate_id})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -4052,11 +4895,9 @@ async def update_candidate(
 
 @api_router.post("/applications", response_model=ApplicationResponse)
 async def create_application(app_data: ApplicationCreate, current_user: dict = Depends(get_current_user)):
-    # Check job and candidate exist
-    job = await db.jobs.find_one({"id": app_data.job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
+    job = await assert_job_access(db, current_user, app_data.job_id, PERM_PIPELINE_ADVANCE)
+    assert_stage_transition(current_user, job, app_data.stage)
+
     candidate = await db.candidates.find_one({"id": app_data.candidate_id}, {"_id": 0})
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -4123,28 +4964,19 @@ async def list_applications(
     stage: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    query = {}
+    query: Dict[str, Any] = {}
     if job_id:
+        await assert_job_access(db, current_user, job_id, PERM_PIPELINE_READ)
         query["job_id"] = job_id
+    else:
+        job_ids = await allowed_job_ids(db, current_user)
+        if job_ids is not None:
+            query["job_id"] = {"$in": job_ids or ["__none__"]}
     if stage:
         query["stage"] = stage
     
     applications = await db.applications.find(query, {"_id": 0}).sort("updated_at", -1).to_list(500)
-    
-    result = []
-    for app in applications:
-        candidate = await db.candidates.find_one({"id": app["candidate_id"]}, {"_id": 0})
-        job = await db.jobs.find_one({"id": app["job_id"]}, {"_id": 0})
-        fit_score = await db.fit_scores.find_one({"id": app.get("fit_score_id")}, {"_id": 0})
-        
-        result.append(ApplicationResponse(
-            **app,
-            fit_score=fit_score,
-            candidate=candidate,
-            job={"id": job["id"], "title": job["title"]} if job else None
-        ))
-    
-    return result
+    return await _enrich_applications_batch(db, applications)
 
 @api_router.put("/applications/{app_id}/stage", response_model=ApplicationResponse)
 async def update_application_stage(
@@ -4156,7 +4988,10 @@ async def update_application_stage(
     app = await db.applications.find_one({"id": app_id})
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
-    
+
+    job = await assert_job_access(db, current_user, app["job_id"], PERM_PIPELINE_READ)
+    assert_stage_transition(current_user, job, stage_data.stage)
+
     old_stage = app["stage"]
     now = datetime.now(timezone.utc).isoformat()
     
@@ -4200,11 +5035,12 @@ async def update_application_stage(
             stage_data.stage,
             candidate["id"],
             job["title"],
-            current_user["full_name"]
+            current_user["full_name"],
+            job["id"],
         )
     
     return ApplicationResponse(
-        **updated_app,
+        **normalize_application_for_response(updated_app),
         fit_score=fit_score,
         candidate=candidate,
         job={"id": job["id"], "title": job["title"]} if job else None
@@ -4225,9 +5061,7 @@ async def get_application_stage_history(
     app_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    app = await db.applications.find_one({"id": app_id}, {"_id": 0, "id": 1, "updated_at": 1})
-    if not app:
-        raise HTTPException(status_code=404, detail="Application not found")
+    app, _job = await assert_application_access(db, current_user, app_id, PERM_PIPELINE_READ)
 
     rows = await db.application_stage_history.find(
         {"application_id": app_id},
@@ -4264,9 +5098,8 @@ async def update_application_offer_status(
     body: OfferStatusUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    app = await db.applications.find_one({"id": app_id})
-    if not app:
-        raise HTTPException(status_code=404, detail="Application not found")
+    app, job = await assert_application_access(db, current_user, app_id, PERM_PIPELINE_READ)
+    assert_permission(current_user, PERM_PIPELINE_OFFER, job)
     if app.get("stage") != "OFFER":
         raise HTTPException(status_code=400, detail="Offer status can only be updated for applications in OFFER stage")
 
@@ -4293,7 +5126,7 @@ async def update_application_offer_status(
     job = await db.jobs.find_one({"id": updated_app["job_id"]}, {"_id": 0})
     fit_score = await db.fit_scores.find_one({"id": updated_app.get("fit_score_id")}, {"_id": 0})
     return ApplicationResponse(
-        **updated_app,
+        **normalize_application_for_response(updated_app),
         fit_score=fit_score,
         candidate=candidate,
         job={"id": job["id"], "title": job["title"]} if job else None
@@ -4302,29 +5135,41 @@ async def update_application_offer_status(
 @api_router.get("/pipeline/{job_id}")
 async def get_pipeline(job_id: str, current_user: dict = Depends(get_current_user)):
     """Get applications grouped by stage for a job"""
-    stages = ["SOURCED", "SCREENING", "ASSESSMENT_SENT", "ASSESSMENT_CLEARED", 
-              "INTERVIEW_1", "INTERVIEW_2", "INTERVIEW_3", "HR_ROUND", 
+    await assert_job_access(db, current_user, job_id, PERM_PIPELINE_READ)
+    stages = ["SOURCED", "SCREENING", "ASSESSMENT_SENT", "ASSESSMENT_CLEARED",
+              "INTERVIEW_1", "INTERVIEW_2", "INTERVIEW_3", "HR_ROUND",
               "OFFER", "OFFER_ACCEPTED", "JOINED", "REJECTED", "DROPPED"]
-    
-    pipeline = {}
-    for stage in stages:
-        apps = await db.applications.find(
-            {"job_id": job_id, "stage": stage},
-            {"_id": 0}
-        ).to_list(100)
-        
-        enriched = []
-        for app in apps:
-            candidate = await db.candidates.find_one({"id": app["candidate_id"]}, {"_id": 0})
-            fit_score = await db.fit_scores.find_one({"id": app.get("fit_score_id")}, {"_id": 0})
-            enriched.append({
+
+    apps = await db.applications.find({"job_id": job_id}, {"_id": 0}).to_list(1400)
+    candidate_ids = list({a["candidate_id"] for a in apps if a.get("candidate_id")})
+    fit_score_ids = list({a.get("fit_score_id") for a in apps if a.get("fit_score_id")})
+
+    candidates_coro = db.candidates.find({"id": {"$in": candidate_ids}}, {"_id": 0}).to_list(
+        max(len(candidate_ids), 1)
+    )
+    if fit_score_ids:
+        fit_coro = db.fit_scores.find({"id": {"$in": fit_score_ids}}, {"_id": 0}).to_list(len(fit_score_ids))
+        candidates, fit_scores = await asyncio.gather(candidates_coro, fit_coro)
+    else:
+        candidates = await candidates_coro
+        fit_scores = []
+
+    cand_map = {c["id"]: c for c in candidates}
+    fit_map = {f["id"]: f for f in fit_scores}
+
+    pipeline = {stage: [] for stage in stages}
+    for app in apps:
+        stage = app.get("stage")
+        if stage not in pipeline or len(pipeline[stage]) >= 100:
+            continue
+        pipeline[stage].append(
+            {
                 **app,
-                "candidate": candidate,
-                "fit_score": fit_score
-            })
-        
-        pipeline[stage] = enriched
-    
+                "candidate": cand_map.get(app.get("candidate_id")),
+                "fit_score": fit_map.get(app.get("fit_score_id")) if app.get("fit_score_id") else None,
+            }
+        )
+
     return pipeline
 
 # ========================
@@ -4432,10 +5277,7 @@ async def _referral_create_application_with_fit(
 
 @api_router.post("/referrals", response_model=ReferralResponse)
 async def create_referral(referral_data: ReferralCreate, current_user: dict = Depends(get_current_user)):
-    # Check job exists
-    job = await db.jobs.find_one({"id": referral_data.job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await assert_job_access(db, current_user, referral_data.job_id, PERM_JOB_READ)
 
     # Create candidate from referral
     candidate_id = str(uuid.uuid4())
@@ -4531,9 +5373,7 @@ async def create_referral_with_resume(
     Parses CV text, runs AI extraction for skills/experience, persists candidate,
     then creates pipeline application with job vs candidate fit score.
     """
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    job = await assert_job_access(db, current_user, job_id, PERM_JOB_READ)
 
     resume_text = ""
     resume_filename = None
@@ -4648,8 +5488,12 @@ async def list_referrals(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/referrals/all", response_model=List[ReferralResponse])
 async def list_all_referrals(current_user: dict = Depends(get_current_user)):
-    """Admin view - all referrals"""
-    referrals = await db.referrals.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    """TA / team-scoped view of referrals"""
+    query: Dict[str, Any] = {}
+    job_ids = await allowed_job_ids(db, current_user)
+    if job_ids is not None:
+        query["job_id"] = {"$in": job_ids or ["__none__"]}
+    referrals = await db.referrals.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     
     result = []
     for ref in referrals:
@@ -4667,7 +5511,11 @@ async def list_all_referrals(current_user: dict = Depends(get_current_user)):
 # ========================
 
 @api_router.post("/match/{job_id}")
-async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_current_user)):
+async def match_candidates_to_job(
+    job_id: str,
+    linkedin_first: bool = False,
+    current_user: dict = Depends(get_current_user),
+):
     """Find matching candidates for a job and compute scores.
 
     Order of operations:
@@ -4675,6 +5523,7 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
     2) If we still don't have enough candidates to rank, ingest from external connectors (best-effort).
     3) Compute deterministic/basic scores (no LLM fan-out) and return top matches.
     """
+    await assert_job_access(db, current_user, job_id, PERM_MATCH_RUN)
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -4739,10 +5588,15 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
             "fit_score": fit_result
         })
     
-    # Grid order (3 cols): Excel | Talent pool | AI-generated fit 90%+, repeating for 50 matches.
-    top50 = order_job_match_results(
-        results, job_id=job_id, total_limit=DEFAULT_TOTAL_MATCH_LIMIT
-    )
+    # Grid order (3 cols) by default; LinkedIn-first after Search LinkedIn.
+    if linkedin_first:
+        top50 = order_job_match_results_linkedin_first(
+            results, total_limit=DEFAULT_TOTAL_MATCH_LIMIT
+        )
+    else:
+        top50 = order_job_match_results(
+            results, job_id=job_id, total_limit=DEFAULT_TOTAL_MATCH_LIMIT
+        )
     bucket_counts = count_match_buckets(top50, job_id=job_id)
 
     # Create HR interview proposals for the top ranked matches (no auto-booking).
@@ -4767,13 +5621,27 @@ async def match_candidates_to_job(job_id: str, current_user: dict = Depends(get_
     except Exception as e:
         logger.error(f"Failed to log find_matches analytics event for job {job_id}: {e}")
 
+    apify_pipeline = None
+    try:
+        li_cfg = await get_connector_config("LINKEDIN")
+        if li_cfg.get("enabled") and li_cfg.get("api_mode") == "apify":
+            from talent_acquisition.apify_linkedin_connector import get_latest_pipeline_for_job
+
+            apify_pipeline = await get_latest_pipeline_for_job(db, job_id)
+    except Exception as e:
+        logger.error(f"Failed to load Apify pipeline status for job {job_id}: {e}")
+
+    linkedin_count = sum(1 for c in candidates if is_linkedin_sourced_candidate(c))
+
     return {
         "job_id": job_id,
         "matches": top50,
         "excel_count": bucket_counts["excel_count"],
         "talent_pool_count": bucket_counts["talent_pool_count"],
         "ai_high_match_count": bucket_counts["ai_high_match_count"],
-        "source_order": ["excel", "talent_pool", "ai_high_match"],
+        "linkedin_count": linkedin_count,
+        "source_order": ["linkedin", "inhouse_database"] if linkedin_first else ["excel", "talent_pool", "ai_high_match"],
+        "apify_pipeline": apify_pipeline,
     }
 
 @api_router.post("/jobs/{job_id}/demo-candidates", response_model=DemoCandidatesResponse)
@@ -4925,6 +5793,9 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
 async def get_hiring_dashboard_pack(
     window_days: int = 30,
     department: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+    project_id: Optional[str] = None,
     scope: str = "all",
     job_id: Optional[str] = None,
     owner_id: Optional[str] = None,
@@ -4942,7 +5813,8 @@ async def get_hiring_dashboard_pack(
         job_id=job_id,
     )
     cache_key = (
-        f"{window_days}|{department or ''}|{scope}|{job_id or ''}|{owner_id or ''}|{current_user.get('id') or ''}"
+        f"{window_days}|{department or ''}|{business_pillar or ''}|{business_sub_department or ''}|"
+        f"{project_id or ''}|{scope}|{job_id or ''}|{owner_id or ''}|{current_user.get('id') or ''}"
     )
     cached = get_cached_hiring_pack(cache_key)
     if cached is not None:
@@ -4958,6 +5830,9 @@ async def get_hiring_dashboard_pack(
             user_id=current_user.get("id"),
             job_id=job_id,
             owner_id=owner_id,
+            business_pillar=business_pillar,
+            business_sub_department=business_sub_department,
+            project_id=project_id,
         )
         duration = time.perf_counter() - pack_start
         HIRING_PACK_DURATION_SECONDS.observe(duration)
@@ -4972,9 +5847,56 @@ async def get_hiring_dashboard_pack(
         )
         set_cached_hiring_pack(cache_key, pack)
 
+    from talent_acquisition.hiring_dashboard_llm_insights import apply_llm_insights_to_hiring_pack
+
+    dashboard_config = await get_hiring_dashboard_config(db)
+    pack = await apply_llm_insights_to_hiring_pack(
+        pack,
+        llm_chat=_hiring_dashboard_mistral_chat,
+        config_flag=dashboard_config.llm_insights_enabled,
+        cache_key=cache_key,
+    )
+
     if include_trends:
         pack = await _attach_hiring_trends(pack, months=trends_months)
     return pack
+
+
+@api_router.get("/dashboard/filter-options", response_model=DashboardFilterOptions)
+async def get_hiring_dashboard_filter_options(
+    scope: str = "all",
+    department: Optional[str] = None,
+    owner_id: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Distinct org filter values from open jobs in the user's scope."""
+    from talent_acquisition.hiring_dashboard import _scoped_job_ids
+
+    scope, department, owner_id, _ = await enforce_hiring_dashboard_scope(
+        db,
+        current_user=current_user,
+        scope=scope,
+        department=department,
+        owner_id=owner_id,
+        job_id=None,
+    )
+    job_ids = await _scoped_job_ids(
+        db,
+        department,
+        scope,
+        current_user.get("id"),
+        owner_id=owner_id,
+    )
+    data = await get_dashboard_filter_options(
+        db,
+        job_ids,
+        business_pillar=business_pillar,
+        department=department,
+        business_sub_department=business_sub_department,
+    )
+    return DashboardFilterOptions(**data)
 
 
 @api_router.get("/dashboard/trends", response_model=HiringDashboardTrends)
@@ -5022,11 +5944,30 @@ async def delete_hiring_alert_dismissal(alert_id: str, current_user: dict = Depe
     return {"ok": True, "alert_id": alert_id}
 
 
+async def _build_hiring_config_response(db, config) -> HiringDashboardConfigResponse:
+    doc = await get_hiring_dashboard_config_doc(db)
+    audit_rows = await list_config_audit(db, limit=10)
+    audit_trail = [
+        HiringDashboardConfigAuditEntry(
+            id=row.get("id") or "",
+            user_name=row.get("user_name") or "Admin",
+            summary=row.get("summary") or "Configuration saved",
+            created_at=row.get("created_at") or "",
+            changes=row.get("changes") or {},
+        )
+        for row in audit_rows
+    ]
+    return HiringDashboardConfigResponse(
+        **config_to_json(config, updated_at=doc.get("updated_at")),
+        audit_trail=audit_trail,
+    )
+
+
 @api_router.get("/admin/hiring-dashboard/config", response_model=HiringDashboardConfigResponse)
 async def get_admin_hiring_dashboard_config(current_user: dict = Depends(get_current_user)):
     _require_admin(current_user)
     config = await get_hiring_dashboard_config(db)
-    return HiringDashboardConfigResponse(**config_to_json(config))
+    return await _build_hiring_config_response(db, config)
 
 
 @api_router.put("/admin/hiring-dashboard/config", response_model=HiringDashboardConfigResponse)
@@ -5040,9 +5981,14 @@ async def put_admin_hiring_dashboard_config(
     for key, value in body.model_dump(exclude_unset=True).items():
         if value is not None:
             payload[key] = value
-    config = await upsert_hiring_dashboard_config(db, payload)
+    config = await upsert_hiring_dashboard_config(
+        db,
+        payload,
+        actor_id=current_user.get("id"),
+        actor_name=current_user.get("name") or current_user.get("email"),
+    )
     invalidate_hiring_pack_cache(reason="hiring_dashboard_config_updated")
-    return HiringDashboardConfigResponse(**config_to_json(config))
+    return await _build_hiring_config_response(db, config)
 
 
 @api_router.post("/admin/hiring-dashboard/snapshot")
@@ -11857,14 +12803,14 @@ async def generate_interview_proposals_for_top_matches(
         created += 1
     return created
 
-def _require_hr_approver(current_user: dict):
-    role = (current_user.get("role") or "").lower()
-    if role not in {"admin", "recruiter", "hr_admin"}:
-        raise HTTPException(status_code=403, detail="HR approval only")
+def _require_hr_approver(current_user: dict, job: Dict[str, Any]):
+    """HM (or TA) on this job may approve interview proposals."""
+    assert_permission(current_user, PERM_INTERVIEW_APPROVE, job, detail="Interview approval only for Hiring Manager or TA on this job")
     return current_user
 
 @api_router.get("/jobs/{job_id}/interview-proposals", response_model=List[InterviewProposalResponse])
 async def list_interview_proposals(job_id: str, current_user: dict = Depends(get_current_user)):
+    await assert_job_access(db, current_user, job_id, PERM_PIPELINE_READ)
     proposals = (
         await db.interview_proposals.find({"job_id": job_id}, {"_id": 0})
         .sort("created_at", -1)
@@ -11890,10 +12836,11 @@ async def approve_interview_proposal(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
-    _require_hr_approver(current_user)
     proposal = await db.interview_proposals.find_one({"id": proposal_id}, {"_id": 0})
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
+    job = await assert_job_access(db, current_user, proposal["job_id"], PERM_PIPELINE_READ)
+    _require_hr_approver(current_user, job)
     if proposal.get("status") != "PENDING":
         raise HTTPException(status_code=400, detail="Proposal is not pending")
 
@@ -12051,10 +12998,11 @@ async def reject_interview_proposal(
     payload: InterviewProposalRejectRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    _require_hr_approver(current_user)
     proposal = await db.interview_proposals.find_one({"id": proposal_id}, {"_id": 0})
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
+    job = await assert_job_access(db, current_user, proposal["job_id"], PERM_PIPELINE_READ)
+    _require_hr_approver(current_user, job)
     if proposal.get("status") != "PENDING":
         raise HTTPException(status_code=400, detail="Proposal is not pending")
 
@@ -12079,6 +13027,232 @@ async def reject_interview_proposal(
         **updated,
         candidate=candidate_full,
         job={"id": job_full["id"], "title": job_full.get("title")} if job_full else None,
+    )
+
+
+def _require_offer_stage_approver(current_user: dict, job: Dict[str, Any]):
+    assert_permission(
+        current_user,
+        PERM_PIPELINE_OFFER,
+        job,
+        detail="Offer approval only for Hiring Manager or TA on this job",
+    )
+    return current_user
+
+
+@api_router.post(
+    "/applications/{app_id}/offer-stage-proposal",
+    response_model=OfferStageProposalResponse,
+)
+async def create_offer_stage_proposal(
+    app_id: str,
+    payload: OfferStageProposalCreate,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    app, job = await assert_application_access(db, current_user, app_id, PERM_PIPELINE_READ)
+    assert_can_request_offer_stage(current_user, job)
+
+    target = (payload.target_stage or "OFFER").strip().upper()
+    if target not in OFFER_STAGES:
+        raise HTTPException(status_code=400, detail="target_stage must be OFFER or JOINED")
+
+    existing = await db.offer_stage_proposals.find_one(
+        {"application_id": app_id, "status": "PENDING"},
+        {"_id": 0, "id": 1},
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="A pending offer proposal already exists for this application")
+
+    now = datetime.now(timezone.utc).isoformat()
+    proposal_id = str(uuid.uuid4())
+    doc = {
+        "id": proposal_id,
+        "application_id": app_id,
+        "job_id": app["job_id"],
+        "candidate_id": app["candidate_id"],
+        "from_stage": app.get("stage") or "",
+        "target_stage": target,
+        "status": "PENDING",
+        "reason": (payload.reason or "").strip() or None,
+        "requested_by": current_user["id"],
+        "requested_by_name": current_user.get("full_name") or current_user.get("email"),
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.offer_stage_proposals.insert_one(doc)
+
+    candidate = await db.candidates.find_one({"id": app["candidate_id"]}, {"_id": 0})
+    background_tasks.add_task(
+        notify_offer_stage_proposal,
+        proposal_id,
+        app_id,
+        app["candidate_id"],
+        app["job_id"],
+        job.get("title") or "Role",
+        doc["requested_by_name"] or "Technical Manager",
+        target,
+    )
+
+    return OfferStageProposalResponse(
+        **doc,
+        candidate=candidate,
+        job={"id": job["id"], "title": job.get("title")},
+    )
+
+
+@api_router.get(
+    "/jobs/{job_id}/offer-stage-proposals",
+    response_model=List[OfferStageProposalResponse],
+)
+async def list_offer_stage_proposals(
+    job_id: str,
+    status: Optional[str] = "PENDING",
+    current_user: dict = Depends(get_current_user),
+):
+    await assert_job_access(db, current_user, job_id, PERM_PIPELINE_READ)
+    q: Dict[str, Any] = {"job_id": job_id}
+    if status:
+        q["status"] = status.strip().upper()
+    rows = (
+        await db.offer_stage_proposals.find(q, {"_id": 0})
+        .sort("created_at", -1)
+        .to_list(100)
+    )
+    out: List[OfferStageProposalResponse] = []
+    for p in rows:
+        candidate = await db.candidates.find_one({"id": p["candidate_id"]}, {"_id": 0})
+        job = await db.jobs.find_one({"id": p["job_id"]}, {"_id": 0})
+        out.append(
+            OfferStageProposalResponse(
+                **p,
+                candidate=candidate,
+                job={"id": job["id"], "title": job.get("title")} if job else None,
+            )
+        )
+    return out
+
+
+@api_router.post(
+    "/offer-stage-proposals/{proposal_id}/approve",
+    response_model=OfferStageProposalResponse,
+)
+async def approve_offer_stage_proposal(
+    proposal_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    proposal = await db.offer_stage_proposals.find_one({"id": proposal_id}, {"_id": 0})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    job = await assert_job_access(db, current_user, proposal["job_id"], PERM_PIPELINE_READ)
+    _require_offer_stage_approver(current_user, job)
+    if proposal.get("status") != "PENDING":
+        raise HTTPException(status_code=400, detail="Proposal is not pending")
+
+    app_id = proposal["application_id"]
+    app = await db.applications.find_one({"id": app_id}, {"_id": 0})
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    target_stage = proposal.get("target_stage") or "OFFER"
+    old_stage = app.get("stage")
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.applications.update_one(
+        {"id": app_id},
+        {"$set": {"stage": target_stage, "updated_at": now}},
+    )
+    if target_stage == "OFFER" and not app.get("offer_status"):
+        await db.applications.update_one(
+            {"id": app_id},
+            {"$set": {"offer_status": "SENT"}},
+        )
+
+    history_doc = {
+        "id": str(uuid.uuid4()),
+        "application_id": app_id,
+        "from_stage": old_stage,
+        "to_stage": target_stage,
+        "reason": proposal.get("reason") or "Approved offer-stage proposal",
+        "changed_by": current_user["id"],
+        "changed_at": now,
+    }
+    if target_stage == "OFFER":
+        history_doc["offer_status"] = app.get("offer_status") or "SENT"
+    await db.application_stage_history.insert_one(history_doc)
+    invalidate_hiring_pack_cache(reason="offer_stage_proposal_approved")
+
+    await db.offer_stage_proposals.update_one(
+        {"id": proposal_id},
+        {
+            "$set": {
+                "status": "APPROVED",
+                "approved_by": current_user["id"],
+                "approved_at": now,
+                "updated_at": now,
+            }
+        },
+    )
+
+    candidate = await db.candidates.find_one({"id": app["candidate_id"]}, {"_id": 0})
+    if candidate and job:
+        background_tasks.add_task(
+            notify_stage_change,
+            app_id,
+            old_stage,
+            target_stage,
+            app["candidate_id"],
+            job.get("title") or "Role",
+            current_user.get("full_name") or "Hiring Manager",
+            job["id"],
+        )
+
+    updated = await db.offer_stage_proposals.find_one({"id": proposal_id}, {"_id": 0})
+    return OfferStageProposalResponse(
+        **updated,
+        candidate=candidate,
+        job={"id": job["id"], "title": job.get("title")},
+    )
+
+
+@api_router.post(
+    "/offer-stage-proposals/{proposal_id}/reject",
+    response_model=OfferStageProposalResponse,
+)
+async def reject_offer_stage_proposal(
+    proposal_id: str,
+    payload: OfferStageProposalRejectRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    proposal = await db.offer_stage_proposals.find_one({"id": proposal_id}, {"_id": 0})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    job = await assert_job_access(db, current_user, proposal["job_id"], PERM_PIPELINE_READ)
+    _require_offer_stage_approver(current_user, job)
+    if proposal.get("status") != "PENDING":
+        raise HTTPException(status_code=400, detail="Proposal is not pending")
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.offer_stage_proposals.update_one(
+        {"id": proposal_id},
+        {
+            "$set": {
+                "status": "REJECTED",
+                "rejected_reason": payload.reason or "Rejected by Hiring Manager",
+                "approved_by": None,
+                "approved_at": None,
+                "updated_at": now,
+            }
+        },
+    )
+    updated = await db.offer_stage_proposals.find_one({"id": proposal_id}, {"_id": 0})
+    candidate = await db.candidates.find_one({"id": updated["candidate_id"]}, {"_id": 0})
+    job_row = await db.jobs.find_one({"id": updated["job_id"]}, {"_id": 0})
+    return OfferStageProposalResponse(
+        **updated,
+        candidate=candidate,
+        job={"id": job_row["id"], "title": job_row.get("title")} if job_row else None,
     )
 
 
@@ -12136,13 +13310,12 @@ async def create_interview(
     current_user: dict = Depends(get_current_user)
 ):
     """Schedule a new interview"""
-    # Verify application exists
-    application = await db.applications.find_one({"id": interview_data.application_id})
+    application = await db.applications.find_one({"id": interview_data.application_id}, {"_id": 0})
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    
+    job = await assert_job_access(db, current_user, application["job_id"], PERM_PIPELINE_ADVANCE)
+
     candidate = await db.candidates.find_one({"id": application["candidate_id"]}, {"_id": 0})
-    job = await db.jobs.find_one({"id": application["job_id"]}, {"_id": 0})
     
     interview_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -12198,7 +13371,10 @@ async def list_interviews(
         query["candidate_id"] = candidate_id
     if status:
         query["status"] = status
-    
+    job_ids = await allowed_job_ids(db, current_user)
+    if job_ids is not None:
+        query["job_id"] = {"$in": job_ids or ["__none__"]}
+
     interviews = await db.interviews.find(query, {"_id": 0}).sort("scheduled_start", -1).to_list(200)
     
     result = []
@@ -12216,9 +13392,7 @@ async def list_interviews(
 @api_router.get("/interviews/{interview_id}", response_model=InterviewResponse)
 async def get_interview(interview_id: str, current_user: dict = Depends(get_current_user)):
     """Get interview details"""
-    interview = await db.interviews.find_one({"id": interview_id}, {"_id": 0})
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
+    interview, _job = await assert_interview_access(db, current_user, interview_id, PERM_PIPELINE_READ)
     
     candidate = await db.candidates.find_one({"id": interview["candidate_id"]}, {"_id": 0})
     job = await db.jobs.find_one({"id": interview["job_id"]}, {"_id": 0})
@@ -12236,9 +13410,7 @@ async def update_interview(
     current_user: dict = Depends(get_current_user)
 ):
     """Update interview details"""
-    interview = await db.interviews.find_one({"id": interview_id})
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
+    interview, _job = await assert_interview_access(db, current_user, interview_id, PERM_PIPELINE_ADVANCE)
     
     update_doc = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if interview_data.scheduled_start:
@@ -12271,9 +13443,7 @@ async def add_interview_feedback(
     current_user: dict = Depends(get_current_user)
 ):
     """Add feedback for an interview"""
-    interview = await db.interviews.find_one({"id": interview_id})
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
+    interview, _job = await assert_interview_access(db, current_user, interview_id, PERM_PIPELINE_ADVANCE)
     
     feedback_doc = {
         "id": str(uuid.uuid4()),
@@ -12297,9 +13467,7 @@ async def add_interview_feedback(
 @api_router.delete("/interviews/{interview_id}")
 async def cancel_interview(interview_id: str, current_user: dict = Depends(get_current_user)):
     """Cancel an interview"""
-    interview = await db.interviews.find_one({"id": interview_id})
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
+    interview, _job = await assert_interview_access(db, current_user, interview_id, PERM_PIPELINE_ADVANCE)
     
     await db.interviews.update_one(
         {"id": interview_id},
@@ -12613,41 +13781,43 @@ async def get_transformation_modules(current_user: dict = Depends(get_current_us
     }
 
 # Allocation Section (M10 staffing bridge) — modular router
-api_router.include_router(
-    create_allocation_section_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
-        require_approve=_require_allocation_approver,
-        assert_no_overallocation=_assert_no_overallocation,
+if not is_smart_hiring_only():
+    api_router.include_router(
+        create_allocation_section_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+            require_approve=_require_allocation_approver,
+            assert_no_overallocation=_assert_no_overallocation,
+        )
     )
-)
-api_router.include_router(
-    create_resource_section_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
-        require_approve=_require_allocation_approver,
+    api_router.include_router(
+        create_resource_section_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+            require_approve=_require_allocation_approver,
+        )
     )
-)
-api_router.include_router(
-    create_training_development_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    api_router.include_router(
+        create_training_development_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+        )
     )
-)
-api_router.include_router(
-    create_high_skill_retention_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    api_router.include_router(
+        create_high_skill_retention_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+        )
     )
-)
+
 api_router.include_router(
     create_career_trajectory_router(
         db=db,
@@ -12667,6 +13837,29 @@ api_router.include_router(
     )
 )
 api_router.include_router(
+    create_candidate_import_router(
+        db=db,
+        get_current_user=get_current_user,
+        trigger_auto_analyze=trigger_auto_analyze_if_eligible,
+    )
+)
+api_router.include_router(
+    create_linkedin_router(
+        db=db,
+        get_current_user=get_current_user,
+        require_admin=_require_admin,
+        upsert_candidate=upsert_candidate_dedup,
+    )
+)
+api_router.include_router(
+    create_apify_linkedin_router(
+        db=db,
+        get_current_user=get_current_user,
+        require_admin=_require_admin,
+        upsert_candidate=upsert_candidate_dedup,
+    )
+)
+api_router.include_router(
     create_phase2_fit_router(
         db=db,
         get_current_user=get_current_user,
@@ -12674,40 +13867,42 @@ api_router.include_router(
         require_write=lambda u: _require_phase1_access(u, "skills_write"),
     )
 )
-api_router.include_router(
-    create_employee_lifecycle_management_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+
+if not is_smart_hiring_only():
+    api_router.include_router(
+        create_employee_lifecycle_management_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+        )
     )
-)
-api_router.include_router(
-    create_workforce_intelligence_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    api_router.include_router(
+        create_workforce_intelligence_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+        )
     )
-)
-api_router.include_router(
-    create_cost_optimization_automation_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "kpi_read"),
-        require_write=lambda u: _require_phase1_access(u, "skills_write"),
+    api_router.include_router(
+        create_cost_optimization_automation_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "kpi_read"),
+            require_write=lambda u: _require_phase1_access(u, "skills_write"),
+        )
     )
-)
-api_router.include_router(
-    create_employee_satisfaction_engagement_router(
-        db=db,
-        get_current_user=get_current_user,
-        require_read=lambda u: _require_phase1_access(u, "engagement_read"),
-        require_write=lambda u: _require_phase1_access(u, "engagement_write"),
-        require_engagement_executive=_require_engagement_executive,
-        require_engagement_ai=_require_engagement_ai,
+    api_router.include_router(
+        create_employee_satisfaction_engagement_router(
+            db=db,
+            get_current_user=get_current_user,
+            require_read=lambda u: _require_phase1_access(u, "engagement_read"),
+            require_write=lambda u: _require_phase1_access(u, "engagement_write"),
+            require_engagement_executive=_require_engagement_executive,
+            require_engagement_ai=_require_engagement_ai,
+        )
     )
-)
 
 # Include router
 app.include_router(api_router)
@@ -12777,6 +13972,29 @@ async def ensure_phase1_indexes():
     await idx_db.candidates.create_index("full_name_lc", name="ix_candidates_full_name_lc")
     await idx_db.candidates.create_index("phone_lc", name="ix_candidates_phone_lc", sparse=True)
     await idx_db.candidates.create_index("resume_content_hash", name="ix_candidates_resume_hash", sparse=True)
+    await idx_db.candidates.create_index("import_stable_id", name="ix_candidates_import_stable_id", sparse=True)
+    await idx_db.candidates.create_index([("pin_rank", -1)], name="ix_candidates_pin_rank", sparse=True)
+    await idx_db.candidates.create_index([("source", 1), ("created_at", -1)], name="ix_candidates_source_created")
+    await idx_db.candidates.create_index([("created_at", -1)], name="ix_candidates_created_at")
+    await idx_db.applications.create_index([("job_id", 1)], name="ix_applications_job_id")
+    await idx_db.applications.create_index([("job_id", 1), ("stage", 1)], name="ix_applications_job_stage")
+    await idx_db.applications.create_index([("updated_at", -1)], name="ix_applications_updated_at")
+    await idx_db.applications.create_index([("candidate_id", 1)], name="ix_applications_candidate_id")
+    await idx_db.jobs.create_index([("status", 1), ("created_at", -1)], name="ix_jobs_status_created")
+    await idx_db.fit_scores.create_index([("candidate_id", 1), ("final_score", -1)], name="ix_fit_scores_candidate_score")
+    await idx_db.fit_scores.create_index([("id", 1)], name="ix_fit_scores_id")
+    await idx_db.candidates.create_index("linkedin_url_lc", name="ix_candidates_linkedin_url_lc", sparse=True)
+    await idx_db.candidate_import_batches.create_index("batch_id", unique=True, name="uq_candidate_import_batch_id")
+    await idx_db.candidate_import_batches.create_index([("uploaded_at", -1)], name="ix_candidate_import_batches_uploaded")
+    await idx_db.candidate_import_staging.create_index(
+        [("batch_id", 1), ("row_number", 1)], unique=True, name="uq_candidate_import_staging_row"
+    )
+    await idx_db.candidate_import_audit.create_index([("batch_id", 1), ("timestamp", -1)], name="ix_candidate_import_audit_batch")
+    await idx_db.linkedin_export_requests.create_index("request_id", unique=True, name="uq_linkedin_export_request_id")
+    await idx_db.linkedin_export_requests.create_index([("status", 1), ("created_at", 1)], name="ix_linkedin_export_status_created")
+    await idx_db.apify_linkedin_runs.create_index("id", unique=True, name="uq_apify_linkedin_run_id")
+    await idx_db.apify_linkedin_runs.create_index([("job_id", 1), ("created_at", -1)], name="ix_apify_linkedin_job_created")
+    await idx_db.apify_linkedin_runs.create_index([("status", 1), ("created_at", 1)], name="ix_apify_linkedin_status_created")
     await idx_db.ingestion_jobs.create_index([("job_id", 1), ("created_at", -1)], name="ix_ingestion_jobs_job_created")
     await idx_db.candidate_dedup_audit.create_index(
         [("candidate_id", 1), ("created_at", -1)],
@@ -13238,6 +14456,13 @@ async def ensure_phase1_indexes():
     except Exception:
         logging.getLogger(__name__).exception("Career trajectory job recovery failed on startup")
 
+    try:
+        from talent_acquisition.apify_linkedin_connector import ensure_apify_linkedin_defaults
+
+        await ensure_apify_linkedin_defaults(db)
+    except Exception:
+        logging.getLogger(__name__).exception("Apify LinkedIn defaults bootstrap failed on startup")
+
     if os.environ.get("M10_EVENT_CONSUMER_ENABLED", "1").strip().lower() not in ("0", "false", "no"):
         app.state.m10_consumer_task = spawn_consumer_task(db)
 
@@ -13245,7 +14470,7 @@ async def ensure_phase1_indexes():
 @app.on_event("shutdown")
 async def shutdown_db_client():
     task = getattr(app.state, "m10_consumer_task", None)
-    if task is not None and not task.done():
+    if isinstance(task, asyncio.Task) and not task.done():
         task.cancel()
         try:
             await task

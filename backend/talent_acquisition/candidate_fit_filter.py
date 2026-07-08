@@ -32,3 +32,31 @@ async def candidate_ids_matching_fit_range(
     ]
     rows = await db.fit_scores.aggregate(pipeline).to_list(10000)
     return [str(r["candidate_id"]) for r in rows if r.get("candidate_id")]
+
+
+async def best_fit_scores_for_candidates(
+    db,
+    candidate_ids: List[str],
+) -> Dict[str, float]:
+    """Return each candidate's highest fit_scores.final_score across all jobs."""
+    ids = [str(cid) for cid in candidate_ids if cid]
+    if not ids:
+        return {}
+
+    pipeline = [
+        {"$match": {"candidate_id": {"$in": ids}}},
+        {
+            "$group": {
+                "_id": "$candidate_id",
+                "best_score": {"$max": "$final_score"},
+            }
+        },
+    ]
+    rows = await db.fit_scores.aggregate(pipeline).to_list(len(ids))
+    out: Dict[str, float] = {}
+    for row in rows:
+        cid = row.get("_id")
+        score = row.get("best_score")
+        if cid and score is not None:
+            out[str(cid)] = round(float(score), 2)
+    return out

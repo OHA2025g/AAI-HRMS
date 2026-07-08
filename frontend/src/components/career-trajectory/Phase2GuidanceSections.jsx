@@ -22,6 +22,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '../ui/accordion';
+import {
+  formatTimeframe,
+  ownerLabel,
+} from '../../lib/careerTrajectoryCommandUtils';
+import {
+  getP2PriorityTagClass,
+  getP2SeverityTagClass,
+} from '../../lib/phase2FitCommandUtils';
 
 const CATEGORY_META = {
   career_trajectory: { label: 'Career trajectory', icon: TrendingUp, accent: 'from-violet-500 to-indigo-600' },
@@ -52,7 +60,7 @@ const PRIORITY_STYLES = {
   low: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
-function ownerLabel(role) {
+function ownerLabelLegacy(role) {
   const labels = {
     hiring_manager: 'Hiring manager',
     recruiter: 'Recruiter',
@@ -63,7 +71,7 @@ function ownerLabel(role) {
   return labels[role] || role || 'Team';
 }
 
-function formatTimeframe(tf) {
+function formatTimeframeLegacy(tf) {
   if (!tf) return null;
   return tf.replace(/_/g, ' ');
 }
@@ -154,9 +162,9 @@ function RecommendationCard({ rec, index }) {
             ) : null}
           </div>
           <p className="font-semibold text-slate-900 leading-snug">{rec.title}</p>
-          {rec.rationale ? (
+          {rec.rationale || rec.detail ? (
             <p className="text-sm text-slate-600 leading-relaxed border-l-2 border-indigo-200 pl-3">
-              {rec.rationale}
+              {rec.rationale || rec.detail}
             </p>
           ) : null}
         </div>
@@ -179,16 +187,19 @@ function ActionItemCard({ act, index }) {
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-white border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-800">
             <UserCircle className="h-3 w-3" />
-            {ownerLabel(act.owner_role)}
+            {ownerLabelLegacy(act.owner_role)}
           </span>
           {act.timeframe ? (
             <span className="inline-flex items-center gap-1 text-xs text-teal-700">
               <CalendarClock className="h-3 w-3" />
-              {formatTimeframe(act.timeframe)}
+              {formatTimeframeLegacy(act.timeframe)}
             </span>
           ) : null}
         </div>
         <p className="font-medium text-slate-900 leading-snug">{act.title}</p>
+        {act.detail ? (
+          <p className="text-sm text-slate-600 leading-relaxed">{act.detail}</p>
+        ) : null}
         {act.status === 'open' ? (
           <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-600">Open</span>
         ) : null}
@@ -198,7 +209,7 @@ function ActionItemCard({ act, index }) {
   );
 }
 
-export function Phase2GuidanceSections({ report }) {
+export function Phase2GuidanceSections({ report, commandStyle = false, onExport }) {
   const insights = report?.insights || [];
   const recommendations = report?.recommendations || [];
   const actionItems = report?.action_items || [];
@@ -214,6 +225,146 @@ export function Phase2GuidanceSections({ report }) {
 
   if (!insights.length && !recommendations.length && !actionItems.length && !nextSteps.length) {
     return null;
+  }
+
+  if (commandStyle) {
+    const guidanceBanner = (
+      <div className="p2-guidance">✦ AI-generated hiring guidance — expand one section at a time.</div>
+    );
+
+    const accordionHead = (icon, title, count, description) => (
+      <div className="p2-acc-head-inner">
+        <div className="p2-ico">{icon}</div>
+        <div className="p2-acc-title">
+          <b>
+            {title} <span className="p2-count">{count}</span>
+          </b>
+          <span>{description}</span>
+        </div>
+      </div>
+    );
+
+    return (
+      <>
+        {guidanceBanner}
+        <Accordion
+          type="single"
+          collapsible
+          defaultValue={defaultSection}
+          key={`p2-${report?.id || 'report'}-${defaultSection}`}
+          className="p2-accordion"
+          data-testid="phase2-guidance-accordion"
+        >
+          {insights.length > 0 ? (
+            <AccordionItem value="insights" className="p2-acc" data-testid="phase2-insights">
+              <AccordionTrigger className="p2-acc-head p2-acc-head-1 hover:no-underline [&>svg]:hidden">
+                {accordionHead(
+                  '💡',
+                  'Insights',
+                  insights.length,
+                  'Key signals about trajectory, leadership, communication, and manager alignment.'
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="p2-acc-body">
+                {insights.map((ins, i) => (
+                  <div key={ins.id || ins.title} className="p2-item">
+                    <div className="p2-num">{i + 1}</div>
+                    <div>
+                      <span className={getP2SeverityTagClass(ins.severity)}>
+                        {(ins.severity || 'info').toUpperCase()}
+                      </span>
+                      <b>{ins.title}</b>
+                      <p>{ins.summary}</p>
+                    </div>
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+
+          {recommendations.length > 0 ? (
+            <AccordionItem value="recommendations" className="p2-acc" data-testid="phase2-recommendations">
+              <AccordionTrigger className="p2-acc-head p2-acc-head-2 hover:no-underline [&>svg]:hidden">
+                {accordionHead(
+                  '✓',
+                  'Recommendations',
+                  recommendations.length,
+                  'Suggested moves for recruiters, interviewers, and hiring managers.'
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="p2-acc-body">
+                {recommendations.map((rec, i) => (
+                  <div key={rec.id || rec.title} className="p2-item">
+                    <div className="p2-num">{i + 1}</div>
+                    <div>
+                      <span className={getP2PriorityTagClass(rec.priority)}>
+                        {(rec.priority || 'medium').toUpperCase()}
+                      </span>
+                      <b>{rec.title}</b>
+                      {rec.rationale || rec.detail ? <p>{rec.rationale || rec.detail}</p> : null}
+                    </div>
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+
+          {actionItems.length > 0 ? (
+            <AccordionItem value="actions" className="p2-acc" data-testid="phase2-action-items">
+              <AccordionTrigger className="p2-acc-head p2-acc-head-3 hover:no-underline [&>svg]:hidden">
+                {accordionHead(
+                  '▣',
+                  'Action items',
+                  actionItems.length,
+                  'Concrete tasks with owner and timeframe to advance this candidate.'
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="p2-acc-body">
+                {actionItems.map((act) => (
+                  <div key={act.id || act.title} className="p2-item">
+                    <div className="p2-num">✓</div>
+                    <div>
+                      <span className={getP2PriorityTagClass(act.priority)}>
+                        {(act.priority || 'medium').toUpperCase()}
+                      </span>{' '}
+                      <span className="p2-tag open">{ownerLabel(act.owner_role)}</span>
+                      <b>{act.title}</b>
+                      <p>
+                        {act.detail ? `${act.detail} · ` : ''}
+                        Owner: {ownerLabel(act.owner_role)}
+                        {act.timeframe ? ` · Due ${formatTimeframe(act.timeframe)}` : ''}
+                        {act.status === 'open' ? ' · Status: Open' : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+
+          {nextSteps.length > 0 ? (
+            <AccordionItem value="next-steps" className="p2-acc" data-testid="phase2-next-steps">
+              <AccordionTrigger className="p2-acc-head p2-acc-head-4 hover:no-underline [&>svg]:hidden">
+                {accordionHead(
+                  '→',
+                  'Summary next steps',
+                  nextSteps.length,
+                  'Condensed checklist from insights and recommendations.'
+                )}
+              </AccordionTrigger>
+              <AccordionContent className="p2-acc-body">
+                {nextSteps.map((step, i) => (
+                  <div key={i} className="p2-item p2-item-simple">
+                    <div className="p2-num">{i + 1}</div>
+                    <div>{step}</div>
+                  </div>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+        </Accordion>
+      </>
+    );
   }
 
   const panelClass =

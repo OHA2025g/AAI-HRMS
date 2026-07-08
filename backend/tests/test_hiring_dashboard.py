@@ -292,7 +292,145 @@ def test_build_offer_funnel():
     assert funnel[1].count == 2
 
 
+def test_build_ai_recommendation_from_alerts():
+    from talent_acquisition.hiring_dashboard_insights import build_ai_recommendation
+
+    rec = build_ai_recommendation(
+        [{"title": "Stuck pipeline", "message": "Fix assessment", "action_path": "/pipeline", "severity": "critical"}]
+    )
+    assert rec.title == "Stuck pipeline"
+    assert rec.action_path == "/pipeline"
+
+
+def test_build_smart_actions():
+    from talent_acquisition.hiring_dashboard_insights import build_smart_actions
+
+    actions = build_smart_actions(
+        pending_offers=3,
+        high_fit_count=18,
+        schedule_interviews=27,
+        escalate_delays=4,
+        hiring_risks=2,
+    )
+    assert len(actions) == 5
+    assert actions[0].count == 3
+    assert actions[0].id == "approve-offers"
+
+
+def test_build_tab_kpis_shapes():
+    from talent_acquisition.hiring_dashboard_insights import build_tab_kpis
+
+    kpis = build_tab_kpis(
+        stage_counts={"SOURCED": 100, "ASSESSMENT_SENT": 24, "ASSESSMENT_CLEARED": 7, "INTERVIEW_1": 2, "OFFER": 2},
+        active_pipeline=531,
+        stuck_assessment=23,
+        offer_status_counts=[],
+        offer_aging=[],
+        interview_round_metrics=[],
+        new_apps=530,
+        avg_fit=80,
+        high_fit_pct=10,
+        funnel_to_offer_pct=0.4,
+        avg_stage_age=18,
+    )
+    assert kpis.pipeline.total == 531
+    assert kpis.pipeline.sourced == 100
+    assert kpis.analytics.applications == 530
+
+
+def test_offer_aging_row_includes_expected_ctc():
+    from talent_acquisition.hiring_dashboard_schemas import OfferAgingRow
+
+    row = OfferAgingRow(
+        application_id="a1",
+        candidate_id="c1",
+        candidate_name="Test",
+        job_id="j1",
+        job_title="Engineer",
+        days_in_offer=0,
+        entered_offer_at="2026-06-12T00:00:00+00:00",
+        sla_days=7,
+        offer_value=1850000,
+        action_path="/pipeline?application_id=a1",
+    )
+    assert row.offer_value == 1850000
+    assert row.action_path.endswith("a1")
+
+
 def test_monthly_hire_target_default():
     from talent_acquisition.hiring_threshold_config import DEFAULT_MONTHLY_HIRE_TARGET, get_monthly_hire_target
 
     assert get_monthly_hire_target() == DEFAULT_MONTHLY_HIRE_TARGET
+
+
+def test_get_hiring_filter_options_distinct_values():
+    from talent_acquisition.hiring_dashboard import get_dashboard_filter_options
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        async def to_list(self, _limit):
+            return self._rows
+
+    class FakeJobs:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def find(self, _filt, _proj):
+            return FakeCursor(self._rows)
+
+    class FakeDb:
+        def __init__(self, rows):
+            self.jobs = FakeJobs(rows)
+
+    rows = [
+        {
+            "business_pillar": "Core Business",
+            "business_department": "Sales",
+            "department": "Sales",
+            "business_sub_department": "Inside Sales",
+            "project_id": "PRJ-1",
+        },
+        {
+            "business_pillar": "Core Business",
+            "business_department": "Marketing Department",
+            "department": "Marketing Department",
+            "business_sub_department": "Digital Marketing",
+            "project_id": "PRJ-2",
+        },
+        {
+            "business_pillar": "Technology",
+            "business_department": "Engineering",
+            "department": "Engineering",
+            "business_sub_department": "Platform",
+            "project_id": "PRJ-3",
+        },
+    ]
+
+    import asyncio
+
+    async def run():
+        all_opts = await get_dashboard_filter_options(FakeDb(rows), job_ids=None)
+        assert all_opts["pillars"] == ["Core Business", "Technology"]
+        assert "Sales" in all_opts["departments"]
+        assert "Engineering" in all_opts["departments"]
+
+        pillar_opts = await get_dashboard_filter_options(
+            FakeDb(rows),
+            job_ids=None,
+            business_pillar="Core Business",
+        )
+        assert pillar_opts["departments"] == ["Marketing Department", "Sales"]
+        assert "Engineering" not in pillar_opts["departments"]
+
+        dept_opts = await get_dashboard_filter_options(
+            FakeDb(rows),
+            job_ids=None,
+            business_pillar="Core Business",
+            department="Sales",
+        )
+        assert dept_opts["sub_departments"] == ["Inside Sales"]
+        assert dept_opts["project_ids"] == ["PRJ-1"]
+
+    asyncio.run(run())

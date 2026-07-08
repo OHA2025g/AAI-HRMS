@@ -188,10 +188,16 @@ async def list_assessments(
     offset: int = 0,
     org: Optional[Dict[str, str]] = None,
     usage_filter: Optional[str] = None,
+    restrict_job_ids: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     query: Dict[str, Any] = {}
     if job_id:
         query["job_id"] = job_id
+    if restrict_job_ids is not None:
+        if job_id and job_id not in restrict_job_ids:
+            return []
+        if not job_id:
+            query["job_id"] = {"$in": restrict_job_ids or ["__none__"]}
     if assessment_type:
         query["assessment_type"] = assessment_type
     if status:

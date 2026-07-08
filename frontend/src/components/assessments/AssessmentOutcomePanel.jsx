@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 const BAR_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -39,7 +40,7 @@ export default function AssessmentOutcomePanel({ outcome }) {
   return (
     <Card data-testid="assessment-outcome-panel">
       <CardHeader>
-        <CardTitle>Assessment → interview & hire</CardTitle>
+        <CardTitle>{chartTitleCase('Assessment → interview & hire')}</CardTitle>
         <CardDescription>Pipeline outcomes for scored submissions in org scope</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

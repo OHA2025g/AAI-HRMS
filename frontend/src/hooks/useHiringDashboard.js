@@ -1,68 +1,114 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { dashboardApi } from '../lib/api';
+import { normalizeOrgFilterValue } from '../components/hiring-dashboard/dashboardOrgFilterUtils';
+
+function readOrgParam(searchParams, key) {
+  return normalizeOrgFilterValue(searchParams.get(key));
+}
 
 export function useHiringDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const windowDays = Number(searchParams.get('window') || 30);
   const scope = searchParams.get('scope') || 'all';
-  const department = searchParams.get('department') || '';
+  const department = readOrgParam(searchParams, 'department');
+  const pillar = readOrgParam(searchParams, 'pillar');
+  const subDepartment = readOrgParam(searchParams, 'sub_department');
+  const projectId = readOrgParam(searchParams, 'project_id');
   const jobId = searchParams.get('job_id') || '';
   const ownerId = searchParams.get('owner_id') || '';
   const [pack, setPack] = useState(null);
   const [trends, setTrends] = useState(null);
   const [trendsHealth, setTrendsHealth] = useState(null);
+  const [filterOptions, setFilterOptions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refetching, setRefetching] = useState(false);
   const [error, setError] = useState(null);
 
-  const setWindowDays = useCallback(
-    (days) => {
+  const setParam = useCallback(
+    (key, value, deleteWhenEmpty = true) => {
       const next = new URLSearchParams(searchParams);
-      next.set('window', String(days));
+      const normalized = normalizeOrgFilterValue(value);
+      if (normalized) next.set(key, normalized);
+      else if (deleteWhenEmpty) next.delete(key);
       setSearchParams(next, { replace: true });
     },
     [searchParams, setSearchParams]
   );
 
-  const setScope = useCallback(
-    (value) => {
+  const setParams = useCallback(
+    (updates) => {
       const next = new URLSearchParams(searchParams);
-      next.set('scope', value);
+      updates.forEach(({ key, value, deleteWhenEmpty = true }) => {
+        const normalized = normalizeOrgFilterValue(value);
+        if (normalized) next.set(key, normalized);
+        else if (deleteWhenEmpty) next.delete(key);
+      });
       setSearchParams(next, { replace: true });
     },
     [searchParams, setSearchParams]
   );
 
+  const setWindowDays = useCallback((days) => setParam('window', String(days), false), [setParam]);
+  const setScope = useCallback((value) => setParam('scope', value, false), [setParam]);
   const setDepartment = useCallback(
-    (value) => {
-      const next = new URLSearchParams(searchParams);
-      if (value?.trim()) next.set('department', value.trim());
-      else next.delete('department');
-      setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams]
+    (value) =>
+      setParams([
+        { key: 'department', value },
+        { key: 'sub_department', value: '' },
+        { key: 'project_id', value: '' },
+      ]),
+    [setParams]
   );
+  const setPillar = useCallback(
+    (value) =>
+      setParams([
+        { key: 'pillar', value },
+        { key: 'department', value: '' },
+        { key: 'sub_department', value: '' },
+        { key: 'project_id', value: '' },
+      ]),
+    [setParams]
+  );
+  const setSubDepartment = useCallback(
+    (value) =>
+      setParams([
+        { key: 'sub_department', value },
+        { key: 'project_id', value: '' },
+      ]),
+    [setParams]
+  );
+  const setProjectId = useCallback((value) => setParam('project_id', value), [setParam]);
+  const setJobId = useCallback((value) => setParam('job_id', value), [setParam]);
+  const setOwnerId = useCallback((value) => setParam('owner_id', value), [setParam]);
 
-  const setJobId = useCallback(
-    (value) => {
-      const next = new URLSearchParams(searchParams);
-      if (value?.trim()) next.set('job_id', value.trim());
-      else next.delete('job_id');
-      setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams]
-  );
+  const clearOrgFilters = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    ['pillar', 'department', 'sub_department', 'project_id'].forEach((k) => next.delete(k));
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
-  const setOwnerId = useCallback(
-    (value) => {
-      const next = new URLSearchParams(searchParams);
-      if (value?.trim()) next.set('owner_id', value.trim());
-      else next.delete('owner_id');
-      setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams]
-  );
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await dashboardApi.getFilterOptions({
+          scope,
+          department: department || undefined,
+          business_pillar: pillar || undefined,
+          business_sub_department: subDepartment || undefined,
+          owner_id: ownerId || undefined,
+        });
+        if (alive) setFilterOptions(res.data);
+      } catch (err) {
+        console.warn('Failed to load dashboard filter options', err?.response?.data || err?.message || err);
+        if (alive) setFilterOptions({ pillars: [], departments: [], sub_departments: [], project_ids: [] });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [scope, department, pillar, subDepartment, ownerId]);
 
   const load = useCallback(
     async (isRefetch = false) => {
@@ -77,6 +123,9 @@ export function useHiringDashboard() {
           trends_months: 6,
         };
         if (department.trim()) params.department = department.trim();
+        if (pillar.trim()) params.business_pillar = pillar.trim();
+        if (subDepartment.trim()) params.business_sub_department = subDepartment.trim();
+        if (projectId.trim()) params.project_id = projectId.trim();
         if (jobId.trim()) params.job_id = jobId.trim();
         if (ownerId.trim()) params.owner_id = ownerId.trim();
         const packRes = await dashboardApi.getHiringPack(params);
@@ -100,7 +149,7 @@ export function useHiringDashboard() {
         setRefetching(false);
       }
     },
-    [windowDays, scope, department, jobId, ownerId]
+    [windowDays, scope, department, pillar, subDepartment, projectId, jobId, ownerId]
   );
 
   useEffect(() => {
@@ -111,25 +160,34 @@ export function useHiringDashboard() {
     pack,
     trends,
     trendsHealth,
+    filterOptions,
     loading,
     refetching,
     error,
     windowDays,
     scope,
     department,
+    pillar,
+    subDepartment,
+    projectId,
     jobId,
     ownerId,
     setWindowDays,
     setScope,
     setDepartment,
+    setPillar,
+    setSubDepartment,
+    setProjectId,
     setJobId,
     setOwnerId,
+    clearOrgFilters,
     reload: () => load(true),
   };
 }
 
-export function formatDelta(deltaPct) {
+export function formatDelta(deltaPct, windowDays = 30) {
   if (deltaPct == null || Number.isNaN(deltaPct)) return null;
-  const sign = deltaPct > 0 ? '+' : '';
-  return `${sign}${deltaPct}%`;
+  const abs = Math.abs(deltaPct);
+  const periodLabel = windowDays === 7 ? 'last 7 days' : windowDays === 90 ? 'last 90 days' : 'last 30 days';
+  return `${abs}% from ${periodLabel}`;
 }

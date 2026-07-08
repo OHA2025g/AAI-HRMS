@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict
+
+_BULK_SEED_NAME_RE = re.compile(r"^bulk seed (candidate|employee) \d+$", re.I)
 
 _HRMS_LOCAL_ADMIN_EMAILS = frozenset(
     {
@@ -53,6 +56,45 @@ def is_talent_pool_candidate(candidate: Dict[str, Any] | None) -> bool:
     return False
 
 
+def is_apify_linkedin_candidate(candidate: Dict[str, Any] | None) -> bool:
+    if not candidate:
+        return False
+    if (candidate.get("import_metadata") or {}).get("provider") == "apify":
+        return True
+    email = str(candidate.get("email") or "").strip().lower()
+    return email.endswith("@apify-import.local")
+
+
+def is_real_linkedin_candidate(candidate: Dict[str, Any] | None) -> bool:
+    """Apify / RSC LinkedIn imports — excludes AI fit seeds and talent pool rows."""
+    if not candidate:
+        return False
+    if is_apify_linkedin_candidate(candidate):
+        return True
+    if is_talent_pool_candidate(candidate):
+        return False
+    source = str(candidate.get("source") or "").strip().upper()
+    marker = str(candidate.get("seed_marker") or "").strip()
+    email = str(candidate.get("email") or "").strip().lower()
+    if marker == "job_posting_fit_candidates_v1":
+        return False
+    if candidate.get("seed_job_id") is not None:
+        return False
+    if email.startswith("fitseed.") or (
+        email.endswith("@aai-hrms.local") and email not in _HRMS_LOCAL_ADMIN_EMAILS
+    ):
+        return False
+    if source == "LINKEDIN" and (
+        candidate.get("linkedin_url") or candidate.get("linkedin_member_urn")
+    ):
+        return True
+    return False
+
+
+def is_inhouse_database_candidate(candidate: Dict[str, Any] | None) -> bool:
+    return is_talent_pool_candidate(candidate)
+
+
 def is_linkedin_sourced_candidate(candidate: Dict[str, Any] | None) -> bool:
     """LinkedIn connector or AI-generated fit/demo seeds (not talent pool)."""
     if not candidate or is_talent_pool_candidate(candidate):
@@ -63,6 +105,8 @@ def is_linkedin_sourced_candidate(candidate: Dict[str, Any] | None) -> bool:
     email = str(candidate.get("email") or "").strip().lower()
 
     if marker == "job_posting_fit_candidates_v1":
+        return True
+    if is_apify_linkedin_candidate(candidate):
         return True
     if candidate.get("seed_job_id") is not None and candidate.get("seed_slot") is not None:
         return True
@@ -82,6 +126,30 @@ def is_linkedin_sourced_candidate(candidate: Dict[str, Any] | None) -> bool:
 def is_ai_generated_candidate(candidate: Dict[str, Any] | None) -> bool:
     """Alias for UI label “AI generated” / LinkedIn fit seeds."""
     return is_linkedin_sourced_candidate(candidate)
+
+
+def is_synthetic_demo_candidate(candidate: Dict[str, Any] | None) -> bool:
+    """Bulk DB seed, fit-seed, and other non-real profiles — hide from trajectory pickers."""
+    if not candidate:
+        return False
+    if is_ai_generated_candidate(candidate):
+        return True
+    email = str(candidate.get("email") or "").strip().lower()
+    if email.endswith("@bulkseed.example"):
+        return True
+    name = str(candidate.get("full_name") or "").strip()
+    if _BULK_SEED_NAME_RE.match(name):
+        return True
+    headline = str(candidate.get("headline") or "").strip().lower()
+    if "bulk seed" in headline:
+        return True
+    resume_url = str(candidate.get("resume_url") or "").strip().lower()
+    if "bulkseed.example" in resume_url:
+        return True
+    source = str(candidate.get("source") or "").strip().upper()
+    if source == "BULK_SEED":
+        return True
+    return False
 
 
 def _talent_pool_ex_mongo_filter() -> Dict[str, Any]:

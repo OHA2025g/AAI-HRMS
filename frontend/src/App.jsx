@@ -1,5 +1,9 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
+import {
+  SMART_HIRING_ONLY,
+  isRouteAllowedInSmartHiringOnly,
+} from './config/appModules';
 import { TRAINING_DEV_EXTRA_ROUTES } from './training-development/routeTable';
 import TrainingDevelopmentLayout from './training-development/TrainingDevelopmentLayout';
 import TrainingDevelopmentSectionLanding from './training-development/TrainingDevelopmentSectionLanding';
@@ -52,6 +56,7 @@ import JobsPage from './pages/JobsPage';
 import CreateJobPage from './pages/CreateJobPage';
 import JobDetailPage from './pages/JobDetailPage';
 import CandidatesPage from './pages/CandidatesPage';
+import CandidateImportPage from './pages/CandidateImportPage';
 import CareerTrajectoryPage from './pages/CareerTrajectoryPage';
 import CareerTrajectoryComparePage from './pages/CareerTrajectoryComparePage';
 import Phase2FitSimulationPage from './pages/Phase2FitSimulationPage';
@@ -73,6 +78,7 @@ import AdminWorkflowAutomationPage from './pages/AdminWorkflowAutomationPage';
 import AdminExecutiveKpiPage from './pages/AdminExecutiveKpiPage';
 import AdminCareerTrajectoryConfigPage from './pages/AdminCareerTrajectoryConfigPage';
 import AdminHiringDashboardConfigPage from './pages/AdminHiringDashboardConfigPage';
+import AdminDatabasePage from './pages/AdminDatabasePage';
 import WorkflowDesignerPage from './pages/WorkflowDesignerPage';
 import HrCopilotPage from './pages/HrCopilotPage';
 import TransformationPage from './pages/TransformationPage';
@@ -163,6 +169,30 @@ const AdminProtectedRoute = ({ children }) => {
   return <Layout>{children}</Layout>;
 };
 
+const CANDIDATE_IMPORT_ROLES = new Set(['admin', 'hr_admin', 'recruiter']);
+
+const CandidateImportProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!CANDIDATE_IMPORT_ROLES.has(String(user?.role || ''))) {
+    return <Navigate to="/candidates" replace />;
+  }
+
+  return <Layout>{children}</Layout>;
+};
+
 // Public Route wrapper (redirects to dashboard if authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -185,6 +215,16 @@ const PublicRoute = ({ children }) => {
 const hiringDashboardV2 = process.env.REACT_APP_HIRING_DASHBOARD_V2 !== '0';
 
 function AppRoutes() {
+  const location = useLocation();
+
+  if (SMART_HIRING_ONLY && !isRouteAllowedInSmartHiringOnly(location.pathname)) {
+    return (
+      <Routes>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
@@ -233,6 +273,12 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      <Route path="/candidates/import" element={
+        <CandidateImportProtectedRoute>
+          <CandidateImportPage />
+        </CandidateImportProtectedRoute>
+      } />
+
       <Route path="/candidates" element={
         <ProtectedRoute>
           <CandidatesPage />
@@ -899,6 +945,12 @@ function AppRoutes() {
       <Route path="/admin/hiring-dashboard-config" element={
         <AdminProtectedRoute>
           <AdminHiringDashboardConfigPage />
+        </AdminProtectedRoute>
+      } />
+
+      <Route path="/admin/database" element={
+        <AdminProtectedRoute>
+          <AdminDatabasePage />
         </AdminProtectedRoute>
       } />
 

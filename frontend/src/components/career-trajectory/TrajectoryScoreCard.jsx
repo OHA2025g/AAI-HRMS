@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cn } from '@/lib/utils';
 
-export function TrajectoryScoreCard({ label, scoreData, highlightRisk, onExplain }) {
+export function TrajectoryScoreCard({ label, scoreData, highlightRisk, onExplain, commandStyle = false }) {
   const score = scoreData?.score ?? 0;
   const color =
     highlightRisk
@@ -18,6 +18,22 @@ export function TrajectoryScoreCard({ label, scoreData, highlightRisk, onExplain
           : score >= 40
             ? 'text-amber-600'
             : 'text-rose-600';
+
+  if (commandStyle) {
+    return (
+      <div className="ct-metric">
+        <h4>{label}</h4>
+        <div className="ct-num">{Math.round(score)}%</div>
+        {scoreData?.explanation ? <p className="ct-muted">{scoreData.explanation}</p> : null}
+        {scoreData?.confidence ? <small>Confidence: {scoreData.confidence}</small> : null}
+        {onExplain ? (
+          <button type="button" className="ct-explain-link" onClick={onExplain}>
+            View explainability
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <Card className="h-full border-slate-200/80 shadow-sm">

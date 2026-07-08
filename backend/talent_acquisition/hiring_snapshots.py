@@ -7,14 +7,20 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from talent_acquisition.hiring_dashboard_config import get_hiring_dashboard_config
+from talent_acquisition.hiring_dashboard_insights import compute_offer_acceptance_pct
 from talent_acquisition.hiring_threshold_config import get_monthly_hire_target
 
 COL_SNAPSHOTS = "hiring_dashboard_snapshots"
 
 
-async def _resolve_monthly_hire_target(db) -> int:
-    """Prefer DB-backed config; fall back to env default."""
+async def _resolve_monthly_hire_target(db) -> Optional[int]:
+    """Prefer DB-backed config; fall back to env default. Respects trend_target rule flag."""
     try:
+        from talent_acquisition.hiring_dashboard_config import get_hiring_dashboard_config_doc, rule_flag_enabled
+
+        doc = await get_hiring_dashboard_config_doc(db)
+        if not rule_flag_enabled(doc.get("rule_flags"), "trend_target"):
+            return None
         cfg = await get_hiring_dashboard_config(db)
         return max(0, int(cfg.monthly_hire_target))
     except Exception:
@@ -102,12 +108,22 @@ def _snapshot_row_to_point(row: Dict[str, Any], hire_target: int) -> Dict[str, A
         "median_interview_dwell_days": row.get("median_interview_dwell_days"),
         "time_to_fill_days": row.get("time_to_fill_days"),
         "time_to_hire_days": row.get("time_to_hire_days"),
+        "offer_acceptance_pct": row.get("offer_acceptance_pct"),
     }
 
 
 async def write_hiring_dashboard_snapshot(db, pack: Dict[str, Any]) -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
     period = now.strftime("%Y-%m-%d")
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+    day_start_s, day_end_s = day_start.isoformat(), day_end.isoformat()
+    daily_new_apps = await db.applications.count_documents(
+        {"created_at": {"$gte": day_start_s, "$lt": day_end_s}}
+    )
+    daily_hires = await db.applications.count_documents(
+        {"stage": "JOINED", "updated_at": {"$gte": day_start_s, "$lt": day_end_s}}
+    )
     headline = pack.get("headline") or {}
     funnel_to_interview = None
     for row in pack.get("funnel") or []:
@@ -122,13 +138,14 @@ async def write_hiring_dashboard_snapshot(db, pack: Dict[str, Any]) -> Dict[str,
             break
     ttf = headline.get("time_to_fill_days")
     tth = headline.get("time_to_hire_days")
+    offer_acc = headline.get("offer_acceptance_pct")
     doc = {
         "period": period,
         "snapshot_at": now.isoformat(),
         "window_days": pack.get("window_days", 30),
         "open_jobs": _metric_value(headline.get("open_jobs")),
-        "new_applications": _metric_value(headline.get("new_applications")),
-        "hires": _metric_value(headline.get("hires")),
+        "new_applications": int(daily_new_apps),
+        "hires": int(daily_hires),
         "avg_fit_score": _metric_value(headline.get("avg_fit_score")),
         "active_pipeline": _metric_value(headline.get("active_pipeline")),
         "high_fit_pct": _metric_value(headline.get("high_fit_pct")),
@@ -137,6 +154,7 @@ async def write_hiring_dashboard_snapshot(db, pack: Dict[str, Any]) -> Dict[str,
         "median_interview_dwell_days": _summary_avg_days(pack, "INTERVIEW_1"),
         "time_to_fill_days": _metric_value(ttf) if ttf is not None else None,
         "time_to_hire_days": _metric_value(tth) if tth is not None else None,
+        "offer_acceptance_pct": _metric_value(offer_acc) if offer_acc is not None else None,
         "health_score": pack.get("health_score"),
         "funnel_conversion_to_interview": funnel_to_interview,
         "hire_target": await _resolve_monthly_hire_target(db),
@@ -173,6 +191,7 @@ async def seed_hiring_snapshots_if_sparse(db, months: int = 6, min_points: int =
             "median_interview_dwell_days": p.get("median_interview_dwell_days"),
             "time_to_fill_days": p.get("time_to_fill_days"),
             "time_to_hire_days": p.get("time_to_hire_days"),
+            "offer_acceptance_pct": p.get("offer_acceptance_pct"),
             "funnel_conversion_to_interview": p.get("funnel_conversion_to_interview"),
             "hire_target": p.get("hire_target") if p.get("hire_target") is not None else hire_target,
             "seeded": True,
@@ -245,8 +264,7 @@ async def get_hiring_dashboard_trends(db, months: int = 6) -> Dict[str, Any]:
         .sort("period", 1)
         .to_list(months * 31)
     )
-    points: List[Dict[str, Any]] = [_snapshot_row_to_point(r, hire_target) for r in rows]
-    if not points:
+    if not rows:
         await seed_hiring_snapshots_if_sparse(db)
         rows = (
             await db[COL_SNAPSHOTS]
@@ -254,12 +272,14 @@ async def get_hiring_dashboard_trends(db, months: int = 6) -> Dict[str, Any]:
             .sort("period", 1)
             .to_list(months * 31)
         )
-        points = [_snapshot_row_to_point(r, hire_target) for r in rows]
+
+    weeks_months = max(3, min(months, 6))
+    points = await _synthetic_trends_from_applications(db, weeks_months, hire_target)
+    if len(points) > 12:
+        points = points[-12:]
+    data_source = resolve_trends_data_source(rows) if rows else "synthetic"
     if not points:
-        points = await _synthetic_trends_from_applications(db, months, hire_target)
-        data_source = resolve_trends_data_source([], synthetic_fallback=True)
-    else:
-        data_source = resolve_trends_data_source(rows)
+        data_source = "synthetic"
     snapshot_count, live_snapshot_count, last_live_snapshot_at = _snapshot_metadata(rows)
     return {
         "as_of": datetime.now(timezone.utc).isoformat(),
@@ -300,6 +320,7 @@ async def _synthetic_trends_from_applications(
         avg_fit, high_fit_pct = await _week_fit_metrics(db, start_s, end_s)
         time_to_fill, time_to_hire = await _week_time_metrics(db, start_s, end_s)
         offer_dwell, interview_dwell = await _week_dwell_metrics(db, start_s, end_s)
+        offer_acceptance_pct = await _week_offer_acceptance_pct(db, start_s, end_s)
         points.append(
             {
                 "period": start.strftime("%Y-%m-%d"),
@@ -317,9 +338,28 @@ async def _synthetic_trends_from_applications(
                 "median_interview_dwell_days": interview_dwell,
                 "time_to_fill_days": time_to_fill,
                 "time_to_hire_days": time_to_hire,
+                "offer_acceptance_pct": offer_acceptance_pct,
             }
         )
     return points[-24:]
+
+
+async def _week_offer_acceptance_pct(db, start_s: str, end_s: str) -> Optional[float]:
+    """Offer acceptance for applications with offer activity in a weekly window."""
+    pipeline = [
+        {
+            "$match": {
+                "updated_at": {"$gte": start_s, "$lt": end_s},
+                "offer_status": {"$in": ["SENT", "ACCEPTED", "DECLINED"]},
+            }
+        },
+        {"$group": {"_id": "$offer_status", "count": {"$sum": 1}}},
+    ]
+    rows = await db.applications.aggregate(pipeline).to_list(10)
+    if not rows:
+        return None
+    counts = [{"status": row["_id"], "count": row["count"]} for row in rows if row.get("_id")]
+    return compute_offer_acceptance_pct(counts)
 
 
 async def _week_time_metrics(db, start_s: str, end_s: str) -> Tuple[Optional[float], Optional[float]]:

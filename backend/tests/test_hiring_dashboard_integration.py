@@ -40,6 +40,7 @@ async def test_hiring_pack_returns_200():
     assert "hire_journeys" in body
     assert "conversion_bottleneck" in body
     assert "interview_round_metrics" in body
+    assert body.get("ai_insights_source") in ("rule_based", "llm")
     trends = body["trends"]
     assert "snapshot_count" in trends
     assert "live_snapshot_count" in trends

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cn } from '../../lib/utils';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 /**
  * Shared chart card wrapper for Smart Hiring Dashboard (Phase 0.4).
@@ -23,7 +24,7 @@ export default function ChartCard({
         <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
           {title ? (
             <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Outfit' }}>
-              {title}
+              {chartTitleCase(title)}
             </CardTitle>
           ) : (
             <span />

@@ -1,0 +1,1037 @@
+/* Scoped styles from smart_hiring_add_new_candidate_popup_redesign.html */
+.anc-modal-root {
+  --anc-bg: #f6f8fc;
+  --anc-surface: #ffffff;
+  --anc-ink: #101827;
+  --anc-muted: #64748b;
+  --anc-muted-2: #94a3b8;
+  --anc-line: #e3e8f2;
+  --anc-primary: #6d5dfc;
+  --anc-primary-dark: #5144df;
+  --anc-primary-soft: #ecebff;
+  --anc-success: #14b87a;
+  --anc-success-soft: #ddfbea;
+  --anc-warning: #f59e0b;
+  --anc-warning-soft: #fff7df;
+  --anc-danger: #ef4444;
+  --anc-info: #2563eb;
+  --anc-info-soft: #eaf1ff;
+  --anc-teal: #10b8a4;
+  --anc-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  --anc-shadow-soft: 0 12px 32px rgba(15, 23, 42, 0.075);
+  --anc-gap-sm: 8px;
+  --anc-gap-md: 12px;
+  --anc-gap-lg: 16px;
+  --anc-gap-xl: 20px;
+}
+
+.anc-modal-root.anc-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 34px;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(109, 93, 252, 0.2), transparent 28%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.42), rgba(15, 23, 42, 0.52));
+  backdrop-filter: blur(3px);
+}
+
+.anc-modal-root .anc-modal {
+  width: min(1040px, calc(100vw - 48px));
+  max-height: calc(100vh - 54px);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 28px;
+  box-shadow: var(--anc-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.anc-modal-root .anc-modal::before {
+  content: '';
+  position: absolute;
+  left: -80px;
+  top: -120px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(109, 93, 252, 0.16), transparent 68%);
+  pointer-events: none;
+}
+
+.anc-modal-root .anc-modal::after {
+  content: '';
+  position: absolute;
+  right: -120px;
+  bottom: -120px;
+  width: 340px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 184, 164, 0.12), transparent 70%);
+  pointer-events: none;
+}
+
+.anc-modal-root .anc-modal-head {
+  position: relative;
+  z-index: 1;
+  padding: 28px 30px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.anc-modal-root .anc-headline {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.anc-modal-root .anc-modal-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #735cff, #5347e8);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 18px 36px rgba(109, 93, 252, 0.3);
+  flex: 0 0 auto;
+}
+
+.anc-modal-root .anc-modal-icon svg {
+  width: 27px;
+  height: 27px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-modal h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 34px;
+  letter-spacing: -0.05em;
+  color: #0f172a;
+  line-height: 1.05;
+}
+
+.anc-modal-root .anc-modal-subtitle {
+  margin: 8px 0 0;
+  color: #66758e;
+  font-size: 18px;
+  line-height: 1.38;
+  font-weight: 600;
+}
+
+.anc-modal-root .anc-head-badges {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.anc-modal-root .anc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.anc-modal-root .anc-chip.green {
+  background: var(--anc-success-soft);
+  color: #047857;
+}
+
+.anc-modal-root .anc-chip.blue {
+  background: var(--anc-info-soft);
+  color: #1d4ed8;
+}
+
+.anc-modal-root .anc-chip.purple {
+  background: var(--anc-primary-soft);
+  color: #5746e5;
+  border-color: #d8d5ff;
+}
+
+.anc-modal-root .anc-close-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid #e5eaf2;
+  background: #fff;
+  color: #334155;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 0.18s ease;
+  flex: 0 0 auto;
+}
+
+.anc-modal-root .anc-close-btn:hover {
+  transform: rotate(90deg);
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.anc-modal-root .anc-close-btn svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+}
+
+.anc-modal-root .anc-modal-body {
+  position: relative;
+  z-index: 1;
+  padding: var(--anc-gap-xl, 20px) 30px var(--anc-gap-xl, 20px);
+  overflow: auto;
+}
+
+.anc-modal-root .anc-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: #eef3fa;
+  border: 1px solid #e5ebf5;
+  border-radius: 18px;
+  padding: 6px;
+  margin-bottom: 18px;
+}
+
+.anc-modal-root .anc-seg-tab {
+  height: 58px;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 18px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: 0.18s ease;
+}
+
+.anc-modal-root .anc-seg-tab svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-seg-tab.active {
+  background: #fff;
+  color: #111827;
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.07),
+    inset 0 0 0 2px rgba(109, 93, 252, 0.95);
+}
+
+.anc-modal-root .anc-tab-panel {
+  display: none;
+}
+
+.anc-modal-root .anc-tab-panel.active {
+  display: block;
+}
+
+.anc-modal-root .anc-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 340px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.anc-modal-root .anc-drop-card {
+  border: 2px dashed #d8e1ef;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.96));
+  min-height: 270px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 26px;
+  position: relative;
+  overflow: hidden;
+  transition: 0.2s ease;
+  cursor: pointer;
+}
+
+.anc-modal-root .anc-drop-card:hover,
+.anc-modal-root .anc-drop-card.anc-drag-over {
+  border-color: #8b7dff;
+  background: linear-gradient(135deg, #fff, #fbfaff);
+  box-shadow: 0 0 0 5px rgba(109, 93, 252, 0.08);
+}
+
+.anc-modal-root .anc-drop-card::before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  pointer-events: none;
+}
+
+.anc-modal-root .anc-upload-center {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+
+.anc-modal-root .anc-upload-icon {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 16px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #ecebff, #e7fff9);
+  display: grid;
+  place-items: center;
+  color: #6d5dfc;
+  box-shadow: inset 0 0 0 1px rgba(109, 93, 252, 0.14);
+}
+
+.anc-modal-root .anc-upload-icon svg {
+  width: 36px;
+  height: 36px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+}
+
+.anc-modal-root .anc-upload-center h2 {
+  margin: 0;
+  font-size: 23px;
+  letter-spacing: -0.025em;
+  color: #111827;
+}
+
+.anc-modal-root .anc-upload-center p {
+  margin: 9px 0 16px;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.anc-modal-root .anc-file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--anc-primary), var(--anc-primary-dark));
+  color: #fff;
+  padding: 0 18px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 14px 26px rgba(109, 93, 252, 0.24);
+  transition: 0.18s ease;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+}
+
+.anc-modal-root .anc-file-label:hover {
+  transform: translateY(-1px);
+}
+
+.anc-modal-root .anc-file-label svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-support-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.anc-modal-root .anc-format-pill {
+  border: 1px solid #e5ebf5;
+  background: #fff;
+  color: #52637d;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.anc-modal-root .anc-file-selected {
+  display: none;
+  margin-top: 16px;
+  padding: 12px 13px;
+  border-radius: 15px;
+  background: #f8fbff;
+  border: 1px solid #dce5ff;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.anc-modal-root .anc-file-selected.show {
+  display: flex;
+}
+
+.anc-modal-root .anc-file-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.anc-modal-root .anc-file-doc {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #ecebff;
+  color: #5746e5;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.anc-modal-root .anc-file-doc svg {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-file-name {
+  font-weight: 900;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.anc-modal-root .anc-file-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-remove-file {
+  border: 0;
+  background: #fff;
+  color: #ef4444;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 900;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.anc-modal-root .anc-readiness-panel {
+  border: 1px solid #e3e8f2;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: var(--anc-shadow-soft);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.anc-modal-root .anc-readiness-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.anc-modal-root .anc-spark-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #13b89d, #52e1ca);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px rgba(16, 184, 164, 0.22);
+  flex: 0 0 auto;
+}
+
+.anc-modal-root .anc-spark-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-readiness-head h3 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.anc-modal-root .anc-readiness-head p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.42;
+}
+
+.anc-modal-root .anc-score-box {
+  border: 1px solid #e7edf6;
+  border-radius: 18px;
+  padding: 14px;
+  background: linear-gradient(135deg, #fbfdff, #f7f7ff);
+}
+
+.anc-modal-root .anc-score-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.anc-modal-root .anc-score-top strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.anc-modal-root .anc-score-top span {
+  font-size: 12px;
+  color: #6d5dfc;
+  font-weight: 950;
+}
+
+.anc-modal-root .anc-bar {
+  height: 8px;
+  background: #edf2f7;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.anc-modal-root .anc-bar i {
+  height: 100%;
+  display: block;
+  width: 92%;
+  background: linear-gradient(90deg, #6d5dfc, #14b87a);
+  border-radius: 999px;
+}
+
+.anc-modal-root .anc-ai-checks {
+  display: grid;
+  gap: 10px;
+}
+
+.anc-modal-root .anc-ai-check {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  color: #52637d;
+  font-size: 12.7px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-check-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #ddfbea;
+  color: #047857;
+  font-weight: 950;
+  font-size: 12px;
+  margin-top: -1px;
+}
+
+.anc-modal-root .anc-mini-note {
+  border: 1px solid #f5d48f;
+  background: linear-gradient(135deg, #fffdf4, #fff8e7);
+  border-radius: 16px;
+  padding: 12px;
+  color: #725617;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-mini-note strong {
+  display: block;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.anc-modal-root .anc-info-banner {
+  margin: 18px 0;
+  border: 1px solid #cdd7ff;
+  background: linear-gradient(135deg, #f5f7ff, #eef6ff);
+  border-radius: 18px;
+  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  color: #3f46b7;
+}
+
+.anc-modal-root .anc-info-banner svg {
+  width: 23px;
+  height: 23px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.anc-modal-root .anc-info-banner strong {
+  display: block;
+  font-size: 15px;
+  color: #3d32ac;
+  margin-bottom: 4px;
+}
+
+.anc-modal-root .anc-info-banner span {
+  display: block;
+  color: #4d5e7a;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-quick-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.anc-modal-root .anc-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--anc-gap-sm, 8px);
+}
+
+.anc-modal-root .anc-field label {
+  font-size: 13px;
+  font-weight: 900;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.anc-modal-root .anc-field select,
+.anc-modal-root .anc-field input,
+.anc-modal-root .anc-field textarea {
+  width: 100%;
+  border: 1px solid #dfe6f2;
+  border-radius: 12px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: 0.15s ease;
+}
+
+.anc-modal-root .anc-field input,
+.anc-modal-root .anc-field select {
+  height: 45px;
+  padding: 0 13px;
+}
+
+.anc-modal-root .anc-field textarea {
+  min-height: 112px;
+  resize: vertical;
+  padding: 13px;
+  line-height: 1.5;
+}
+
+.anc-modal-root .anc-field input:focus,
+.anc-modal-root .anc-field select:focus,
+.anc-modal-root .anc-field textarea:focus {
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.1);
+}
+
+.anc-modal-root .anc-field input::placeholder,
+.anc-modal-root .anc-field textarea::placeholder {
+  color: #a1adc2;
+}
+
+.anc-modal-root .anc-required {
+  color: #ef4444;
+}
+
+.anc-modal-root .anc-process-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 0 0 22px;
+}
+
+.anc-modal-root .anc-process-step {
+  border: 1px solid #e5ebf5;
+  background: #fff;
+  border-radius: 16px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.anc-modal-root .anc-process-step.active {
+  border-color: #c7bcff;
+  background: linear-gradient(135deg, #fdfcff, #f5f3ff);
+}
+
+.anc-modal-root .anc-process-step.done .anc-process-index {
+  background: var(--anc-success-soft);
+  color: #047857;
+}
+
+.anc-modal-root .anc-process-index {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ecebff;
+  color: #5746e5;
+  font-weight: 950;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.anc-modal-root .anc-process-step strong {
+  display: block;
+  font-size: 12.5px;
+  color: #111827;
+}
+
+.anc-modal-root .anc-process-step span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.anc-modal-root .anc-manual-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--anc-gap-md, 12px);
+  margin-bottom: 18px;
+}
+
+.anc-modal-root .anc-manual-form .anc-full {
+  grid-column: 1 / -1;
+}
+
+.anc-modal-root .anc-sub-card {
+  border: 1px solid #e3e8f2;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff, #fbfdff);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.anc-modal-root .anc-sub-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.anc-modal-root .anc-sub-card p {
+  margin: 0 0 15px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 650;
+}
+
+.anc-modal-root .anc-skills-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dfe6f2;
+  border-radius: 12px;
+  background: #fff;
+  min-height: 48px;
+}
+
+.anc-modal-root .anc-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #eef2ff;
+  color: #5144df;
+  border: 1px solid #d8d5ff;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.anc-modal-root .anc-skill-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 950;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  font-size: 14px;
+}
+
+.anc-modal-root .anc-skill-placeholder {
+  border: 0;
+  outline: 0;
+  flex: 1;
+  min-width: 180px;
+  font: inherit;
+  color: #1e293b;
+  padding: 4px;
+  background: transparent;
+}
+
+.anc-modal-root .anc-modal-footer {
+  position: relative;
+  z-index: 1;
+  padding: 16px 30px 24px;
+  border-top: 1px solid #edf1f7;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.anc-modal-root .anc-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 260px;
+}
+
+.anc-modal-root .anc-footer-left svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  flex: 0 0 auto;
+}
+
+.anc-modal-root .anc-footer-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.anc-modal-root .anc-btn {
+  height: 42px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 850;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: 0.18s ease;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.anc-modal-root .anc-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.anc-modal-root .anc-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.anc-modal-root .anc-btn.primary {
+  background: linear-gradient(135deg, var(--anc-primary), var(--anc-primary-dark));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(109, 93, 252, 0.25);
+}
+
+.anc-modal-root .anc-btn.secondary {
+  background: #fff;
+  border-color: #e0e7f2;
+  color: #334155;
+}
+
+.anc-modal-root .anc-btn.ghost {
+  background: #fff;
+  color: #0f172a;
+  border-color: var(--anc-line);
+}
+
+.anc-modal-root .anc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.anc-modal-root .anc-parsing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.anc-modal-root .anc-parsing .anc-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #ecebff;
+  border-top-color: #6d5dfc;
+  border-radius: 50%;
+  animation: anc-spin 0.8s linear infinite;
+}
+
+@keyframes anc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1180px) {
+  .anc-modal-root .anc-upload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .anc-modal-root .anc-readiness-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .anc-modal-root .anc-quick-options {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .anc-modal-root.anc-modal-layer {
+    padding: 14px;
+    place-items: start center;
+    overflow: auto;
+  }
+
+  .anc-modal-root .anc-modal {
+    width: 100%;
+    max-height: none;
+    margin: 0 0 18px;
+    border-radius: 22px;
+  }
+
+  .anc-modal-root .anc-modal-head {
+    padding: 22px;
+  }
+
+  .anc-modal-root .anc-modal-body {
+    padding: 16px 18px var(--anc-gap-lg, 16px);
+  }
+
+  .anc-modal-root .anc-modal-footer {
+    padding: 16px 18px 20px;
+  }
+
+  .anc-modal-root .anc-headline {
+    gap: 12px;
+  }
+
+  .anc-modal-root .anc-modal-icon {
+    display: none;
+  }
+
+  .anc-modal-root .anc-modal h1 {
+    font-size: 28px;
+  }
+
+  .anc-modal-root .anc-modal-subtitle {
+    font-size: 15px;
+  }
+
+  .anc-modal-root .anc-seg-tab {
+    height: 50px;
+    font-size: 15px;
+  }
+
+  .anc-modal-root .anc-readiness-panel {
+    display: flex;
+  }
+
+  .anc-modal-root .anc-quick-options,
+  .anc-modal-root .anc-process-strip,
+  .anc-modal-root .anc-manual-form {
+    grid-template-columns: 1fr;
+  }
+
+  .anc-modal-root .anc-footer-actions,
+  .anc-modal-root .anc-footer-left {
+    width: 100%;
+  }
+
+  .anc-modal-root .anc-footer-actions .anc-btn {
+    flex: 1;
+  }
+}

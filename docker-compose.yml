@@ -10,7 +10,7 @@
 # API (host port from API_HOST_PORT, default 8000): http://localhost:${API_HOST_PORT:-8000}/api/health
 # Docs: http://localhost:${API_HOST_PORT:-8000}/docs
 #
-# QA login (after seed): qa_admin@aai-hrms.local / QA_Seed_ChangeMe!
+# QA login (after seed): see QA_SEED_ADMIN_EMAIL / QA_SEED_ADMIN_PASSWORD in .env
 #
 # LCD50 demo: api entrypoint runs seed_employees_lifecycle_demo.py after QA seed.
 # Inserts 50 employees on first run; on later runs re-syncs cross-module data without duplicating employees.
@@ -55,17 +55,24 @@ services:
       JWT_SECRET: ${JWT_SECRET:-docker_dev_jwt_change_me}
       JWT_ALGORITHM: HS256
       JWT_EXPIRY_HOURS: "24"
+      QA_SEED_ADMIN_EMAIL: ${QA_SEED_ADMIN_EMAIL:-aghoreshwar@hotmail.com}
+      QA_SEED_ADMIN_PASSWORD: ${QA_SEED_ADMIN_PASSWORD:-Prince@1804}
+      APIFY_API_TOKEN: ${APIFY_API_TOKEN:-}
       # Optional: set in .env next to this file (repo root — not backend/.env; that file is not used by Compose)
       EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_MODEL: ${HF_MODEL:-meta-llama/Llama-3.1-8B-Instruct}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
       # LCD50 seed (see docker-entrypoint.sh): 1 = delete prior LCD50 demo rows and re-seed on this start
       LCD50_SEED_REPLACE: ${LCD50_SEED_REPLACE:-0}
       LCD50_SKIP_CROSS: ${LCD50_SKIP_CROSS:-0}
       LCD50_FORCE_CROSS_SYNC: ${LCD50_FORCE_CROSS_SYNC:-0}
       DEMO_SEEDS_FORCE: ${DEMO_SEEDS_FORCE:-0}
       SKIP_DEMO_SEEDS: ${SKIP_DEMO_SEEDS:-0}
+      SMART_HIRING_ONLY: ${SMART_HIRING_ONLY:-1}
+      ALLOW_DB_FLUSH: ${ALLOW_DB_FLUSH:-1}
       AUTO_IMPORT_EXCEL: ${AUTO_IMPORT_EXCEL:-1}
       CANDIDATES_EXCEL_PATH: ${CANDIDATES_EXCEL_PATH:-/data/excel/Candidates 1.xlsx}
       EXCEL_PATH: ${EXCEL_PATH:-/data/excel/Job Descriptions 1.xlsx}
@@ -91,6 +98,7 @@ services:
       args:
         # Empty => SPA calls same-origin /api (nginx proxies to api:8000)
         REACT_APP_BACKEND_URL: ""
+        REACT_APP_SMART_HIRING_ONLY: "1"
     restart: unless-stopped
     ports:
       - "3001:80"
@@ -122,6 +130,78 @@ services:
             http://api:8000/api/admin/hiring-dashboard/snapshot-cron \
             || echo "Hiring snapshot cron warning (non-fatal)"
           sleep "$${HIRING_SNAPSHOT_INTERVAL_SECONDS}"
+        done
+
+  candidate-import-cleanup-cron:
+    image: curlimages/curl:8.5.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      CANDIDATE_IMPORT_CLEANUP_TOKEN: ${CANDIDATE_IMPORT_CLEANUP_TOKEN:-docker_dev_hiring_snapshot_token}
+      CANDIDATE_IMPORT_CLEANUP_INTERVAL_SECONDS: ${CANDIDATE_IMPORT_CLEANUP_INTERVAL_SECONDS:-86400}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Candidate import cleanup cron: interval $${CANDIDATE_IMPORT_CLEANUP_INTERVAL_SECONDS}s"
+        while true; do
+          curl -sfS -X POST \
+            -H "X-Candidate-Import-Cleanup-Token: $${CANDIDATE_IMPORT_CLEANUP_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            http://api:8000/api/ats/candidates/import/cleanup-cron \
+            || echo "Candidate import cleanup cron warning (non-fatal)"
+          sleep "$${CANDIDATE_IMPORT_CLEANUP_INTERVAL_SECONDS}"
+        done
+
+  linkedin-export-process-cron:
+    image: curlimages/curl:8.5.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      LINKEDIN_EXPORT_PROCESS_TOKEN: ${LINKEDIN_EXPORT_PROCESS_TOKEN:-docker_dev_hiring_snapshot_token}
+      LINKEDIN_EXPORT_PROCESS_INTERVAL_SECONDS: ${LINKEDIN_EXPORT_PROCESS_INTERVAL_SECONDS:-300}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "LinkedIn export process cron: interval $${LINKEDIN_EXPORT_PROCESS_INTERVAL_SECONDS}s"
+        while true; do
+          curl -sfS -X POST \
+            -H "X-LinkedIn-Export-Process-Token: $${LINKEDIN_EXPORT_PROCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            http://api:8000/api/admin/linkedin/process-queue-cron \
+            || echo "LinkedIn export process cron warning (non-fatal)"
+          sleep "$${LINKEDIN_EXPORT_PROCESS_INTERVAL_SECONDS}"
+        done
+
+  apify-linkedin-process-cron:
+    image: curlimages/curl:8.5.0
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      APIFY_LINKEDIN_PROCESS_TOKEN: ${APIFY_LINKEDIN_PROCESS_TOKEN:-docker_dev_hiring_snapshot_token}
+      APIFY_LINKEDIN_PROCESS_INTERVAL_SECONDS: ${APIFY_LINKEDIN_PROCESS_INTERVAL_SECONDS:-60}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "Apify LinkedIn process cron: interval $${APIFY_LINKEDIN_PROCESS_INTERVAL_SECONDS}s"
+        while true; do
+          curl -sfS -X POST \
+            -H "X-Apify-LinkedIn-Process-Token: $${APIFY_LINKEDIN_PROCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            http://api:8000/api/admin/apify-linkedin/process-cron \
+            || echo "Apify LinkedIn process cron warning (non-fatal)"
+          sleep "$${APIFY_LINKEDIN_PROCESS_INTERVAL_SECONDS}"
         done
 
 volumes:

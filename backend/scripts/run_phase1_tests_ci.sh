@@ -16,6 +16,9 @@ echo "Applying MongoDB migrations (M0-4) ..."
 python scripts/mongo_migrate.py up
 python scripts/mongo_migrate.py status
 
+echo "Seeding QA baseline (RBAC + offer-proposal fixtures) ..."
+python scripts/seed_qa_baseline.py
+
 echo "Seeding hiring dashboard E2E fixtures ..."
 python scripts/seed_hiring_dashboard_e2e.py
 
@@ -57,10 +60,33 @@ ADMIN_JSON="$(curl -s -X POST "${PHASE1_BASE_URL}/api/auth/register" \
 ADMIN_TOKEN="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d["access_token"])' "$ADMIN_JSON")"
 
 echo "Running hiring dashboard unit tests ..."
-pytest -q tests/test_hiring_dashboard.py tests/test_hiring_dashboard_access.py tests/test_hiring_dashboard_config.py tests/test_hiring_alert_dismissals.py tests/test_hiring_snapshots.py tests/test_hiring_pack_cache.py tests/test_hiring_pack_perf.py tests/test_hiring_pack_analytics_schema.py
+pytest -q \
+  tests/test_hiring_dashboard.py \
+  tests/test_hiring_dashboard_access.py \
+  tests/test_hiring_dashboard_config.py \
+  tests/test_hiring_alerts_rule_flags.py \
+  tests/test_hiring_dashboard_llm_insights.py \
+  tests/test_hiring_dashboard_admin_config_api.py \
+  tests/test_hiring_dashboard_llm_pack_api.py \
+  tests/test_hiring_alert_dismissals.py \
+  tests/test_hiring_snapshots.py \
+  tests/test_hiring_pack_cache.py \
+  tests/test_hiring_pack_perf.py \
+  tests/test_hiring_pack_analytics_schema.py \
+  tests/test_application_response_normalization.py \
+  tests/test_hiring_dashboard_llm_cached_pack.py
 
 echo "Running Smart Hiring assessments tests ..."
 pytest -q tests/test_assessments_service.py tests/test_assessments_analytics.py tests/test_assessments_integration.py tests/test_assessments_api_integration.py tests/test_assessment_feature_flags.py
+
+echo "Running hiring RBAC tests ..."
+pytest -q tests/test_hiring_rbac.py tests/test_hiring_rbac_api.py
+
+echo "Running candidate Excel import tests ..."
+pytest -q tests/test_candidate_import_etl.py tests/test_candidate_import_api_integration.py
+
+echo "Running assessment question count guard ..."
+pytest -q tests/test_assessment_question_count.py
 
 echo "Running hiring dashboard integration tests ..."
 export RUN_PHASE1_INTEGRATION=1
@@ -80,6 +106,9 @@ echo "Hiring dashboard smoke test ..."
 export PHASE1_BEARER_TOKEN="$ADMIN_TOKEN"
 export PHASE1_BASE_URL="$PHASE1_BASE_URL"
 bash scripts/smoke_hiring_dashboard.sh
+
+echo "Optional LLM smoke (skipped when no provider keys) ..."
+bash scripts/smoke_hiring_dashboard_llm.sh || true
 
 echo "Post-deploy / restore validation (M0-4) ..."
 export VALIDATE_RESTORE_BASE_URL="${PHASE1_BASE_URL}"

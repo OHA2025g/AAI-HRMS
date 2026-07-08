@@ -1,0 +1,1134 @@
+/* Scoped styles from smart_hiring_create_new_job_redesign.html */
+.hiring-dashboard-root[data-testid='create-job-command-root'] {
+  --cj-bg: #f6f8fc;
+  --cj-surface: #ffffff;
+  --cj-ink: #101827;
+  --cj-muted: #64748b;
+  --cj-muted-2: #94a3b8;
+  --cj-line: #e3e8f2;
+  --cj-primary: #6d5dfc;
+  --cj-primary-dark: #5144df;
+  --cj-primary-soft: #ecebff;
+  --cj-success: #14b87a;
+  --cj-success-soft: #ddfbea;
+  --cj-warning: #f59e0b;
+  --cj-warning-soft: #fff7df;
+  --cj-danger: #ef4444;
+  --cj-info: #2563eb;
+  --cj-info-soft: #eaf1ff;
+  --cj-teal: #10b8a4;
+  --cj-teal-soft: #e2fbf7;
+  --cj-shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.065);
+  --cj-bleed-y: var(--sh-page-pad-y, 20px);
+  --cj-bleed-x: var(--sh-page-pad-x, 24px);
+  padding: 0;
+  max-width: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 12px 28px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--cj-line);
+  margin: calc(-1 * var(--cj-bleed-y)) calc(-1 * var(--cj-bleed-x)) 0;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-page-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 90px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-page-title h2 {
+  font-family: Georgia, serif;
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: #10172a;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 980px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filter-pill {
+  height: 42px;
+  min-width: 160px;
+  padding: 0 14px;
+  border: 1px solid var(--cj-line);
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #334155;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.025);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filter-pill.small {
+  min-width: 130px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filter-pill select {
+  border: 0;
+  background: transparent;
+  color: #1e293b;
+  font: inherit;
+  font-weight: 750;
+  width: 100%;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  padding-right: 4px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filter-pill select:disabled {
+  color: #a1adc2;
+  cursor: not-allowed;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filter-pill svg {
+  width: 16px;
+  height: 16px;
+  color: var(--cj-muted-2);
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-clear-btn {
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--cj-line);
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-bell {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-bell-badge {
+  position: absolute;
+  right: 0;
+  top: 2px;
+  min-width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  background: #5b4df2;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e9e8ff;
+  color: #6154e8;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-admin {
+  font-weight: 750;
+  font-size: 14px;
+  color: #1f2937;
+  white-space: nowrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-workspace {
+  padding: var(--sh-gap-xl, 20px) 0 54px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero {
+  border: 1px solid #dce4ff;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #fff 0%, #fbfcff 52%, #f4fff9 100%);
+  box-shadow: var(--cj-shadow-soft);
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero::before {
+  content: '';
+  position: absolute;
+  right: -130px;
+  top: -160px;
+  width: 390px;
+  height: 390px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(109, 93, 252, 0.16), transparent 66%);
+  pointer-events: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero::after {
+  content: '';
+  position: absolute;
+  left: 44%;
+  bottom: -120px;
+  width: 340px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(20, 184, 122, 0.1), transparent 68%);
+  pointer-events: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-inner {
+  position: relative;
+  z-index: 1;
+  padding: 24px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-back-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #fff;
+  border: 1px solid transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #0f172a;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #efeaff, #dce7ff);
+  color: #5547e8;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(109, 93, 252, 0.11);
+  flex-shrink: 0;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-title-row h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+  color: #111827;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-sub {
+  margin: 8px 0 0;
+  color: #52637d;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip.green {
+  background: var(--cj-success-soft);
+  color: #047857;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip.blue {
+  background: var(--cj-info-soft);
+  color: #1d4ed8;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip.purple {
+  background: var(--cj-primary-soft);
+  color: #5746e5;
+  border-color: #d8d5ff;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip.amber {
+  background: var(--cj-warning-soft);
+  color: #9a6700;
+  border-color: #f7d590;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-chip.gray {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn {
+  height: 42px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 850;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: 0.18s ease;
+  background: #fff;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn.primary {
+  background: linear-gradient(135deg, var(--cj-primary), var(--cj-primary-dark));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(109, 93, 252, 0.25);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn.ghost {
+  background: #fff;
+  color: #0f172a;
+  border-color: var(--cj-line);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-btn.soft {
+  background: var(--cj-primary-soft);
+  color: #5547e8;
+  border-color: #dedbff;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step-shell {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--cj-line);
+  border-radius: 22px;
+  box-shadow: var(--cj-shadow-soft);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  position: relative;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -13px;
+  top: 50%;
+  height: 2px;
+  width: 14px;
+  background: #dfe6f2;
+  transform: translateY(-50%);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step-index {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e7edf6;
+  color: #8090a8;
+  font-weight: 900;
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step small {
+  display: block;
+  color: #8a9ab2;
+  font-weight: 850;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step strong {
+  display: block;
+  color: #475569;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.active {
+  border-color: #6d5dfc;
+  background: linear-gradient(135deg, #fff, #f6f5ff);
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.1);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.active .cj-step-index {
+  background: linear-gradient(135deg, #735cff, #5347e8);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(109, 93, 252, 0.25);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.active strong {
+  color: #111827;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.active small {
+  color: #5547e8;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.done .cj-step-index {
+  background: var(--cj-success-soft);
+  color: #047857;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step.done strong {
+  color: #111827;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 18px;
+  align-items: start;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-card,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--cj-line);
+  border-radius: 22px;
+  box-shadow: var(--cj-shadow-soft);
+  position: relative;
+  overflow: hidden;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-card {
+  min-height: 590px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-card-head {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #ecf0f7;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-card-head h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+  color: #111827;
+  font-family: Georgia, serif;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-card-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  line-height: 1.5;
+  font-size: 14px;
+  max-width: 760px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-completion {
+  min-width: 170px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-completion-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-progress {
+  height: 8px;
+  background: #edf2f7;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6d5dfc, #14b87a);
+  border-radius: 999px;
+  transition: 0.25s ease;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-body {
+  padding: 22px 24px 24px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step-panel {
+  display: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step-panel.active {
+  display: block;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-subsection {
+  border: 1px solid #e3e8f2;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff, #fbfdff);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-subsection-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-subsection-title h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #111827;
+  letter-spacing: -0.015em;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-subsection-title p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-gap-sm, 8px);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field.full {
+  grid-column: 1 / -1;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field label {
+  font-size: 13px;
+  font-weight: 850;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-req {
+  color: #ef4444;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field input,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field select,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field textarea {
+  width: 100%;
+  border: 1px solid #dfe6f2;
+  border-radius: 12px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: 0.15s ease;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field input,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field select {
+  height: 46px;
+  padding: 0 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field textarea {
+  min-height: 112px;
+  resize: vertical;
+  padding: 13px 14px;
+  line-height: 1.5;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field input:focus,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field select:focus,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field textarea:focus {
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 4px rgba(109, 93, 252, 0.1);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field input::placeholder,
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field textarea::placeholder {
+  color: #a1adc2;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field select:disabled {
+  background: #f8fafc;
+  color: #a1adc2;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-field-note {
+  font-size: 12px;
+  color: #70809a;
+  line-height: 1.45;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-inline-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-option-card {
+  flex: 1;
+  min-width: 170px;
+  border: 1px solid #e4e9f3;
+  border-radius: 14px;
+  background: #fff;
+  padding: 13px;
+  cursor: pointer;
+  transition: 0.16s ease;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-option-card input {
+  display: none;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-option-card strong {
+  display: block;
+  font-size: 13px;
+  color: #111827;
+  margin-bottom: 5px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-option-card span {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-option-card:has(input:checked) {
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.1);
+  background: #fbfaff;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-save-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-side-stack {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 92px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-ai-panel {
+  padding: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #fbfdff 58%, #f7fff9 100%);
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-ai-head {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-ai-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #735cff, #5347e8);
+  box-shadow: 0 12px 26px rgba(109, 93, 252, 0.28);
+  flex: 0 0 auto;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-ai-head h3 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-ai-head p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-readiness {
+  border: 1px solid #e4e9f4;
+  border-radius: 18px;
+  padding: 16px;
+  background: #fff;
+  margin-bottom: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-readiness-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-readiness-top strong {
+  font-size: 13px;
+  color: #111827;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-readiness-top span {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 900;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-check-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-check-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: #52637d;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-check-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: #eef2ff;
+  color: #5b4df2;
+  font-weight: 900;
+  font-size: 12px;
+  margin-top: -1px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-check-item.done .cj-check-dot {
+  background: var(--cj-success-soft);
+  color: #047857;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-tip-card {
+  border: 1px solid #f5d48f;
+  background: linear-gradient(135deg, #fffdf4, #fff9e8);
+  border-radius: 18px;
+  padding: 15px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-tip-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #fff0bd;
+  color: #b45309;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-tip-card strong {
+  display: block;
+  font-size: 13px;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-tip-card span {
+  display: block;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-panel {
+  padding: 18px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-title h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-title span {
+  font-size: 12px;
+  font-weight: 900;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-row {
+  border: 1px solid #e8edf5;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-row small {
+  display: block;
+  color: #8a99ae;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 950;
+  margin-bottom: 4px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-preview-row strong {
+  display: block;
+  color: #111827;
+  font-size: 13.5px;
+  min-height: 18px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-tag-cloud {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e3e8f2;
+  color: #475569;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-skill-tag.purple {
+  background: var(--cj-primary-soft);
+  border-color: #d8d5ff;
+  color: #5746e5;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-skill-tag.teal {
+  background: var(--cj-teal-soft);
+  border-color: #c8f5ee;
+  color: #0f766e;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-skill-tag.amber {
+  background: var(--cj-warning-soft);
+  border-color: #f7d590;
+  color: #9a6700;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-dropzone {
+  border: 1.5px dashed #cfd8e8;
+  border-radius: 18px;
+  background: #fbfdff;
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-dropzone strong {
+  display: block;
+  color: #111827;
+  margin-bottom: 3px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-dropzone span {
+  font-size: 13px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-review-box {
+  border: 1px solid #e5ebf5;
+  border-radius: 16px;
+  padding: 15px;
+  background: #fff;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-review-box small {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-weight: 950;
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-review-box strong {
+  font-size: 14px;
+  color: #111827;
+}
+
+.hiring-dashboard-root[data-testid='create-job-command-root'] .cj-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  gap: 12px;
+  color: #64748b;
+}
+
+@media (max-width: 1220px) {
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-builder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-side-stack {
+    position: relative;
+    top: auto;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filters {
+    max-width: none;
+  }
+}
+
+@media (max-width: 920px) {
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-topbar {
+    flex-wrap: wrap;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-filters {
+    order: 3;
+    width: 100%;
+    overflow: auto;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-stepper {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-step:not(:last-child)::after {
+    display: none;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-grid,
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-review-grid,
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-side-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-actions {
+    justify-content: flex-start;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-completion {
+    min-width: 100%;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-top-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-left {
+    align-items: flex-start;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-hero-icon {
+    display: none;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-title-row h1 {
+    font-size: 25px;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-form-body,
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-card-head {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-inline-options {
+    display: grid;
+  }
+
+  .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-topbar {
+    padding: 12px 16px;
+    margin-top: calc(-1 * var(--cj-bleed-y));
+    margin-left: calc(-1 * var(--cj-bleed-x));
+    margin-right: calc(-1 * var(--cj-bleed-x));
+  }
+}

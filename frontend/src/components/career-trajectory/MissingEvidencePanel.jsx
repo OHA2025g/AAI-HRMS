@@ -17,7 +17,11 @@ export function MissingEvidencePanel({ items }) {
       <CardContent>
         <ul className="list-disc list-inside space-y-1 text-sm text-slate-700">
           {list.map((item, i) => (
-            <li key={i}>{item}</li>
+            <li key={i}>
+              {typeof item === 'string'
+                ? item
+                : [item?.area, item?.note].filter(Boolean).join(' — ') || 'Additional evidence needed'}
+            </li>
           ))}
         </ul>
       </CardContent>

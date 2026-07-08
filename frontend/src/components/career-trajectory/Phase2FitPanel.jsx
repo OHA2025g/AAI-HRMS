@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, Users, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { employeeApi, phase2FitApi } from '../../lib/api';
+import { careerTrajectoryApi, employeeApi, phase2FitApi } from '../../lib/api';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -20,6 +20,11 @@ import {
 } from '../ui/collapsible';
 import { Phase2CandidateSelect } from './Phase2CandidateSelect';
 import { Phase2GuidanceSections } from './Phase2GuidanceSections';
+import Phase2FitInputCard from './phase2/Phase2FitInputCard';
+import Phase2FitResultCard from './phase2/Phase2FitResultCard';
+import Phase2FitMetricsGrid from './phase2/Phase2FitMetricsGrid';
+import Phase2FitBreakdownSection from './phase2/Phase2FitBreakdownSection';
+import Phase2FitExportsFooter from './phase2/Phase2FitExportsFooter';
 
 const NONE_MANAGER = '__none__';
 
@@ -32,6 +37,8 @@ export function Phase2FitPanel({
   lockToCandidate = false,
   candidateDisplayName,
   onCandidateChange,
+  commandStyle = false,
+  onRunStateChange,
 }) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -39,6 +46,7 @@ export function Phase2FitPanel({
   const [employees, setEmployees] = useState([]);
   const [managerEmployeeId, setManagerEmployeeId] = useState('');
   const [managerPickerOpen, setManagerPickerOpen] = useState(false);
+  const [candidateMeta, setCandidateMeta] = useState(null);
   const pinnedToProfile = Boolean(lockToCandidate && candidateId);
   const allowCandidatePicker = showCandidatePicker && !pinnedToProfile;
 
@@ -48,8 +56,12 @@ export function Phase2FitPanel({
     try {
       const res = await phase2FitApi.getByCandidate(candidateId);
       setReport(res.data);
-    } catch {
+    } catch (e) {
       setReport(null);
+      if (e?.response?.status === 404) {
+        setLoadError(null);
+        return;
+      }
       setLoadError('Could not load Phase 2 simulation. Run a new simulation or try again.');
     }
   }, [candidateId]);
@@ -74,7 +86,33 @@ export function Phase2FitPanel({
     };
   }, []);
 
-  const runSimulation = async () => {
+  useEffect(() => {
+    if (!candidateId || candidateMeta?.candidate_id === candidateId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const params = { limit: 200 };
+        if (jobId) params.job_id = jobId;
+        const res = await careerTrajectoryApi.listPhase1ReadyCandidates(params);
+        const row = (res.data?.items || []).find((r) => r.candidate_id === candidateId);
+        if (alive && row) {
+          setCandidateMeta({
+            candidate_id: row.candidate_id,
+            full_name: row.full_name,
+            primary_archetype: row.primary_archetype,
+            overall_score: row.overall_score,
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [candidateId, jobId, candidateMeta?.candidate_id]);
+
+  const runSimulation = useCallback(async () => {
     if (!candidateId) {
       toast.error(
         allowCandidatePicker
@@ -99,7 +137,21 @@ export function Phase2FitPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    allowCandidatePicker,
+    candidateId,
+    jobId,
+    managerEmployeeId,
+    trajectoryReportId,
+  ]);
+
+  useEffect(() => {
+    onRunStateChange?.({
+      onRun: runSimulation,
+      loading,
+      disabled: !candidateId || !phase1Ready,
+    });
+  }, [onRunStateChange, runSimulation, loading, candidateId, phase1Ready]);
 
   const downloadExport = async (format) => {
     if (!report?.id) {
@@ -128,6 +180,256 @@ export function Phase2FitPanel({
     const code = emp.employee_code ? ` (${emp.employee_code})` : '';
     return `${name}${code}`;
   };
+
+  const handleCandidateChange = (payload) => {
+    if (payload?.candidate_id) {
+      setCandidateMeta({
+        candidate_id: payload.candidate_id,
+        full_name: payload.full_name,
+        primary_archetype: payload.primary_archetype,
+        overall_score: payload.overall_score,
+      });
+    } else {
+      setCandidateMeta(null);
+    }
+    onCandidateChange?.(payload);
+  };
+
+  const frictionPoints = report?.manager_fit?.friction_points || [];
+
+  if (commandStyle) {
+    return (
+      <div data-testid="phase2-fit-panel">
+        {loadError ? (
+          <div className="p2-error-banner">
+            <span>{loadError}</span>
+            <button type="button" className="p2-btn secondary" onClick={load}>
+              Retry
+            </button>
+          </div>
+        ) : null}
+
+        <section className="p2-hero">
+          <Phase2FitInputCard
+            candidateId={candidateId}
+            jobId={jobId}
+            phase1Ready={phase1Ready}
+            showCandidatePicker={allowCandidatePicker}
+            lockToCandidate={pinnedToProfile}
+            candidateMeta={candidateMeta}
+            candidateDisplayName={candidateDisplayName}
+            employees={employees}
+            managerEmployeeId={managerEmployeeId}
+            onManagerChange={setManagerEmployeeId}
+            managerLabel={managerLabel}
+            onCandidateChange={handleCandidateChange}
+            onRun={runSimulation}
+            onCompareManagers={() => setManagerPickerOpen((v) => !v)}
+            loading={loading}
+            managerPickerOpen={managerPickerOpen || !pinnedToProfile}
+            pinnedToProfile={pinnedToProfile}
+          />
+          <Phase2FitResultCard report={report} />
+        </section>
+
+        <Phase2FitMetricsGrid report={report} />
+        <Phase2FitBreakdownSection report={report} phase1Meta={candidateMeta} />
+
+        {frictionPoints.length > 0 ? (
+          <div className="p2-risk-box" data-testid="phase2-friction-points">
+            <b>⚠ Friction points</b>
+            <br />
+            {frictionPoints.join(' ')}
+          </div>
+        ) : null}
+
+        <Phase2GuidanceSections report={report} commandStyle />
+
+        <Phase2FitExportsFooter onExport={downloadExport} disabled={!report?.id} />
+      </div>
+    );
+  }
+
+  const renderReportResults = () => {
+    if (!report) {
+      return (
+        <p className="text-slate-500 text-sm">
+          No Phase 2 report yet. Run simulation after Phase 1 analysis.
+        </p>
+      );
+    }
+
+    return (
+      <div className="space-y-4 text-sm">
+        <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/50 p-5 shadow-sm">
+          <p
+            className="text-3xl font-bold bg-gradient-to-r from-indigo-700 to-violet-700 bg-clip-text text-transparent"
+            style={{ fontFamily: 'Outfit' }}
+            data-testid="phase2-contextual-fit-score"
+          >
+            {Math.round(report.overall_contextual_fit_score)}%
+            <span className="text-lg font-semibold text-slate-600 ml-1">contextual fit</span>
+          </p>
+          <p className="text-slate-700 mt-2 leading-relaxed">{report.executive_summary}</p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 border-indigo-200">
+              Leadership: {report.leadership_style?.primary_style?.name}
+            </Badge>
+            <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-200">
+              Manager fit: {Math.round(report.manager_fit?.manager_fit_score || 0)}%
+            </Badge>
+            <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100 border-sky-200">
+              Communication: {Math.round(report.communication?.overall_communication_score || 0)}%
+            </Badge>
+            {report.manager_fit?.risk_level ? (
+              <Badge
+                variant="outline"
+                className={
+                  report.manager_fit.risk_level === 'Low'
+                    ? 'border-emerald-300 text-emerald-800 bg-emerald-50'
+                    : report.manager_fit.risk_level === 'High'
+                      ? 'border-rose-300 text-rose-800 bg-rose-50'
+                      : 'border-amber-300 text-amber-800 bg-amber-50'
+                }
+              >
+                Risk: {report.manager_fit.risk_level}
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+        {(report.manager_fit?.friction_points || []).length > 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="font-semibold text-amber-900 mb-2">Friction points</p>
+            <ul className="space-y-2">
+              {report.manager_fit.friction_points.map((f, i) => (
+                <li key={i} className="flex gap-2 text-sm text-amber-950">
+                  <span className="text-amber-500 font-bold">•</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <Phase2GuidanceSections report={report} />
+
+        <div className="flex flex-wrap gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadExport('pdf')}
+            data-testid="phase2-export-pdf"
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Export PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => downloadExport('csv')}>
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadExport('xlsx')}
+            data-testid="phase2-export-xlsx"
+          >
+            Export XLSX
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => downloadExport('json')}>
+            Export JSON
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderManagerSelect = () => {
+    if (pinnedToProfile) {
+      return (
+        <Collapsible open={managerPickerOpen} onOpenChange={setManagerPickerOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-0 text-indigo-700 hover:text-indigo-900"
+              data-testid="phase2-manager-advanced-toggle"
+            >
+              {managerPickerOpen
+                ? 'Hide hiring manager comparison'
+                : 'Optional: compare against a specific hiring manager'}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 max-w-md pt-2">
+            <Label htmlFor="phase2-manager-select">Hiring manager (optional)</Label>
+            <p className="text-xs text-slate-500">
+              Employees from your org directory — not candidates. Default uses the archetype ideal profile.
+            </p>
+            <Select
+              value={managerEmployeeId || NONE_MANAGER}
+              onValueChange={setManagerEmployeeId}
+            >
+              <SelectTrigger id="phase2-manager-select" data-testid="phase2-manager-select">
+                <SelectValue placeholder="Archetype ideal profile (default)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_MANAGER}>Archetype ideal profile (default)</SelectItem>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {managerLabel(emp)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    }
+
+    return (
+      <div className="space-y-2 max-w-md">
+        <Label htmlFor="phase2-manager-select">Hiring manager (optional)</Label>
+        <p className="text-xs text-slate-500">
+          Compare manager working-style fit against an employee profile or the default archetype — this is not a candidate list.
+        </p>
+        <Select
+          value={managerEmployeeId || NONE_MANAGER}
+          onValueChange={setManagerEmployeeId}
+        >
+          <SelectTrigger id="phase2-manager-select" data-testid="phase2-manager-select">
+            <SelectValue placeholder="Archetype ideal profile (default)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE_MANAGER}>Archetype ideal profile (default)</SelectItem>
+            {employees.map((emp) => (
+              <SelectItem key={emp.id} value={emp.id}>
+                {managerLabel(emp)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
+
+  const runButton = (
+    <Button
+      onClick={runSimulation}
+      disabled={loading || !candidateId || !phase1Ready}
+      data-testid="phase2-run-btn"
+      title={
+        !candidateId
+          ? allowCandidatePicker
+            ? 'Select a candidate above'
+            : 'Candidate context missing'
+          : !phase1Ready
+            ? 'Complete Phase 1 career trajectory first'
+            : undefined
+      }
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+      Run Phase 2 simulation
+    </Button>
+  );
 
   return (
     <Card data-testid="phase2-fit-panel">
@@ -168,89 +470,12 @@ export function Phase2FitPanel({
           <Phase2CandidateSelect
             candidateId={candidateId}
             jobId={jobId}
-            onSelect={onCandidateChange}
+            onSelect={handleCandidateChange}
           />
         ) : null}
 
-        {pinnedToProfile ? (
-          <Collapsible open={managerPickerOpen} onOpenChange={setManagerPickerOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-auto px-0 text-indigo-700 hover:text-indigo-900"
-                data-testid="phase2-manager-advanced-toggle"
-              >
-                {managerPickerOpen
-                  ? 'Hide hiring manager comparison'
-                  : 'Optional: compare against a specific hiring manager'}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 max-w-md pt-2">
-              <Label htmlFor="phase2-manager-select">Hiring manager (optional)</Label>
-              <p className="text-xs text-slate-500">
-                Employees from your org directory — not candidates. Default uses the archetype ideal profile.
-              </p>
-              <Select
-                value={managerEmployeeId || NONE_MANAGER}
-                onValueChange={setManagerEmployeeId}
-              >
-                <SelectTrigger id="phase2-manager-select" data-testid="phase2-manager-select">
-                  <SelectValue placeholder="Archetype ideal profile (default)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_MANAGER}>Archetype ideal profile (default)</SelectItem>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {managerLabel(emp)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : (
-          <div className="space-y-2 max-w-md">
-            <Label htmlFor="phase2-manager-select">Hiring manager (optional)</Label>
-            <p className="text-xs text-slate-500">
-              Compare manager working-style fit against an employee profile or the default archetype — this is not a candidate list.
-            </p>
-            <Select
-              value={managerEmployeeId || NONE_MANAGER}
-              onValueChange={setManagerEmployeeId}
-            >
-              <SelectTrigger id="phase2-manager-select" data-testid="phase2-manager-select">
-                <SelectValue placeholder="Archetype ideal profile (default)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_MANAGER}>Archetype ideal profile (default)</SelectItem>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {managerLabel(emp)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        <Button
-          onClick={runSimulation}
-          disabled={loading || !candidateId || !phase1Ready}
-          data-testid="phase2-run-btn"
-          title={
-            !candidateId
-              ? allowCandidatePicker
-                ? 'Select a candidate above'
-                : 'Candidate context missing'
-              : !phase1Ready
-                ? 'Complete Phase 1 career trajectory first'
-                : undefined
-          }
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Run Phase 2 simulation
-        </Button>
+        {renderManagerSelect()}
+        {runButton}
         {!candidateId && allowCandidatePicker ? (
           <p className="text-sm text-slate-500">
             Select a Phase 1–ready candidate above to enable simulation.
@@ -259,89 +484,7 @@ export function Phase2FitPanel({
         {candidateId && !phase1Ready ? (
           <p className="text-sm text-amber-700">Phase 1 trajectory is required before running Phase 2.</p>
         ) : null}
-        {report ? (
-          <div className="space-y-4 text-sm">
-            <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/50 p-5 shadow-sm">
-              <p
-                className="text-3xl font-bold bg-gradient-to-r from-indigo-700 to-violet-700 bg-clip-text text-transparent"
-                style={{ fontFamily: 'Outfit' }}
-                data-testid="phase2-contextual-fit-score"
-              >
-                {Math.round(report.overall_contextual_fit_score)}%
-                <span className="text-lg font-semibold text-slate-600 ml-1">contextual fit</span>
-              </p>
-              <p className="text-slate-700 mt-2 leading-relaxed">{report.executive_summary}</p>
-              <div className="flex flex-wrap gap-2 mt-4">
-                <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 border-indigo-200">
-                  Leadership: {report.leadership_style?.primary_style?.name}
-                </Badge>
-                <Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100 border-violet-200">
-                  Manager fit: {Math.round(report.manager_fit?.manager_fit_score || 0)}%
-                </Badge>
-                <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100 border-sky-200">
-                  Communication: {Math.round(report.communication?.overall_communication_score || 0)}%
-                </Badge>
-                {report.manager_fit?.risk_level ? (
-                  <Badge
-                    variant="outline"
-                    className={
-                      report.manager_fit.risk_level === 'Low'
-                        ? 'border-emerald-300 text-emerald-800 bg-emerald-50'
-                        : report.manager_fit.risk_level === 'High'
-                          ? 'border-rose-300 text-rose-800 bg-rose-50'
-                          : 'border-amber-300 text-amber-800 bg-amber-50'
-                    }
-                  >
-                    Risk: {report.manager_fit.risk_level}
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            {(report.manager_fit?.friction_points || []).length > 0 ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                <p className="font-semibold text-amber-900 mb-2">Friction points</p>
-                <ul className="space-y-2">
-                  {report.manager_fit.friction_points.map((f, i) => (
-                    <li key={i} className="flex gap-2 text-sm text-amber-950">
-                      <span className="text-amber-500 font-bold">•</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            <Phase2GuidanceSections report={report} />
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadExport('pdf')}
-                data-testid="phase2-export-pdf"
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Export PDF
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => downloadExport('csv')}>
-                Export CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadExport('xlsx')}
-                data-testid="phase2-export-xlsx"
-              >
-                Export XLSX
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => downloadExport('json')}>
-                Export JSON
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-slate-500 text-sm">No Phase 2 report yet. Run simulation after Phase 1 analysis.</p>
-        )}
+        {renderReportResults()}
       </CardContent>
     </Card>
   );

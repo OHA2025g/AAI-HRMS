@@ -67,6 +67,16 @@ from talent_acquisition.assessments_service import (
 )
 from talent_acquisition.assessment_email import dispatch_queued_invite_emails, get_assessment_email_ops_status
 from talent_acquisition.assessment_audit import list_assessment_audit
+from talent_acquisition.hiring_rbac import (
+    PERM_ASSESSMENT_GENERATE,
+    PERM_ASSESSMENT_GRADE,
+    PERM_ASSESSMENT_PUBLISH,
+    PERM_ASSESSMENT_READ,
+    PERM_JOB_READ,
+    allowed_job_ids,
+    assert_job_access,
+    assert_permission,
+)
 
 
 def create_assessments_router(
@@ -79,6 +89,32 @@ def create_assessments_router(
     require_admin: Optional[Callable[[dict], dict]] = None,
 ) -> APIRouter:
     router = APIRouter(tags=["assessments"])
+
+    async def _assert_assessment_job_access(user: dict, assessment_id: str, permission: str):
+        doc = await db.assessments.find_one({"id": assessment_id}, {"_id": 0, "job_id": 1})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+        return await assert_job_access(db, user, doc["job_id"], permission)
+
+    async def _assert_submission_job_access(user: dict, submission_id: str, permission: str):
+        from talent_acquisition.assessments_constants import COL_ASSESSMENT_SUBMISSIONS
+
+        sub = await db[COL_ASSESSMENT_SUBMISSIONS].find_one(
+            {"id": submission_id},
+            {"_id": 0, "assessment_id": 1, "job_id": 1},
+        )
+        if not sub:
+            raise HTTPException(status_code=404, detail="Submission not found")
+        job_id = sub.get("job_id")
+        if not job_id and sub.get("assessment_id"):
+            assessment = await db.assessments.find_one(
+                {"id": sub["assessment_id"]},
+                {"_id": 0, "job_id": 1},
+            )
+            job_id = (assessment or {}).get("job_id")
+        if not job_id:
+            raise HTTPException(status_code=400, detail="Submission has no job scope")
+        return await assert_job_access(db, user, job_id, permission)
 
     def _org_from_query(
         pillar: Optional[str] = None,
@@ -315,6 +351,7 @@ def create_assessments_router(
         from talent_acquisition.assessments_constants import COL_ASSESSMENT_SUBMISSIONS
         from talent_acquisition.assessments_service import enrich_submission
 
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_READ)
         sub = await db[COL_ASSESSMENT_SUBMISSIONS].find_one({"id": submission_id}, {"_id": 0})
         if not sub:
             raise HTTPException(status_code=404, detail="Submission not found")
@@ -322,10 +359,12 @@ def create_assessments_router(
 
     @router.post("/assessments/submissions/{submission_id}/cancel", response_model=AssessmentSubmissionResponse)
     async def post_cancel_submission(submission_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_PUBLISH)
         return await cancel_submission(db, submission_id, actor_id=current_user.get("id"))
 
     @router.post("/assessments/submissions/{submission_id}/start", response_model=AssessmentSubmissionResponse)
     async def post_start_submission(submission_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_READ)
         return await start_submission(db, submission_id)
 
     @router.post("/assessments/submissions/{submission_id}/submit", response_model=AssessmentSubmissionResponse)
@@ -334,6 +373,7 @@ def create_assessments_router(
         body: SubmissionSubmitRequest,
         current_user: dict = Depends(get_current_user),
     ):
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_GRADE)
         answers = [a.model_dump() for a in body.answers]
         return await submit_and_score(
             db,
@@ -352,6 +392,7 @@ def create_assessments_router(
     ):
         from talent_acquisition.assessments_constants import COL_ASSESSMENT_SUBMISSIONS
 
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_GRADE)
         sub = await db[COL_ASSESSMENT_SUBMISSIONS].find_one({"id": submission_id}, {"_id": 0})
         if not sub:
             raise HTTPException(status_code=404, detail="Submission not found")
@@ -433,6 +474,7 @@ def create_assessments_router(
 
     @router.post("/assessments/submissions/{submission_id}/ai-suggest-grades")
     async def post_ai_suggest_grades(submission_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_GRADE)
         if not is_assessment_feature_enabled("ai_grading"):
             raise HTTPException(status_code=503, detail="AI grading is disabled")
         if not llm_chat:
@@ -441,6 +483,7 @@ def create_assessments_router(
 
     @router.post("/assessments/submissions/{submission_id}/resend-email", response_model=AssessmentSubmissionResponse)
     async def post_resend_submission_email(submission_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_submission_job_access(current_user, submission_id, PERM_ASSESSMENT_PUBLISH)
         return await resend_submission_invite_email(
             db,
             submission_id,
@@ -493,9 +536,7 @@ def create_assessments_router(
         publish: bool = Query(False),
         current_user: dict = Depends(get_current_user),
     ):
-        job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
+        job = await assert_job_access(db, current_user, job_id, PERM_ASSESSMENT_GENERATE)
         generated = await generate_with_ai(job, assessment_data.assessment_type)
         doc = await create_assessment_doc(
             db,
@@ -526,6 +567,7 @@ def create_assessments_router(
         project_id: Optional[str] = None,
         current_user: dict = Depends(get_current_user),
     ):
+        restrict = await allowed_job_ids(db, current_user)
         rows = await list_assessments(
             db,
             job_id=job_id,
@@ -537,6 +579,7 @@ def create_assessments_router(
             offset=offset,
             org=_org_from_query(pillar, department, sub_department, project_id),
             usage_filter=usage,
+            restrict_job_ids=restrict,
         )
         return [AssessmentResponse(**r) for r in rows]
 
@@ -545,10 +588,12 @@ def create_assessments_router(
         doc = await db.assessments.find_one({"id": assessment_id}, {"_id": 0})
         if not doc:
             raise HTTPException(status_code=404, detail="Assessment not found")
+        await assert_job_access(db, current_user, doc["job_id"], PERM_ASSESSMENT_READ)
         return AssessmentResponse(**await enrich_assessment(db, doc))
 
     @router.get("/assessments/{assessment_id}/versions", response_model=List[AssessmentVersionSnapshot])
     async def get_assessment_versions(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_READ)
         rows = await list_assessment_versions(db, assessment_id)
         return [AssessmentVersionSnapshot(**r) for r in rows]
 
@@ -558,6 +603,7 @@ def create_assessments_router(
         body: AssessmentUpdate,
         current_user: dict = Depends(get_current_user),
     ):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_GENERATE)
         return AssessmentResponse(
             **await update_assessment(
                 db,
@@ -569,18 +615,22 @@ def create_assessments_router(
 
     @router.post("/assessments/{assessment_id}/publish", response_model=AssessmentResponse)
     async def post_publish(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_PUBLISH)
         return AssessmentResponse(**await publish_assessment(db, assessment_id, actor_id=current_user["id"]))
 
     @router.post("/assessments/{assessment_id}/archive", response_model=AssessmentResponse)
     async def post_archive(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_PUBLISH)
         return AssessmentResponse(**await archive_assessment(db, assessment_id, actor_id=current_user["id"]))
 
     @router.post("/assessments/{assessment_id}/set-primary", response_model=AssessmentResponse)
     async def post_set_primary(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_PUBLISH)
         return AssessmentResponse(**await set_primary_assessment(db, assessment_id, actor_id=current_user["id"]))
 
     @router.post("/assessments/{assessment_id}/duplicate", response_model=AssessmentResponse)
     async def post_duplicate(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_GENERATE)
         return AssessmentResponse(**await duplicate_assessment(db, assessment_id, current_user["id"]))
 
     @router.post("/assessments/{assessment_id}/invite", response_model=AssessmentSubmissionResponse)
@@ -589,6 +639,7 @@ def create_assessments_router(
         body: AssessmentInviteRequest,
         current_user: dict = Depends(get_current_user),
     ):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_PUBLISH)
         return await invite_candidate(
             db,
             assessment_id,
@@ -604,11 +655,13 @@ def create_assessments_router(
 
     @router.post("/assessments/{assessment_id}/suggest-pass-threshold", response_model=PassThresholdSuggestion)
     async def post_suggest_pass_threshold(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_GRADE)
         result = await suggest_pass_threshold(db, assessment_id, llm_chat=llm_chat)
         return PassThresholdSuggestion(**result)
 
     @router.get("/assessments/{assessment_id}/item-analysis", response_model=List[QuestionItemAnalysis])
     async def get_item_analysis(assessment_id: str, current_user: dict = Depends(get_current_user)):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_READ)
         return await item_analysis(db, assessment_id)
 
     @router.post("/assessments/{assessment_id}/questions/{question_id}/regenerate", response_model=AssessmentResponse)
@@ -617,6 +670,7 @@ def create_assessments_router(
         question_id: str,
         current_user: dict = Depends(get_current_user),
     ):
+        await _assert_assessment_job_access(current_user, assessment_id, PERM_ASSESSMENT_GENERATE)
         if not llm_chat:
             raise HTTPException(status_code=503, detail="AI regeneration is not configured")
         updated = await regenerate_assessment_question(

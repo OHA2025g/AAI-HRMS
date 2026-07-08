@@ -14,23 +14,34 @@ import {
   ASSESSMENT_KPI_META,
 } from '../../config/assessmentKpiConfig';
 
-export default function AssessmentMetricGlossary({ featureFlags = null }) {
+export default function AssessmentMetricGlossary({ featureFlags = null, commandStyle = false }) {
   const [open, setOpen] = useState(false);
   const entries = Object.entries(ASSESSMENT_KPI_META);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          data-testid="assessment-metric-glossary-btn"
-          aria-label="Open assessment metrics glossary"
-        >
-          <HelpCircle className="w-4 h-4" />
-          Metric glossary
-        </Button>
+        {commandStyle ? (
+          <button
+            type="button"
+            className="as-btn"
+            data-testid="assessment-metric-glossary-btn"
+            aria-label="Open assessment metrics glossary"
+          >
+            ⓘ Metric glossary
+          </button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            data-testid="assessment-metric-glossary-btn"
+            aria-label="Open assessment metrics glossary"
+          >
+            <HelpCircle className="w-4 h-4" />
+            Metric glossary
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-white border-slate-200">
         <DialogHeader>

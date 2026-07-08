@@ -3,13 +3,26 @@ import { API_BASE_URL as API_URL } from './apiBaseUrl';
 
 // Jobs API
 export const jobsApi = {
-  list: (status) => axios.get(`${API_URL}/jobs`, { params: { status } }),
+  list: (params = {}) => {
+    const query = typeof params === 'string' ? { status: params } : params;
+    return axios.get(`${API_URL}/jobs`, { params: query });
+  },
   get: (id) => axios.get(`${API_URL}/jobs/${id}`),
   create: (data) => axios.post(`${API_URL}/jobs`, data),
   update: (id, data) => axios.put(`${API_URL}/jobs/${id}`, data),
   delete: (id) => axios.delete(`${API_URL}/jobs/${id}`),
-  match: (id) => axios.post(`${API_URL}/match/${id}`),
-  generateDemoCandidates: (id, count = 50) => axios.post(`${API_URL}/jobs/${id}/demo-candidates`, { count })
+  match: (id, params) => axios.post(`${API_URL}/match/${id}`, null, { params }),
+  getMatches: (id, limit = 50) => axios.get(`${API_URL}/jobs/${id}/matches`, { params: { limit } }),
+  generateDemoCandidates: (id, count = 50) => axios.post(`${API_URL}/jobs/${id}/demo-candidates`, { count }),
+  getApifyLinkedInRun: (id) => axios.get(`${API_URL}/jobs/${id}/apify-linkedin/run`),
+  startApifyLinkedInSearch: (id) => axios.post(`${API_URL}/jobs/${id}/apify-linkedin/search`),
+};
+
+export const hiringApi = {
+  listTeamMembers: (roles) =>
+    axios.get(`${API_URL}/hiring/team-members`, {
+      params: roles ? { roles } : undefined,
+    }),
 };
 
 // Candidates API
@@ -25,6 +38,32 @@ export const candidatesApi = {
   })
 };
 
+export const candidateImportApi = {
+  getSchema: () => axios.get(`${API_URL}/ats/candidates/import/schema`),
+  downloadTemplate: () =>
+    axios.get(`${API_URL}/ats/candidates/import/template`, { responseType: 'blob' }),
+  upload: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return axios.post(`${API_URL}/ats/candidates/import/upload`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  autoMap: (payload) => axios.post(`${API_URL}/ats/candidates/import/auto-map`, payload),
+  sheetPreview: (payload) =>
+    axios.post(`${API_URL}/ats/candidates/import/sheet-preview`, payload),
+  validatePreview: (payload) =>
+    axios.post(`${API_URL}/ats/candidates/import/validate-preview`, payload),
+  commit: (payload) => axios.post(`${API_URL}/ats/candidates/import/commit`, payload),
+  history: () => axios.get(`${API_URL}/ats/candidates/import/history`),
+  batchDetail: (batchId) =>
+    axios.get(`${API_URL}/ats/candidates/import/history/${encodeURIComponent(batchId)}`),
+  downloadErrors: (batchId) =>
+    axios.get(`${API_URL}/ats/candidates/import/${encodeURIComponent(batchId)}/errors/download`, {
+      responseType: 'blob',
+    }),
+};
+
 // Applications API
 export const applicationsApi = {
   list: (params) => axios.get(`${API_URL}/applications`, { params }),
@@ -32,7 +71,15 @@ export const applicationsApi = {
   updateStage: (id, data) => axios.put(`${API_URL}/applications/${id}/stage`, data),
   updateOfferStatus: (id, data) => axios.patch(`${API_URL}/applications/${id}/offer-status`, data),
   getStageHistory: (id) => axios.get(`${API_URL}/applications/${id}/stage-history`),
-  getPipeline: (jobId) => axios.get(`${API_URL}/pipeline/${jobId}`)
+  getPipeline: (jobId) => axios.get(`${API_URL}/pipeline/${jobId}`),
+  createOfferStageProposal: (appId, data) =>
+    axios.post(`${API_URL}/applications/${appId}/offer-stage-proposal`, data),
+  listOfferStageProposals: (jobId, status = 'PENDING') =>
+    axios.get(`${API_URL}/jobs/${jobId}/offer-stage-proposals`, { params: { status } }),
+  approveOfferStageProposal: (proposalId) =>
+    axios.post(`${API_URL}/offer-stage-proposals/${proposalId}/approve`),
+  rejectOfferStageProposal: (proposalId, data) =>
+    axios.post(`${API_URL}/offer-stage-proposals/${proposalId}/reject`, data),
 };
 
 // Referrals API
@@ -104,6 +151,7 @@ export const assessmentsApi = {
 export const dashboardApi = {
   getStats: () => axios.get(`${API_URL}/dashboard/stats`),
   getHiringPack: (params = {}) => axios.get(`${API_URL}/dashboard/hiring-pack`, { params }),
+  getFilterOptions: (params = {}) => axios.get(`${API_URL}/dashboard/filter-options`, { params }),
   getTrends: (params = {}) => axios.get(`${API_URL}/dashboard/trends`, { params }),
   getTrendsHealth: () => axios.get(`${API_URL}/dashboard/trends/health`),
   getHiringAlertDismissals: () => axios.get(`${API_URL}/dashboard/hiring-alerts/dismissals`),
@@ -121,6 +169,17 @@ export const adminApi = {
   getConnectorConfigs: () => axios.get(`${API_URL}/admin/connector-configs`),
   updateConnectorConfig: (name, data) => axios.put(`${API_URL}/admin/connector-configs/${name}`, data),
   getConnectorsHealth: () => axios.get(`${API_URL}/admin/connectors/health`),
+  getLinkedInStatus: () => axios.get(`${API_URL}/admin/linkedin/status`),
+  testLinkedInConnection: () => axios.post(`${API_URL}/admin/linkedin/test`),
+  fetchLinkedInExport: (requestId) =>
+    axios.post(`${API_URL}/admin/linkedin/fetch-export`, { request_id: requestId }),
+  getLinkedInExportQueue: (limit = 20) =>
+    axios.get(`${API_URL}/admin/linkedin/export-queue`, { params: { limit } }),
+  syncLinkedInOpenJobs: (limit = 50) =>
+    axios.post(`${API_URL}/admin/linkedin/sync-open-jobs`, null, { params: { limit } }),
+  getApifyLinkedInStatus: () => axios.get(`${API_URL}/admin/apify-linkedin/status`),
+  testApifyLinkedIn: () => axios.post(`${API_URL}/admin/apify-linkedin/test`),
+  startApifyLinkedInSearch: (jobId) => axios.post(`${API_URL}/jobs/${jobId}/apify-linkedin/search`),
   dispatchInterviewReminders: () => axios.post(`${API_URL}/admin/interviews/dispatch-reminders`),
   escalateLifecycleApprovals: () => axios.post(`${API_URL}/admin/employee-lifecycle/escalate-approvals`),
   scanComplianceSla: () => axios.post(`${API_URL}/admin/compliance/scan-sla-breaches`),
@@ -129,6 +188,8 @@ export const adminApi = {
   updateUserRole: (userId, data) => axios.put(`${API_URL}/admin/users/${encodeURIComponent(userId)}/role`, data),
   getHiringDashboardConfig: () => axios.get(`${API_URL}/admin/hiring-dashboard/config`),
   updateHiringDashboardConfig: (data) => axios.put(`${API_URL}/admin/hiring-dashboard/config`, data),
+  getDatabaseStats: () => axios.get(`${API_URL}/admin/database/stats`),
+  flushDatabase: (data) => axios.post(`${API_URL}/admin/database/flush`, data),
 };
 
 // Interviews API
@@ -792,6 +853,10 @@ export const careerTrajectoryApi = {
     }),
   listPhase1ReadyCandidates: (params = { limit: 200 }) =>
     axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidates/phase1-ready`, {
+      params,
+    }),
+  listCandidateSelectOptions: (params = { limit: 500 }) =>
+    axios.get(`${API_URL}/ai-hiring/candidate-fit/career-trajectory/candidates/select-options`, {
       params,
     }),
   getInterviewPrep: (candidateId) =>

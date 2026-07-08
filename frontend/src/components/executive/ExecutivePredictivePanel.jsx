@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Badge } from '../ui/badge';
+import { chartTitleCase } from '../../lib/chartTitleCase';
 
 export function ExecutivePredictivePanel({ predictive, refetching }) {
   const attrition = predictive?.attrition_forecast;
@@ -71,7 +72,7 @@ export function ExecutivePredictivePanel({ predictive, refetching }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-lg border border-slate-200 p-3 bg-white">
-          <p className="text-sm font-medium text-slate-800 mb-1">Attrition rate forecast</p>
+          <p className="text-sm font-medium text-slate-800 mb-1">{chartTitleCase('Attrition rate forecast')}</p>
           <p className="text-xs text-slate-500 mb-3">
             Solid = monthly snapshots; dashed = linear projection ({attrition?.trend_direction || '—'}). Current{' '}
             {attrition?.current_rate_pct ?? '—'}% → projected {attrition?.projected_rate_pct ?? '—'}%.
@@ -111,7 +112,7 @@ export function ExecutivePredictivePanel({ predictive, refetching }) {
         </div>
 
         <div className="rounded-lg border border-slate-200 p-3 bg-white">
-          <p className="text-sm font-medium text-slate-800 mb-1">Retention risk forecast (M8)</p>
+          <p className="text-sm font-medium text-slate-800 mb-1">{chartTitleCase('Retention risk forecast (M8)')}</p>
           <p className="text-xs text-slate-500 mb-3">
             {retention?.scored_employees ?? 0} scored / {retention?.active_employees ?? 0} active — predicted exits (
             {retention?.prediction_window_days ?? 30}d): {retention?.predicted_exits_window_low ?? '—'}–
@@ -146,7 +147,7 @@ export function ExecutivePredictivePanel({ predictive, refetching }) {
 
       {(retention?.department_forecasts || []).length > 0 ? (
         <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
-          <p className="text-sm font-medium text-slate-800 mb-2">Predicted exits by department</p>
+          <p className="text-sm font-medium text-slate-800 mb-2">{chartTitleCase('Predicted exits by department')}</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>

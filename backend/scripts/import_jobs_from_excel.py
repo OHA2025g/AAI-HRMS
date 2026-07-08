@@ -402,6 +402,12 @@ async def main() -> int:
                 "import_stable_id": stable,
                 "updated_at": now,
             }
+            from talent_acquisition.job_org_fields import effective_job_org
+
+            inferred = effective_job_org(job_doc)
+            for key in ("business_pillar", "business_department", "business_sub_department"):
+                if not job_doc.get(key) and inferred.get(key):
+                    job_doc[key] = inferred[key]
 
             res = await db.jobs.update_one(
                 {"import_stable_id": stable},

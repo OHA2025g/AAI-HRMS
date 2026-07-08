@@ -20,10 +20,15 @@ PLAYWRIGHT_USER_EMAIL=you@example.com PLAYWRIGHT_USER_PASSWORD=secret123 npm tes
 |----------|---------|
 | `PLAYWRIGHT_BASE_URL` | `http://127.0.0.1:3000` |
 | `PLAYWRIGHT_API_URL` | `http://127.0.0.1:11001` |
-| `PLAYWRIGHT_USER_EMAIL` | `admin@example.com` |
-| `PLAYWRIGHT_USER_PASSWORD` | `secret123` |
+| `PLAYWRIGHT_USER_EMAIL` | `qa_admin@aai-hrms.local` |
+| `PLAYWRIGHT_USER_PASSWORD` | `QA_Seed_ChangeMe!` |
 | `PLAYWRIGHT_SKIP_WEBSERVER` | set to `1` when servers already running |
 
 ## Hiring dashboard scenarios
 
 See `tests/hiring-dashboard.spec.js` for KPI load, period toggle, scope filter, funnel visibility, and alert drill-through.
+
+## Candidate bulk import
+
+See `tests/candidate-import.spec.js` for upload → map → validate → commit via `/candidates/import`.
+Uses `fixtures/candidate-import-sample.csv`. Requires a user with `admin`, `hr_admin`, or `recruiter` role.

@@ -7,13 +7,13 @@ const HRMS_LOCAL_ADMIN_EMAILS = new Set([
 ]);
 
 const TALENT_POOL_BADGE = {
-  label: 'Talent Pool',
+  label: 'Inhouse Database',
   className: 'bg-emerald-100 text-emerald-800',
 };
 
 /** Candidates imported from the Excel workbook (not internal DB bulk seed). */
 const TALENT_POOL_EX_BADGE = {
-  label: 'Talent Pool-Ex',
+  label: 'Inhouse Database',
   className: 'bg-teal-100 text-teal-800',
 };
 
@@ -21,6 +21,35 @@ const LINKEDIN_BADGE = {
   label: 'LinkedIn',
   className: 'bg-blue-100 text-blue-700',
 };
+
+const LINKEDIN_APIFY_BADGE = {
+  label: 'LinkedIn',
+  className: 'bg-blue-100 text-blue-700',
+};
+
+/** Apify / RSC LinkedIn imports — not AI fit seeds or talent pool rows. */
+export function isRealLinkedInCandidate(candidate) {
+  if (!candidate) return false;
+  if (isApifyLinkedInCandidate(candidate)) return true;
+  if (isTalentPoolCandidate(candidate) || isAiGeneratedCandidate(candidate)) return false;
+  const source = String(candidate.source || '').trim().toUpperCase();
+  if (source !== 'LINKEDIN') return false;
+  return Boolean(candidate.linkedin_url || candidate.linkedin_member_urn);
+}
+
+/** Company talent inventory (bulk seed, talent pool, Excel import). */
+export function isInhouseDatabaseCandidate(candidate) {
+  return isTalentPoolCandidate(candidate);
+}
+
+/** Real LinkedIn profiles imported via Apify search + enrich pipeline. */
+export function isApifyLinkedInCandidate(candidate) {
+  if (!candidate) return false;
+  const provider = candidate?.import_metadata?.provider;
+  if (provider === 'apify') return true;
+  const email = String(candidate.email || '').trim().toLowerCase();
+  return email.endsWith('@apify-import.local');
+}
 
 /** Candidates imported from the Excel workbook (subset of talent pool for display ordering). */
 export function isExcelImportedCandidate(candidate) {
@@ -69,10 +98,34 @@ export function isAiGeneratedCandidate(candidate) {
   if (candidate.seed_job_id != null && candidate.seed_slot != null) return true;
   if (source === 'FIT_SEED' || source === 'DEMO') return true;
   if (email.startsWith('fitseed.') && email.endsWith('@aai-hrms.local')) return true;
+  if (isApifyLinkedInCandidate(candidate)) return false;
   if (email.endsWith('@aai-hrms.local') && !HRMS_LOCAL_ADMIN_EMAILS.has(email)) return true;
   if (source === 'LINKEDIN' && (email.includes('fitseed') || email.endsWith('@aai-hrms.local'))) {
     return true;
   }
+  return false;
+}
+
+/** Bulk DB seed, fit-seed, and other synthetic demo profiles. */
+export function isSyntheticDemoCandidate(candidate) {
+  if (!candidate) return false;
+  if (isAiGeneratedCandidate(candidate)) return true;
+
+  const email = String(candidate.email || '').trim().toLowerCase();
+  if (email.endsWith('@bulkseed.example')) return true;
+
+  const name = String(candidate.full_name || '').trim();
+  if (/^bulk seed (candidate|employee) \d+$/i.test(name)) return true;
+
+  const headline = String(candidate.headline || '').trim().toLowerCase();
+  if (headline.includes('bulk seed')) return true;
+
+  const resumeUrl = String(candidate.resume_url || '').trim().toLowerCase();
+  if (resumeUrl.includes('bulkseed.example')) return true;
+
+  const source = String(candidate.source || '').trim().toUpperCase();
+  if (source === 'BULK_SEED') return true;
+
   return false;
 }
 
@@ -109,6 +162,7 @@ export function getCandidateDisplaySource(candidate) {
   }
   if (isTalentPoolOnlyCandidate(candidate)) return { ...TALENT_POOL_BADGE };
   if (isTalentPoolCandidate(candidate)) return { ...TALENT_POOL_BADGE };
+  if (isApifyLinkedInCandidate(candidate)) return { ...LINKEDIN_APIFY_BADGE };
   if (isAiGeneratedCandidate(candidate)) return { ...LINKEDIN_BADGE };
   const source = String(candidate?.source || '').trim().toUpperCase();
   if (source && source !== 'DIRECT_UPLOAD') {

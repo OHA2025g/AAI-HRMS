@@ -36,6 +36,7 @@ import {
   Link2,
   Database,
   FileText,
+  Upload,
   UserCheck,
   CalendarClock,
   AlertTriangle,
@@ -83,6 +84,13 @@ import { getWorkforceIntelNavChildren } from '../workforce-intelligence/navConfi
 import { getCostOptimizationNavChildren } from '../cost-optimization-automation/navConfig';
 import { getEmployeeSatisfactionEngagementNavChildren } from '../employee-satisfaction-engagement/navConfig';
 import PlacementHeaderFilters from './hiring/PlacementHeaderFilters';
+import SmartHiringSidebar from './SmartHiringSidebar';
+import { cn } from '../lib/utils';
+import {
+  SMART_HIRING_ONLY,
+  filterNavGroupsForProductMode,
+} from '../config/appModules';
+import { resolveSmartHiringNavVariant } from '../config/smartHiringNav';
 import {
   Sheet,
   SheetContent,
@@ -122,6 +130,7 @@ function nestedNavKey(groupId, child) {
 function buildNavGroups(user) {
   const role = user?.role;
   const isAdmin = role === 'admin';
+  const canBulkImport = ['admin', 'hr_admin', 'recruiter'].includes(String(role || ''));
   /** Sidebar: show project tooling to all primary app roles (API still enforces write/view). */
   const canSeeResourceProjectNav = ['admin', 'hr_admin', 'recruiter', 'hr_viewer'].includes(String(role || ''));
 
@@ -130,14 +139,16 @@ function buildNavGroups(user) {
    * group -> children[] -> (optional) children[].
    */
   const groups = [
-    {
-      id: 'm9',
-      label: 'Analytics & Executive Dashboard',
-      icon: BarChart2,
-      children: [
-        { path: '/executive-kpis', label: 'Executive KPIs', icon: BarChart3 },
-      ],
-    },
+    ...(SMART_HIRING_ONLY
+      ? []
+      : [
+          {
+            id: 'm9',
+            label: 'Analytics & Executive Dashboard',
+            icon: BarChart2,
+            children: [{ path: '/executive-kpis', label: 'Executive KPIs', icon: BarChart3 }],
+          },
+        ]),
     {
       id: 'm1',
       label: 'Smart Hiring (Talent Acquisition)',
@@ -146,6 +157,7 @@ function buildNavGroups(user) {
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/jobs', label: 'Jobs', icon: Briefcase },
         { path: '/candidates', label: 'Candidates', icon: Users },
+        ...(canBulkImport ? [{ path: '/candidates/import', label: 'Bulk Import', icon: Upload }] : []),
         { path: '/pipeline', label: 'Pipeline', icon: GitBranch },
         { path: '/interviews', label: 'Interviews', icon: Calendar },
         { path: '/referrals', label: 'Referrals', icon: UserPlus },
@@ -173,35 +185,40 @@ function buildNavGroups(user) {
         },
       ],
     },
-    {
-      id: 'm2',
-      label: 'Employee Lifecycle Management',
-      icon: UserCog,
-      children: getEmployeeLifecycleNavChildren(),
-    },
-    {
-      id: 'm3',
-      label: 'Workforce Intelligence',
-      icon: TrendingUp,
-      children: getWorkforceIntelNavChildren(),
-    },
-    {
-      id: 'm4-planning',
-      label: 'Resource & demand planning',
-      icon: BarChart3,
-      children: [
-        { path: '/resource-staffing-hub', label: 'Resource & staffing hub', icon: Columns3 },
-        { path: '/resource-optimization', label: 'Resource Optimization', icon: BarChart3 },
-        ...(canSeeResourceProjectNav
-          ? [
-              { path: '/project-demands', label: 'Project Demands', icon: BarChart3 },
-              { path: '/project-allocations', label: 'Project Allocations', icon: BarChart3 },
-            ]
-          : []),
-      ],
-    },
-    ...(canSeeResourceProjectNav
-      ? [
+    ...(SMART_HIRING_ONLY
+      ? []
+      : [
+          {
+            id: 'm2',
+            label: 'Employee Lifecycle Management',
+            icon: UserCog,
+            children: getEmployeeLifecycleNavChildren(),
+          },
+          {
+            id: 'm3',
+            label: 'Workforce Intelligence',
+            icon: TrendingUp,
+            children: getWorkforceIntelNavChildren(),
+          },
+          {
+            id: 'm4-planning',
+            label: 'Resource & demand planning',
+            icon: BarChart3,
+            children: [
+              { path: '/resource-staffing-hub', label: 'Resource & staffing hub', icon: Columns3 },
+              { path: '/resource-optimization', label: 'Resource Optimization', icon: BarChart3 },
+              ...(canSeeResourceProjectNav
+                ? [
+                    { path: '/project-demands', label: 'Project Demands', icon: BarChart3 },
+                    { path: '/project-allocations', label: 'Project Allocations', icon: BarChart3 },
+                  ]
+                : []),
+            ],
+          },
+        ]),
+    ...(SMART_HIRING_ONLY || !canSeeResourceProjectNav
+      ? []
+      : [
           {
             id: 'm4',
             label: 'Resource vs Project Optimization',
@@ -283,58 +300,70 @@ function buildNavGroups(user) {
               },
             ],
           },
-        ]
-      : []),
-    {
-      id: 'm5',
-      label: 'Training & Skill Development',
-      icon: GraduationCap,
-      children: getTrainingDevelopmentNavChildren(),
-    },
-    {
-      id: 'm6',
-      label: 'Employee Satisfaction & Engagement',
-      icon: Heart,
-      children: getEmployeeSatisfactionEngagementNavChildren(),
-    },
-    {
-      id: 'm7',
-      label: 'Cost Optimization & Automation',
-      icon: Zap,
-      children: [
-        ...getCostOptimizationNavChildren(),
-        ...(isAdmin
-          ? [
-              { path: '/admin/workflow-automation', label: 'Workflow Automation', icon: Cog },
-              { path: '/admin/workflow-automation/designer', label: 'Workflow Designer', icon: Cog },
-            ]
-          : []),
-      ],
-    },
-    {
-      id: 'm8',
-      label: 'High-Skill Talent Retention',
-      icon: Shield,
-      children: getHighSkillRetentionNavChildren(),
-    },
+        ]),
+    ...(SMART_HIRING_ONLY
+      ? []
+      : [
+          {
+            id: 'm5',
+            label: 'Training & Skill Development',
+            icon: GraduationCap,
+            children: getTrainingDevelopmentNavChildren(),
+          },
+          {
+            id: 'm6',
+            label: 'Employee Satisfaction & Engagement',
+            icon: Heart,
+            children: getEmployeeSatisfactionEngagementNavChildren(),
+          },
+          {
+            id: 'm7',
+            label: 'Cost Optimization & Automation',
+            icon: Zap,
+            children: [
+              ...getCostOptimizationNavChildren(),
+              ...(isAdmin
+                ? [
+                    { path: '/admin/workflow-automation', label: 'Workflow Automation', icon: Cog },
+                    { path: '/admin/workflow-automation/designer', label: 'Workflow Designer', icon: Cog },
+                  ]
+                : []),
+            ],
+          },
+          {
+            id: 'm8',
+            label: 'High-Skill Talent Retention',
+            icon: Shield,
+            children: getHighSkillRetentionNavChildren(),
+          },
+        ]),
   ];
 
   if (isAdmin) {
     groups.push({
       id: 'm10',
-      label: 'Architecture & Scalability',
+      label: SMART_HIRING_ONLY ? 'Admin' : 'Architecture & Scalability',
       icon: Layers,
-      children: [
-        { path: '/admin/integrations', label: 'Admin Settings & Connectors', icon: Settings },
-        { path: '/admin/executive-kpi', label: 'Executive KPI config', icon: BarChart3 },
-        { path: '/admin/hiring-dashboard-config', label: 'Hiring dashboard config', icon: BarChart3 },
-        { path: '/admin/career-trajectory-config', label: 'Career trajectory weights', icon: Sparkles },
-        { path: '/admin/roles', label: 'Role Management', icon: UserCog },
-      ],
+      children: SMART_HIRING_ONLY
+        ? [
+            { path: '/admin/hiring-dashboard-config', label: 'Hiring Dashboard Config', icon: BarChart3 },
+            { path: '/admin/career-trajectory-config', label: 'Career Trajectory', icon: Sparkles },
+            { path: '/admin/integrations', label: 'Settings & Connectors', icon: Settings },
+            { path: '/admin/roles', label: 'Role Management', icon: UserCog },
+            { path: '/admin/database', label: 'Database Maintenance', icon: Database },
+          ]
+        : [
+            { path: '/admin/integrations', label: 'Settings & Connectors', icon: Settings },
+            { path: '/admin/executive-kpi', label: 'Executive KPI Config', icon: BarChart3 },
+            { path: '/admin/hiring-dashboard-config', label: 'Hiring Dashboard Config', icon: BarChart3 },
+            { path: '/admin/career-trajectory-config', label: 'Career Trajectory', icon: Sparkles },
+            { path: '/admin/roles', label: 'Role Management', icon: UserCog },
+            { path: '/admin/database', label: 'Database Maintenance', icon: Database },
+          ],
     });
   }
 
-  return groups.filter((g) => g.children.length > 0);
+  return filterNavGroupsForProductMode(groups.filter((g) => g.children.length > 0));
 }
 
 function resolvePageTitle(pathname, groups) {
@@ -350,6 +379,8 @@ function navTestId(label) {
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const smartHiringNavVariant = resolveSmartHiringNavVariant(location.pathname, location.search);
+  const smartHiringBrandGlyph = '✦';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const placement = usePlacementFilters();
@@ -436,6 +467,24 @@ const Layout = ({ children }) => {
   }, []);
 
   const pageTitle = resolvePageTitle(location.pathname, navGroups);
+  const isSmartHiringDashboard =
+    location.pathname === '/dashboard' ||
+    location.pathname === '/jobs' ||
+    location.pathname === '/jobs/new' ||
+    /^\/jobs\/[^/]+\/edit$/.test(location.pathname) ||
+    location.pathname === '/candidates' ||
+    location.pathname === '/candidates/import' ||
+    location.pathname === '/pipeline' ||
+    location.pathname === '/interviews' ||
+    location.pathname === '/referrals' ||
+    location.pathname === '/assessments' ||
+    location.pathname.startsWith('/ai-hiring') ||
+    location.pathname.startsWith('/admin') ||
+    (/^\/jobs\/[^/]+$/.test(location.pathname) &&
+      location.pathname !== '/jobs/new' &&
+      !location.pathname.endsWith('/edit')) ||
+    (/^\/candidates\/[^/]+$/.test(location.pathname) &&
+      location.pathname !== '/candidates/import');
 
   const ALL = '__ALL__';
   const isPipeline = location.pathname === '/pipeline';
@@ -739,66 +788,114 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex">
+    <div
+      className={cn(
+        'min-h-screen flex',
+        SMART_HIRING_ONLY ? 'hd-mock-layout' : 'bg-[#F8FAFC]'
+      )}
+    >
       {/* Desktop Sidebar */}
-      <aside
-        data-app-sidebar
-        className={`hidden lg:flex flex-col bg-slate-900 text-slate-200 transition-all duration-300 ${
-          sidebarCollapsed ? 'w-16' : 'w-72'
-        }`}
-      >
-        <div
-          className={`h-16 flex items-center border-b border-slate-800 ${sidebarCollapsed ? 'justify-center px-2' : 'px-4'}`}
+      {SMART_HIRING_ONLY ? (
+        <SmartHiringSidebar
+          user={user}
+          navVariant={smartHiringNavVariant}
+          brandGlyph={smartHiringBrandGlyph}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 z-40"
+        />
+      ) : (
+        <aside
+          data-app-sidebar
+          className={`hidden lg:flex flex-col bg-slate-900 text-slate-200 transition-all duration-300 ${
+            sidebarCollapsed ? 'w-16' : 'w-72'
+          }`}
         >
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            {!sidebarCollapsed && (
-              <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
-            )}
-          </div>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto">{renderNavBody({ forMobile: false })}</nav>
-
-        <div className="p-2 border-t border-slate-800">
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-            data-testid="sidebar-toggle"
+          <div
+            className={`h-16 flex items-center border-b border-slate-800 ${sidebarCollapsed ? 'justify-center px-2' : 'px-4'}`}
           >
-            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-            {!sidebarCollapsed && <span className="text-sm">Collapse</span>}
-          </button>
-        </div>
-      </aside>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              {!sidebarCollapsed && (
+                <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
+              )}
+            </div>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto">{renderNavBody({ forMobile: false })}</nav>
+
+          <div className="p-2 border-t border-slate-800">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              data-testid="sidebar-toggle"
+            >
+              {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+              {!sidebarCollapsed && <span className="text-sm">Collapse</span>}
+            </button>
+          </div>
+        </aside>
+      )}
 
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      <aside
-        className={`lg:hidden fixed inset-y-0 left-0 w-72 bg-slate-900 text-slate-200 z-50 transform transition-transform duration-300 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
+      {SMART_HIRING_ONLY ? (
+        <aside
+          className={`lg:hidden fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="relative h-full">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute top-4 right-3 z-10 text-white/80 hover:text-white"
+              aria-label="Close menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <SmartHiringSidebar
+              user={user}
+              navVariant={smartHiringNavVariant}
+              brandGlyph={smartHiringBrandGlyph}
+              showCollapse={false}
+              onNavigate={() => setMobileMenuOpen(false)}
+              className="h-full"
+            />
           </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-white flex-shrink-0">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <nav className="overflow-y-auto max-h-[calc(100vh-4rem)]">{renderNavBody({ forMobile: true })}</nav>
-      </aside>
+        </aside>
+      ) : (
+        <aside
+          className={`lg:hidden fixed inset-y-0 left-0 w-72 bg-slate-900 text-slate-200 z-50 transform transition-transform duration-300 ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
+            </div>
+            <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-white flex-shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <nav className="overflow-y-auto max-h-[calc(100vh-4rem)]">{renderNavBody({ forMobile: true })}</nav>
+        </aside>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
+        <header
+          className={cn(
+            'h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30',
+            isSmartHiringDashboard && 'lg:hidden'
+          )}
+        >
           <div className="flex items-center gap-4 min-w-0 flex-1">
             <button
               className="lg:hidden text-slate-600 hover:text-slate-900 flex-shrink-0"
@@ -807,14 +904,19 @@ const Layout = ({ children }) => {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-lg font-semibold text-slate-900 font-['Outfit'] hidden sm:block truncate">
-              {pageTitle}
-            </h1>
+            {!isSmartHiringDashboard ? (
+              <h1 className="text-lg font-semibold text-slate-900 font-['Outfit'] hidden sm:block truncate">
+                {pageTitle}
+              </h1>
+            ) : null}
 
             {/* Placement filters — desktop inline; mobile sheet below lg */}
-            <div className="hidden lg:flex items-center gap-2 min-w-0 ml-2">
-              <PlacementHeaderFilters {...placementFilterProps} layout="inline" />
-            </div>
+            {!isSmartHiringDashboard ? (
+              <div className="hidden lg:flex items-center gap-2 min-w-0 ml-2">
+                <PlacementHeaderFilters {...placementFilterProps} layout="inline" />
+              </div>
+            ) : null}
+            {!isSmartHiringDashboard ? (
             <div className="lg:hidden ml-1 shrink-0">
               <Sheet open={placementFiltersOpen} onOpenChange={setPlacementFiltersOpen}>
                 <SheetTrigger asChild>
@@ -842,9 +944,11 @@ const Layout = ({ children }) => {
                 </SheetContent>
               </Sheet>
             </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
+            {!SMART_HIRING_ONLY ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="hidden md:inline-flex gap-2" data-testid="ai-assistants-menu">
@@ -868,6 +972,7 @@ const Layout = ({ children }) => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            ) : null}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -941,7 +1046,17 @@ const Layout = ({ children }) => {
           </div>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">{children}</main>
+        <main
+          className={cn(
+            'flex-1 overflow-auto',
+            isSmartHiringDashboard && SMART_HIRING_ONLY && 'hd-mock-main',
+            isSmartHiringDashboard && SMART_HIRING_ONLY && sidebarCollapsed && 'hd-mock-main--collapsed',
+            isSmartHiringDashboard && !SMART_HIRING_ONLY && 'p-7',
+            !isSmartHiringDashboard && 'p-3 lg:p-4'
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

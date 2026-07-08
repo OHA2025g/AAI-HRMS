@@ -255,7 +255,10 @@ async def fetch_connector_candidates(
 ) -> List[Dict[str, Any]]:
     """
     Prefer external Mongo when configured; otherwise paged HTTP with OAuth.
+    LinkedIn uses the native Talent API connector when credentials are configured.
     """
+    # LinkedIn native ingest is handled in connector_ingest_source (fetch + upsert in one step).
+
     if prefer_mongo_first and cfg.get("mongo_url") and cfg.get("db_name"):
         try:
             mongo_res = await fetch_mongo_candidates(cfg, source, limit)

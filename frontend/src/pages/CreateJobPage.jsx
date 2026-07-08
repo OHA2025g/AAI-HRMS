@@ -1,44 +1,77 @@
-import React, { Fragment, useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { jobsApi } from '../lib/api';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
-import { Badge } from '../components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
-import { 
-  ArrowLeft, 
+  ArrowLeft,
   ArrowRight,
-  Sparkles,
-  X,
-  Plus,
+  Check,
+  FileText,
   Loader2,
-  CheckCircle,
-  Briefcase,
-  MapPin,
-  Clock
+  Save,
+  Sparkles,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { jobsApi } from '../lib/api';
 import {
   BUSINESS_ORG_PILLARS,
   getDepartmentsForPillar,
   getSubDepartmentsForDepartment,
 } from '../data/businessOrgHierarchy';
+import HiringTeamFields from '../components/hiring/HiringTeamFields';
+import CreateJobCommandTopbar from '../components/create-job/CreateJobCommandTopbar';
+import CreateJobCommandSidebar from '../components/create-job/CreateJobCommandSidebar';
+import { useAuth } from '../context/AuthContext';
+import { useHiringPermissions } from '../hooks/useHiringPermissions';
 
-const JOB_CREATE_STEPS = [
-  { num: 1, title: 'Basic Information' },
-  { num: 2, title: 'Job/Role Details' },
-  { num: 3, title: 'Skills' },
-  { num: 4, title: 'Review' },
+const DRAFT_STORAGE_KEY = 'aai_hrms.create_job_draft.v1';
+
+const STEPS = [
+  { num: 1, label: 'Basic Information' },
+  { num: 2, label: 'Job / Role Details' },
+  { num: 3, label: 'Skills & Scoring' },
+  { num: 4, label: 'Review & Publish' },
+];
+
+const STEP_META = {
+  1: {
+    title: 'Step 1 — Basic Information',
+    subtitle:
+      'Classify the role by business pillar, department, sub-department, and optional project link before entering the JD.',
+    next: 'Next: Job/Role Details',
+  },
+  2: {
+    title: 'Step 2 — Job / Role Details',
+    subtitle:
+      'Capture the role summary, location, experience range, and JD details that AI will convert into matching signals.',
+    next: 'Next: Skills & Scoring',
+  },
+  3: {
+    title: 'Step 3 — Skills & Scoring',
+    subtitle:
+      'Define required skills, good-to-have signals, and default matching emphasis for candidate ranking.',
+    next: 'Next: Review',
+  },
+  4: {
+    title: 'Step 4 — Review & Publish',
+    subtitle:
+      'Validate the requisition preview, check readiness, and publish the job for sourcing and AI matching.',
+    next: 'Publish Job',
+  },
+};
+
+const SENIORITY_OPTIONS = ['Intern', 'Junior', 'Associate', 'Mid-Level', 'Senior', 'Lead', 'Manager'];
+const WORK_MODES = [
+  { value: 'remote', label: 'Remote' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'onsite', label: 'On-site' },
+];
+
+const SUGGESTED_SKILL_TAGS = [
+  { label: '+ SQL', tone: 'purple' },
+  { label: '+ Analytics', tone: 'purple' },
+  { label: '+ Stakeholder Communication', tone: 'teal' },
+  { label: '+ Domain Exposure', tone: 'amber' },
+  { label: '+ Leadership Potential', tone: '' },
 ];
 
 function resolvePillarIdFromLabel(label) {
@@ -51,28 +84,154 @@ function resolveDepartmentIdFromLabels(pillarId, deptLabel) {
   return getDepartmentsForPillar(pillarId).find((d) => d.label === deptLabel)?.id || '';
 }
 
-const CreateJobPage = () => {
+function parseSkillList(text) {
+  return [...new Set(text.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean))];
+}
+
+function formatSavedAgo(date) {
+  if (!date) return 'Not saved yet';
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 10) return 'Autosaved just now';
+  if (sec < 60) return `Autosaved ${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `Autosaved ${min}m ago`;
+  return `Autosaved at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+export default function CreateJobPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const perms = useHiringPermissions(user);
   const { jobId: editJobId } = useParams();
   const isEdit = Boolean(editJobId);
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [fetchJobLoading, setFetchJobLoading] = useState(!!editJobId);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
 
-  // Form state
   const [pillarId, setPillarId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [subDepartment, setSubDepartment] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [hiringOwner, setHiringOwner] = useState(user?.full_name || '');
+  const [hiringIntent, setHiringIntent] = useState('new');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
+  const [experienceRange, setExperienceRange] = useState('');
   const [workMode, setWorkMode] = useState('hybrid');
   const [seniority, setSeniority] = useState('');
-  const [skillInput, setSkillInput] = useState('');
+  const [mustHaveText, setMustHaveText] = useState('');
+  const [goodHaveText, setGoodHaveText] = useState('');
   const [skillsNeeded, setSkillsNeeded] = useState([]);
   const [mustHaveSkills, setMustHaveSkills] = useState([]);
+  const [scoringEmphasis, setScoringEmphasis] = useState('balanced');
+  const [hiringTeam, setHiringTeam] = useState({
+    hiring_manager_id: null,
+    technical_manager_id: null,
+    project_manager_id: null,
+    recruiter_id: null,
+  });
+
+  const importInputRef = useRef(null);
+  const dropzoneInputRef = useRef(null);
+  const draftHydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (user?.full_name && !hiringOwner) setHiringOwner(user.full_name);
+  }, [user?.full_name, hiringOwner]);
+
+  const syncSkillsFromText = useCallback((mustText, goodText) => {
+    const must = parseSkillList(mustText);
+    const good = parseSkillList(goodText).filter((s) => !must.includes(s));
+    const all = [...new Set([...must, ...good])];
+    setMustHaveSkills(must);
+    setSkillsNeeded(all);
+  }, []);
+
+  useEffect(() => {
+    if (isEdit || draftHydratedRef.current) return;
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(DRAFT_STORAGE_KEY) : null;
+    if (!raw) {
+      draftHydratedRef.current = true;
+      return;
+    }
+    try {
+      const d = JSON.parse(raw);
+      if (d.pillarId) setPillarId(d.pillarId);
+      if (d.departmentId) setDepartmentId(d.departmentId);
+      if (d.subDepartment) setSubDepartment(d.subDepartment);
+      if (d.projectId) setProjectId(d.projectId);
+      if (d.hiringOwner) setHiringOwner(d.hiringOwner);
+      if (d.hiringIntent) setHiringIntent(d.hiringIntent);
+      if (d.title) setTitle(d.title);
+      if (d.description) setDescription(d.description);
+      if (d.location) setLocation(d.location);
+      if (d.experienceRange) setExperienceRange(d.experienceRange);
+      if (d.workMode) setWorkMode(d.workMode);
+      if (d.seniority) setSeniority(d.seniority);
+      if (d.mustHaveText) setMustHaveText(d.mustHaveText);
+      if (d.goodHaveText) setGoodHaveText(d.goodHaveText);
+      if (d.scoringEmphasis) setScoringEmphasis(d.scoringEmphasis);
+      if (typeof d.step === 'number') setStep(d.step);
+      if (d.savedAt) setLastSavedAt(new Date(d.savedAt));
+    } catch {
+      /* ignore corrupt draft */
+    }
+    draftHydratedRef.current = true;
+  }, [isEdit]);
+
+  useEffect(() => {
+    if (isEdit) return undefined;
+    const t = setTimeout(() => {
+      const payload = {
+        pillarId,
+        departmentId,
+        subDepartment,
+        projectId,
+        hiringOwner,
+        hiringIntent,
+        title,
+        description,
+        location,
+        experienceRange,
+        workMode,
+        seniority,
+        mustHaveText,
+        goodHaveText,
+        scoringEmphasis,
+        step,
+        savedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+      setLastSavedAt(new Date());
+    }, 800);
+    return () => clearTimeout(t);
+  }, [
+    isEdit,
+    pillarId,
+    departmentId,
+    subDepartment,
+    projectId,
+    hiringOwner,
+    hiringIntent,
+    title,
+    description,
+    location,
+    experienceRange,
+    workMode,
+    seniority,
+    mustHaveText,
+    goodHaveText,
+    scoringEmphasis,
+    step,
+  ]);
+
+  useEffect(() => {
+    syncSkillsFromText(mustHaveText, goodHaveText);
+  }, [mustHaveText, goodHaveText, syncSkillsFromText]);
 
   useEffect(() => {
     if (!editJobId) {
@@ -105,6 +264,15 @@ const CreateJobPage = () => {
         ];
         setSkillsNeeded(names);
         setMustHaveSkills(must);
+        setMustHaveText(must.join(', '));
+        setGoodHaveText(names.filter((n) => !must.includes(n)).join(', '));
+        const ht = job.hiring_team || {};
+        setHiringTeam({
+          hiring_manager_id: ht.hiring_manager_id || null,
+          technical_manager_id: ht.technical_manager_id || null,
+          project_manager_id: ht.project_manager_id || null,
+          recruiter_id: ht.recruiter_id || null,
+        });
       } catch (e) {
         toast.error(e.response?.data?.detail || 'Failed to load job');
         navigate('/jobs');
@@ -117,42 +285,93 @@ const CreateJobPage = () => {
     };
   }, [editJobId, navigate]);
 
-  const addSkill = (isMustHave = false) => {
-    if (!skillInput.trim()) return;
-    const skill = skillInput.trim();
-    
-    if (isMustHave && !mustHaveSkills.includes(skill)) {
-      setMustHaveSkills([...mustHaveSkills, skill]);
-      if (!skillsNeeded.includes(skill)) {
-        setSkillsNeeded([...skillsNeeded, skill]);
+  const departmentOptions = pillarId ? getDepartmentsForPillar(pillarId) : [];
+  const subDepartmentOptions =
+    pillarId && departmentId ? getSubDepartmentsForDepartment(pillarId, departmentId) : [];
+
+  const pillarLabel = BUSINESS_ORG_PILLARS.find((p) => p.id === pillarId)?.label || '';
+  const deptLabel = departmentOptions.find((d) => d.id === departmentId)?.label || '';
+
+  const preview = useMemo(
+    () => ({
+      pillar: pillarLabel || 'Not selected',
+      department: deptLabel ? `${deptLabel}${subDepartment ? ` / ${subDepartment}` : ''}` : 'Not selected',
+      project: projectId.trim() || 'Optional',
+      title: title.trim() || 'Untitled requisition',
+    }),
+    [pillarLabel, deptLabel, subDepartment, projectId, title]
+  );
+
+  const readinessPct = step * 25;
+  const meta = STEP_META[step];
+
+  const isStep1Valid = Boolean(pillarId && departmentId && subDepartment);
+  const isStep2Valid = Boolean(title.trim() && description.trim());
+  const isStep3Valid = skillsNeeded.length > 0 && mustHaveSkills.length > 0;
+
+  const canGoNext =
+    (step === 1 && isStep1Valid) ||
+    (step === 2 && isStep2Valid) ||
+    (step === 3 && isStep3Valid) ||
+    step === 4;
+
+  const handleSaveDraft = () => {
+    if (isEdit) {
+      toast.info('Use Save changes on the review step to update this requisition.');
+      return;
+    }
+    const payload = {
+      pillarId,
+      departmentId,
+      subDepartment,
+      projectId,
+      hiringOwner,
+      hiringIntent,
+      title,
+      description,
+      location,
+      experienceRange,
+      workMode,
+      seniority,
+      mustHaveText,
+      goodHaveText,
+      scoringEmphasis,
+      step,
+      savedAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    setLastSavedAt(new Date());
+    toast.success('Draft saved locally.');
+  };
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.txt') || file.type.startsWith('text/')) {
+      try {
+        const text = await file.text();
+        if (text.trim()) {
+          setDescription((prev) => (prev.trim() ? `${prev.trim()}\n\n${text.trim()}` : text.trim()));
+          if (step < 2) setStep(2);
+          toast.success('JD text imported into role summary.');
+        }
+      } catch {
+        toast.error('Could not read the file.');
       }
-    } else if (!skillsNeeded.includes(skill)) {
-      setSkillsNeeded([...skillsNeeded, skill]);
+      return;
     }
-    setSkillInput('');
+    toast.info('Import supports plain text (.txt) files. PDF/DOCX parsing can be added later.');
   };
 
-  const removeSkill = (skill, isMustHave = false) => {
-    if (isMustHave) {
-      setMustHaveSkills(mustHaveSkills.filter(s => s !== skill));
-    } else {
-      setSkillsNeeded(skillsNeeded.filter(s => s !== skill));
-      setMustHaveSkills(mustHaveSkills.filter(s => s !== skill));
-    }
-  };
-
-  const toggleMustHave = (skill) => {
-    if (mustHaveSkills.includes(skill)) {
-      setMustHaveSkills(mustHaveSkills.filter(s => s !== skill));
-    } else {
-      setMustHaveSkills([...mustHaveSkills, skill]);
+  const addSuggestedSkill = (label) => {
+    const skill = label.replace(/^\+\s*/, '').trim();
+    if (!skill) return;
+    if (!mustHaveText.toLowerCase().includes(skill.toLowerCase())) {
+      setMustHaveText((prev) => (prev.trim() ? `${prev}, ${skill}` : skill));
     }
   };
 
   const handleSubmit = async () => {
-    const pillarLabel = BUSINESS_ORG_PILLARS.find((p) => p.id === pillarId)?.label;
-    const deptLabel = getDepartmentsForPillar(pillarId).find((d) => d.id === departmentId)?.label;
-
     const skillsPayload = skillsNeeded.map((name) => ({
       skill_name: name,
       skill_type: mustHaveSkills.includes(name) ? 'MUST_HAVE' : 'GOOD_TO_HAVE',
@@ -173,6 +392,7 @@ const CreateJobPage = () => {
           business_sub_department: subDepartment || null,
           project_id: projectId.trim() || null,
           skills: skillsPayload,
+          ...(perms.canEditJobTeam ? { hiring_team: hiringTeam } : {}),
         });
         toast.success('Job requisition updated.');
         navigate(`/jobs/${editJobId}`);
@@ -199,9 +419,10 @@ const CreateJobPage = () => {
         business_department: deptLabel || null,
         business_sub_department: subDepartment || null,
         project_id: projectId.trim() || null,
+        ...(perms.canEditJobTeam ? { hiring_team: hiringTeam } : {}),
       };
-
       const res = await jobsApi.create(jobData);
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY);
       toast.success('Job created successfully! AI has analyzed your JD.');
       const createdId = res?.data?.id;
       navigate(createdId ? `/jobs/${createdId}` : '/jobs');
@@ -213,522 +434,567 @@ const CreateJobPage = () => {
     }
   };
 
-  const isStep1Valid = Boolean(pillarId && departmentId && subDepartment);
+  const goNext = () => {
+    if (step < 4) {
+      if ((step === 1 && !isStep1Valid) || (step === 2 && !isStep2Valid) || (step === 3 && !isStep3Valid)) {
+        toast.error('Please complete required fields before continuing.');
+        return;
+      }
+      setStep(step + 1);
+      return;
+    }
+    handleSubmit();
+  };
 
-  const isStep2Valid = Boolean(title.trim() && description.trim());
-
-  const departmentOptions = pillarId ? getDepartmentsForPillar(pillarId) : [];
-  const subDepartmentOptions =
-    pillarId && departmentId ? getSubDepartmentsForDepartment(pillarId, departmentId) : [];
-  const isStep3Valid = skillsNeeded.length > 0 && mustHaveSkills.length > 0;
+  const goPrev = () => {
+    if (step > 1) setStep(step - 1);
+  };
 
   if (isEdit && fetchJobLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-        <p className="text-sm text-slate-600">Loading job…</p>
+      <div className="hiring-dashboard-root top-operational" data-testid="create-job-command-root">
+        <div className="cj-loading">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <p>Loading job…</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-5xl mx-auto min-w-0"
-    >
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn" aria-label="Back to jobs">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-            {isEdit ? 'Edit job requisition' : 'Create New Job'}
-          </h1>
-          <p className="text-slate-600">
-            {isEdit ? 'Update details and save changes.' : 'AI will analyze your JD automatically'}
-          </p>
-        </div>
-      </div>
+    <div className="hiring-dashboard-root top-operational" data-testid="create-job-command-root">
+      <CreateJobCommandTopbar />
 
-      {/* Progress Steps — one row, no horizontal scroll */}
-      <div className="w-full min-w-0 mb-8">
-        <div className="flex w-full min-w-0 items-center py-1">
-          {JOB_CREATE_STEPS.map(({ num, title: stepTitle }, idx) => (
-            <Fragment key={num}>
-              <div className="flex flex-1 min-w-0 flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 text-center sm:text-left px-0.5">
-                <div
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors shrink-0 ${
-                    step >= num ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {step > num ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : num}
+      <section className="cj-workspace">
+        <div className="cj-hero">
+          <div className="cj-hero-inner">
+            <div className="cj-hero-left">
+              <button
+                type="button"
+                className="cj-back-btn"
+                onClick={() => navigate('/jobs')}
+                data-testid="back-btn"
+                aria-label="Back"
+              >
+                <ArrowLeft size={18} strokeWidth={2.3} />
+              </button>
+              <div className="cj-hero-icon" aria-hidden>
+                <FileText size={36} strokeWidth={1.8} />
+              </div>
+              <div>
+                <div className="cj-title-row">
+                  <h1>{isEdit ? 'Edit Job Requisition' : 'Create New Job'}</h1>
+                  <span className="cj-chip green">AI JD Analyzer enabled</span>
+                  <span className="cj-chip purple">{isEdit ? 'Edit mode' : 'Draft mode'}</span>
                 </div>
-                <span
-                  className={`min-w-0 w-full sm:w-auto text-[10px] sm:text-[11px] md:text-xs leading-tight md:whitespace-nowrap line-clamp-2 sm:line-clamp-none ${
-                    step >= num ? 'text-slate-900' : 'text-slate-400'
-                  }`}
-                >
-                  <span className="sr-only">Step {num}: </span>
-                  <span className="hidden md:inline">Step {num}: </span>
-                  {stepTitle}
+                <p className="cj-hero-sub">
+                  {isEdit
+                    ? 'Update classification, role details, and skills. Save when you are ready.'
+                    : 'Build a structured requisition, classify it by organization, and let AI prepare role matching signals automatically.'}
+                </p>
+                <div className="cj-hero-meta">
+                  <span className="cj-chip gray">Owner: {hiringOwner || user?.full_name || '—'}</span>
+                  <span className="cj-chip blue">Smart Hiring</span>
+                  <span className="cj-chip amber">4-step guided flow</span>
+                </div>
+              </div>
+            </div>
+            <div className="cj-hero-actions">
+              <button type="button" className="cj-btn ghost" onClick={handleSaveDraft}>
+                <Save size={17} strokeWidth={2} />
+                Save draft
+              </button>
+              <button
+                type="button"
+                className="cj-btn soft"
+                onClick={() => importInputRef.current?.click()}
+              >
+                <Upload size={17} strokeWidth={2} />
+                Import JD
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".txt,text/plain"
+                className="hidden"
+                onChange={(e) => {
+                  handleImportFile(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="cj-step-shell">
+          <div className="cj-stepper" role="tablist" aria-label="Create job steps">
+            {STEPS.map(({ num, label }) => (
+              <button
+                key={num}
+                type="button"
+                className={`cj-step ${step === num ? 'active' : ''} ${step > num ? 'done' : ''}`}
+                onClick={() => {
+                  if (num <= step) setStep(num);
+                }}
+                data-step={num}
+              >
+                <span className="cj-step-index">{step > num ? '✓' : num}</span>
+                <span>
+                  <small>Step {num}</small>
+                  <strong>{label}</strong>
                 </span>
-              </div>
-              {idx < JOB_CREATE_STEPS.length - 1 && (
-                <div
-                  className="w-1.5 sm:w-2 md:w-3 shrink-0 h-0.5 bg-slate-200 self-center"
-                  aria-hidden
-                />
-              )}
-            </Fragment>
-          ))}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Step 1: Basic Information */}
-      {step === 1 && (
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle style={{ fontFamily: 'Outfit' }}>Step 1 — Basic Information</CardTitle>
-            <CardDescription>
-              Classify the role by business pillar, department, and sub-department. Optional project link.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+        <div className="cj-builder-grid">
+          <section className="cj-form-card">
+            <div className="cj-card-head">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-                  Organizational placement
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Only departments for the selected pillar, and only sub-departments for the selected department, are shown.
-                </p>
+                <h2>{meta.title}</h2>
+                <p>{meta.subtitle}</p>
               </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label>Business pillar</Label>
-                  <Select
-                    value={pillarId || undefined}
-                    onValueChange={(v) => {
-                      setPillarId(v);
-                      setDepartmentId('');
-                      setSubDepartment('');
-                    }}
-                  >
-                    <SelectTrigger data-testid="job-pillar-select">
-                      <SelectValue placeholder="Select business pillar" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[min(60vh,420px)]">
-                      {BUSINESS_ORG_PILLARS.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="cj-completion">
+                <div className="cj-completion-top">
+                  <span>Completion</span>
+                  <span>{readinessPct}%</span>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Department *</Label>
-                  <Select
-                    value={departmentId || undefined}
-                    onValueChange={(v) => {
-                      setDepartmentId(v);
-                      setSubDepartment('');
-                    }}
-                    disabled={!pillarId}
-                  >
-                    <SelectTrigger data-testid="job-department-select">
-                      <SelectValue placeholder={pillarId ? 'Select department' : 'Select a pillar first'} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[min(60vh,420px)]">
-                      {departmentOptions.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Sub-department *</Label>
-                  <Select
-                    value={subDepartment || undefined}
-                    onValueChange={setSubDepartment}
-                    disabled={!departmentId}
-                  >
-                    <SelectTrigger data-testid="job-subdepartment-select">
-                      <SelectValue
-                        placeholder={departmentId ? 'Select sub-department' : 'Select a department first'}
-                      />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[min(60vh,420px)]">
-                      {subDepartmentOptions.map((sub) => (
-                        <SelectItem key={sub} value={sub}>
-                          {sub}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="project-id">Project ID</Label>
-                  <Input
-                    id="project-id"
-                    placeholder="e.g., PRJ-2026-0042"
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    data-testid="job-project-id-input"
-                  />
-                  <p className="text-xs text-slate-500">Optional. Link this requisition to an internal project or cost code.</p>
+                <div className="cj-progress">
+                  <i style={{ width: `${readinessPct}%` }} />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button
-                onClick={() => setStep(2)}
-                disabled={!isStep1Valid}
-                className="bg-indigo-600 hover:bg-indigo-700"
-                data-testid="next-step-btn"
-              >
-                Next: Job/Role Details
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 2: Job/Role Details */}
-      {step === 2 && (
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle style={{ fontFamily: 'Outfit' }}>Step 2 — Job/Role Details</CardTitle>
-            <CardDescription>
-              Title, location, work arrangement, seniority, and the full job description.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">Job Title *</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Senior Data Analyst"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                data-testid="job-title-input"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="location"
-                    placeholder="e.g., New York, NY"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="pl-10"
-                    data-testid="job-location-input"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Work Mode</Label>
-                <Select value={workMode} onValueChange={setWorkMode}>
-                  <SelectTrigger data-testid="work-mode-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="remote">Remote</SelectItem>
-                    <SelectItem value="hybrid">Hybrid</SelectItem>
-                    <SelectItem value="onsite">On-site</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Seniority Level</Label>
-              <Select value={seniority} onValueChange={setSeniority}>
-                <SelectTrigger data-testid="seniority-select">
-                  <Clock className="w-4 h-4 mr-2 text-slate-400" />
-                  <SelectValue placeholder="Select level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Intern">Intern</SelectItem>
-                  <SelectItem value="Junior">Junior</SelectItem>
-                  <SelectItem value="Mid">Mid-Level</SelectItem>
-                  <SelectItem value="Senior">Senior</SelectItem>
-                  <SelectItem value="Lead">Lead</SelectItem>
-                  <SelectItem value="Manager">Manager</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Job Description *</Label>
-              <Textarea
-                id="description"
-                placeholder="Enter the full job description. Include responsibilities, requirements, and any other relevant details. Our AI will analyze this to extract skills and activities."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={8}
-                data-testid="job-description-input"
-              />
-              <p className="text-xs text-slate-500">
-                <Sparkles className="w-3 h-3 inline mr-1" />
-                AI will automatically extract skills and responsibilities from your description
-              </p>
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(1)} data-testid="prev-step-btn">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                onClick={() => setStep(3)}
-                disabled={!isStep2Valid}
-                className="bg-indigo-600 hover:bg-indigo-700"
-                data-testid="next-to-skills-btn"
-              >
-                Next: Skills
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 3: Skills */}
-      {step === 3 && (
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle style={{ fontFamily: 'Outfit' }}>Step 3 — Skills</CardTitle>
-            <CardDescription>Add skills and mark must-have requirements</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Add Skills</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="e.g., Python, SQL, Power BI"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addSkill()}
-                  data-testid="skill-input"
-                />
-                <Button variant="outline" onClick={() => addSkill()} data-testid="add-skill-btn">
-                  <Plus className="w-4 h-4" />
-                </Button>
-                <Button 
-                  onClick={() => addSkill(true)}
-                  className="bg-red-100 text-red-700 hover:bg-red-200"
-                  data-testid="add-must-have-btn"
-                >
-                  Must-Have
-                </Button>
-              </div>
-            </div>
-
-            {skillsNeeded.length > 0 && (
-              <div className="space-y-3">
-                <Label>Skills List (click to toggle must-have)</Label>
-                <div className="flex flex-wrap gap-2">
-                  {skillsNeeded.map((skill) => (
-                    <Badge
-                      key={skill}
-                      variant="outline"
-                      className={`cursor-pointer transition-colors py-1.5 px-3 ${
-                        mustHaveSkills.includes(skill) 
-                          ? 'badge-must-have' 
-                          : 'badge-good-to-have'
-                      }`}
-                      onClick={() => toggleMustHave(skill)}
-                    >
-                      {skill}
-                      {mustHaveSkills.includes(skill) && (
-                        <span className="ml-1 text-xs">(Required)</span>
-                      )}
-                      <button
-                        className="ml-2 hover:text-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeSkill(skill);
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-sm text-amber-800">
-                <strong>Must-Have Skills:</strong> Candidates will be filtered if they don't have these skills. 
-                Mark at least one skill as must-have.
-              </p>
-            </div>
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(2)} data-testid="prev-step-btn">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                onClick={() => setStep(4)}
-                disabled={!isStep3Valid}
-                className="bg-indigo-600 hover:bg-indigo-700"
-                data-testid="next-review-btn"
-              >
-                Next: Review
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 4: Review */}
-      {step === 4 && (
-        <Card className="bg-white">
-          <CardHeader>
-            <CardTitle style={{ fontFamily: 'Outfit' }}>Step 4 — Review</CardTitle>
-            <CardDescription>
-              {isEdit ? 'Confirm changes, then save the requisition.' : 'Confirm everything looks correct, then create the job'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                  <Briefcase className="w-6 h-6 text-indigo-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>
-                    {title}
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-600">
-                    {location && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        {location}
-                      </span>
-                    )}
-                    <Badge variant="secondary">{workMode}</Badge>
-                    {seniority && <Badge variant="secondary">{seniority}</Badge>}
-                  </div>
-                  {(pillarId || departmentId || subDepartment) && (
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      {BUSINESS_ORG_PILLARS.find((p) => p.id === pillarId)?.label && (
-                        <Badge variant="outline" className="text-xs max-w-full whitespace-normal text-left">
-                          {BUSINESS_ORG_PILLARS.find((p) => p.id === pillarId)?.label}
-                        </Badge>
-                      )}
-                      {getDepartmentsForPillar(pillarId).find((d) => d.id === departmentId)?.label && (
-                        <Badge variant="outline" className="text-xs max-w-full whitespace-normal text-left">
-                          {getDepartmentsForPillar(pillarId).find((d) => d.id === departmentId)?.label}
-                        </Badge>
-                      )}
-                      {subDepartment && (
-                        <Badge variant="outline" className="text-xs max-w-full whitespace-normal text-left">
-                          {subDepartment}
-                        </Badge>
-                      )}
-                      {projectId.trim() && (
-                        <Badge variant="outline" className="text-xs">
-                          Project ID: {projectId.trim()}
-                        </Badge>
-                      )}
+            <div className="cj-form-body">
+              <div className={`cj-step-panel ${step === 1 ? 'active' : ''}`} data-panel="1">
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Organizational Placement</h3>
+                      <p>
+                        Only departments mapped to the selected pillar are shown. This keeps the hiring
+                        dashboard filters clean.
+                      </p>
                     </div>
-                  )}
+                    <span className="cj-chip purple">Required</span>
+                  </div>
+                  <div className="cj-form-grid">
+                    <div className="cj-field full">
+                      <label htmlFor="cj-pillar">
+                        Business Pillar <span className="cj-req">*</span>
+                      </label>
+                      <select
+                        id="cj-pillar"
+                        value={pillarId}
+                        onChange={(e) => {
+                          setPillarId(e.target.value);
+                          setDepartmentId('');
+                          setSubDepartment('');
+                        }}
+                        data-testid="job-pillar-select"
+                      >
+                        <option value="">Select business pillar</option>
+                        {BUSINESS_ORG_PILLARS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-department">
+                        Department <span className="cj-req">*</span>
+                      </label>
+                      <select
+                        id="cj-department"
+                        value={departmentId}
+                        onChange={(e) => {
+                          setDepartmentId(e.target.value);
+                          setSubDepartment('');
+                        }}
+                        disabled={!pillarId}
+                        data-testid="job-department-select"
+                      >
+                        <option value="">{pillarId ? 'Select department' : 'Select a pillar first'}</option>
+                        {departmentOptions.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-subdepartment">
+                        Sub-department <span className="cj-req">*</span>
+                      </label>
+                      <select
+                        id="cj-subdepartment"
+                        value={subDepartment}
+                        onChange={(e) => setSubDepartment(e.target.value)}
+                        disabled={!departmentId}
+                        data-testid="job-subdepartment-select"
+                      >
+                        <option value="">
+                          {departmentId ? 'Select sub-department' : 'Select a department first'}
+                        </option>
+                        {subDepartmentOptions.map((sub) => (
+                          <option key={sub} value={sub}>
+                            {sub}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-project-id">Project ID</label>
+                      <input
+                        id="cj-project-id"
+                        placeholder="e.g., PRJ-2026-0042"
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
+                        data-testid="job-project-id-input"
+                      />
+                      <div className="cj-field-note">
+                        Optional. Link this requisition to a project or cost code.
+                      </div>
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-hiring-owner">Hiring Owner</label>
+                      <input
+                        id="cj-hiring-owner"
+                        value={hiringOwner}
+                        onChange={(e) => setHiringOwner(e.target.value)}
+                      />
+                      <div className="cj-field-note">Used for SLA reminders and approval routing.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Hiring Intent</h3>
+                      <p>Capture why this requisition exists so AI can tune matching and urgency signals.</p>
+                    </div>
+                  </div>
+                  <div className="cj-inline-options" role="radiogroup" aria-label="Hiring intent">
+                    {[
+                      { value: 'new', title: 'New Role', desc: 'Fresh position or expansion headcount.' },
+                      { value: 'replacement', title: 'Replacement', desc: 'Backfill for an existing team member.' },
+                      { value: 'project', title: 'Project-based', desc: 'Role required for a specific delivery milestone.' },
+                    ].map((opt) => (
+                      <label key={opt.value} className="cj-option-card">
+                        <input
+                          type="radio"
+                          name="hiring-intent"
+                          checked={hiringIntent === opt.value}
+                          onChange={() => setHiringIntent(opt.value)}
+                        />
+                        <strong>{opt.title}</strong>
+                        <span>{opt.desc}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <h4 className="text-sm font-medium text-slate-700 mb-2">Description</h4>
-                <p className="text-sm text-slate-600 whitespace-pre-line line-clamp-4">
-                  {description}
-                </p>
+              <div className={`cj-step-panel ${step === 2 ? 'active' : ''}`} data-panel="2">
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Role Essentials</h3>
+                      <p>
+                        Define the position in a structured format. AI uses these fields for job-to-candidate
+                        matching.
+                      </p>
+                    </div>
+                    <span className="cj-chip purple">JD core</span>
+                  </div>
+                  <div className="cj-form-grid">
+                    <div className="cj-field">
+                      <label htmlFor="cj-title">
+                        Job Title <span className="cj-req">*</span>
+                      </label>
+                      <input
+                        id="cj-title"
+                        placeholder="e.g., Data Analyst"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        data-testid="job-title-input"
+                      />
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-seniority">
+                        Seniority Level <span className="cj-req">*</span>
+                      </label>
+                      <select
+                        id="cj-seniority"
+                        value={seniority}
+                        onChange={(e) => setSeniority(e.target.value)}
+                        data-testid="seniority-select"
+                      >
+                        <option value="">Select level</option>
+                        {SENIORITY_OPTIONS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-location">Work Location</label>
+                      <input
+                        id="cj-location"
+                        placeholder="e.g., Mumbai / Hybrid"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        data-testid="job-location-input"
+                      />
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-experience">Experience Range</label>
+                      <input
+                        id="cj-experience"
+                        placeholder="e.g., 3–6 years"
+                        value={experienceRange}
+                        onChange={(e) => setExperienceRange(e.target.value)}
+                      />
+                    </div>
+                    <div className="cj-field">
+                      <label htmlFor="cj-work-mode">Work Mode</label>
+                      <select
+                        id="cj-work-mode"
+                        value={workMode}
+                        onChange={(e) => setWorkMode(e.target.value)}
+                        data-testid="work-mode-select"
+                      >
+                        {WORK_MODES.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cj-field full">
+                      <label htmlFor="cj-summary">
+                        Role Summary <span className="cj-req">*</span>
+                      </label>
+                      <textarea
+                        id="cj-summary"
+                        placeholder="Paste or write the short role summary here. AI will convert it into responsibilities, skill signals, and scoring criteria."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        data-testid="job-description-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {perms.canEditJobTeam ? (
+                  <div className="cj-subsection">
+                    <HiringTeamFields value={hiringTeam} onChange={setHiringTeam} />
+                  </div>
+                ) : null}
+
+                <div
+                  className="cj-dropzone"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => dropzoneInputRef.current?.click()}
+                  onKeyDown={(e) => e.key === 'Enter' && dropzoneInputRef.current?.click()}
+                >
+                  <Upload size={30} strokeWidth={1.8} color="#6d5dfc" />
+                  <strong>Drop JD PDF / DOCX here</strong>
+                  <span>or use “Import JD” to pre-fill role details and skills automatically.</span>
+                  <input
+                    ref={dropzoneInputRef}
+                    type="file"
+                    accept=".txt,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleImportFile(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
               </div>
 
-              <div>
-                <h4 className="text-sm font-medium text-slate-700 mb-2">Skills</h4>
-                <div className="flex flex-wrap gap-2">
-                  {skillsNeeded.map((skill) => (
-                    <Badge
-                      key={skill}
-                      className={mustHaveSkills.includes(skill) ? 'badge-must-have' : 'badge-good-to-have'}
-                    >
-                      {skill}
-                      {mustHaveSkills.includes(skill) && ' *'}
-                    </Badge>
-                  ))}
+              <div className={`cj-step-panel ${step === 3 ? 'active' : ''}`} data-panel="3">
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Skills and Matching Weights</h3>
+                      <p>
+                        Separate mandatory skills from preference signals. This improves AI match
+                        transparency.
+                      </p>
+                    </div>
+                    <span className="cj-chip green">AI-assisted</span>
+                  </div>
+                  <div className="cj-form-grid">
+                    <div className="cj-field full">
+                      <label htmlFor="cj-must-have">Must-have Skills</label>
+                      <textarea
+                        id="cj-must-have"
+                        placeholder="e.g., SQL, Excel, stakeholder reporting, data quality checks"
+                        value={mustHaveText}
+                        onChange={(e) => setMustHaveText(e.target.value)}
+                        data-testid="skill-input"
+                      />
+                    </div>
+                    <div className="cj-field full">
+                      <label htmlFor="cj-good-have">Good-to-have Skills</label>
+                      <textarea
+                        id="cj-good-have"
+                        placeholder="e.g., Power BI, Python, HR analytics, vendor coordination"
+                        value={goodHaveText}
+                        onChange={(e) => setGoodHaveText(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="cj-tag-cloud">
+                    {SUGGESTED_SKILL_TAGS.map((tag) => (
+                      <button
+                        key={tag.label}
+                        type="button"
+                        className={`cj-skill-tag ${tag.tone}`.trim()}
+                        onClick={() => addSuggestedSkill(tag.label)}
+                      >
+                        {tag.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Default Scoring Emphasis</h3>
+                      <p>
+                        Recommended for analyst and manager hiring. Fine-tune later from Career Trajectory
+                        Weights.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="cj-inline-options">
+                    {[
+                      { value: 'balanced', title: 'Balanced', desc: 'Skills, experience, trajectory, and assessment.' },
+                      { value: 'skills', title: 'Skills Heavy', desc: 'Prioritize technical proof and hands-on skills.' },
+                      { value: 'trajectory', title: 'Trajectory Heavy', desc: 'Prioritize growth, stability, and manager fit.' },
+                    ].map((opt) => (
+                      <label key={opt.value} className="cj-option-card">
+                        <input
+                          type="radio"
+                          name="scoring-emphasis"
+                          checked={scoringEmphasis === opt.value}
+                          onChange={() => setScoringEmphasis(opt.value)}
+                        />
+                        <strong>{opt.title}</strong>
+                        <span>{opt.desc}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`cj-step-panel ${step === 4 ? 'active' : ''}`} data-panel="4">
+                <div className="cj-subsection">
+                  <div className="cj-subsection-title">
+                    <div>
+                      <h3>Review Requisition</h3>
+                      <p>
+                        Check the information before publishing. Missing required fields are highlighted by the
+                        readiness panel.
+                      </p>
+                    </div>
+                    <span className="cj-chip amber">Ready check</span>
+                  </div>
+                  <div className="cj-review-grid">
+                    <div className="cj-review-box">
+                      <small>Business Pillar</small>
+                      <strong>{preview.pillar}</strong>
+                    </div>
+                    <div className="cj-review-box">
+                      <small>Department</small>
+                      <strong>{deptLabel || 'Not selected'}</strong>
+                    </div>
+                    <div className="cj-review-box">
+                      <small>Sub-department</small>
+                      <strong>{subDepartment || 'Not selected'}</strong>
+                    </div>
+                    <div className="cj-review-box">
+                      <small>Project ID</small>
+                      <strong>{projectId.trim() || 'Not added'}</strong>
+                    </div>
+                    <div className="cj-review-box">
+                      <small>Job Title</small>
+                      <strong>{title.trim() || 'Not added'}</strong>
+                    </div>
+                    <div className="cj-review-box">
+                      <small>Experience</small>
+                      <strong>{experienceRange.trim() || 'Not added'}</strong>
+                    </div>
+                  </div>
+                </div>
+                <div className="cj-tip-card">
+                  <div className="cj-tip-icon" aria-hidden>
+                    <Sparkles size={17} strokeWidth={2} />
+                  </div>
+                  <div>
+                    <strong>Before publishing</strong>
+                    <span>
+                      Confirm department, role details, and skills. The system will create a candidate matching
+                      workspace and assessment link after publish.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="cj-toolbar">
+                <div className="cj-save-note">
+                  <Check size={17} strokeWidth={2} />
+                  <span>{formatSavedAgo(lastSavedAt)}</span>
+                </div>
+                <div className="cj-actions">
+                  {step > 1 ? (
+                    <button type="button" className="cj-btn ghost" onClick={goPrev} data-testid="prev-step-btn">
+                      <ArrowLeft size={17} strokeWidth={2} />
+                      Previous
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="cj-btn primary"
+                    onClick={goNext}
+                    disabled={loading || (step < 4 && !canGoNext)}
+                    data-testid={step === 4 ? 'create-job-submit-btn' : 'next-step-btn'}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {isEdit ? 'Saving…' : analyzing ? 'AI Analyzing…' : 'Creating…'}
+                      </>
+                    ) : step === 4 ? (
+                      isEdit ? 'Save Changes' : meta.next
+                    ) : (
+                      <>
+                        {meta.next}
+                        <ArrowRight size={17} strokeWidth={2} />
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
+          </section>
 
-            {!isEdit && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-indigo-900">AI Analysis</p>
-                  <p className="text-sm text-indigo-700">
-                    When you create this job, our AI will analyze the description to extract additional skills,
-                    responsibilities, and create a scoring rubric for candidate matching.
-                  </p>
-                </div>
-              </div>
-            )}
-            {isEdit && (
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600">
-                Saving updates your requisition in the database. Existing AI rubric and activities are kept unless you
-                change skills (updated skill list is saved).
-              </div>
-            )}
-
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(3)} data-testid="back-to-skills-btn">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700"
-                data-testid="create-job-submit-btn"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {isEdit ? 'Saving…' : analyzing ? 'AI Analyzing...' : 'Creating...'}
-                  </>
-                ) : isEdit ? (
-                  'Save changes'
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Create Job
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </motion.div>
+          <CreateJobCommandSidebar
+            currentStep={step}
+            readinessPct={readinessPct}
+            preview={preview}
+            isEdit={isEdit}
+          />
+        </div>
+      </section>
+    </div>
   );
-};
-
-export default CreateJobPage;
+}

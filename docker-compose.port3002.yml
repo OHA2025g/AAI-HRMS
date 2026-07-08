@@ -1,0 +1,5 @@
+# Local override: run web UI on host port 3002
+services:
+  web:
+    ports: !override
+      - "3002:80"

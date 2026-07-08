@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "test": "playwright test",
+    "test:hiring-dashboard": "playwright test tests/hiring-dashboard.spec.js tests/hiring-dashboard-mobile.spec.js tests/hiring-dashboard-admin-legacy.spec.js",
     "test:headed": "playwright test --headed"
   },
   "devDependencies": {

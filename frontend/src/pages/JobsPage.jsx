@@ -1,369 +1,424 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { jobsApi } from '../lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Input } from '../components/ui/input';
-import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Clock, 
-  Users,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  Briefcase,
-  Sparkles,
-  Loader2,
-  Filter,
-  Layers,
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { jobsApi } from '../lib/api';
 import { orderJobsSeededExcelPattern } from '../lib/jobSource';
-import SmartHiringPageHeader from '../components/hiring/SmartHiringPageHeader';
+import PeriodToggle from '../components/hiring-dashboard/PeriodToggle';
+import JobsCommandHero from '../components/jobs/JobsCommandHero';
+import JobsCommandKpis from '../components/jobs/JobsCommandKpis';
+import JobCommandCard from '../components/jobs/JobCommandCard';
+import JobsCommandSidebar from '../components/jobs/JobsCommandSidebar';
+import {
+  computeCommandMetrics,
+  filterJobs,
+  fmtOrg,
+  sortJobs,
+  uniqueFilterValues,
+} from '../lib/jobsCommandUtils';
 
-const JobsPage = () => {
+const TABS = [
+  { id: 'all', label: 'All Jobs' },
+  { id: 'at-risk', label: 'At Risk' },
+  { id: 'high-fit', label: 'High Fit' },
+  { id: 'aging', label: 'Aging' },
+  { id: 'draft', label: 'Draft' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'priority', label: 'Sort: Priority' },
+  { value: 'title', label: 'Sort: Title' },
+  { value: 'candidates', label: 'Sort: Candidates' },
+  { value: 'risk', label: 'Sort: Risk' },
+];
+
+const PAGE_SIZE = 10;
+
+function pageWindow(current, total) {
+  if (total <= 7) return { start: 1, end: total };
+  let start = Math.max(1, current - 2);
+  let end = Math.min(total, start + 4);
+  start = Math.max(1, end - 4);
+  return { start, end };
+}
+
+export default function JobsPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
+  const [windowDays, setWindowDays] = useState(30);
+  const [viewMode, setViewMode] = useState('grid');
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'all');
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'all');
+  const [aiRiskFilter, setAiRiskFilter] = useState('all');
+  const [sortKey, setSortKey] = useState('priority');
+  const [department, setDepartment] = useState('all');
+  const [location, setLocation] = useState('all');
+  const [seniority, setSeniority] = useState('all');
+  const [owner, setOwner] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+
   const withoutMatches = searchParams.get('without_matches') === '1';
   const lowFit = searchParams.get('low_fit') === '1';
 
-  useEffect(() => {
-    const status = searchParams.get('status');
-    if (status) setStatusFilter(status);
-  }, [searchParams]);
-
-  useEffect(() => {
-    fetchJobs();
-  }, [statusFilter, withoutMatches, lowFit]);
-
-  const fetchJobs = async () => {
+  const loadData = useCallback(async () => {
     setFetchError(null);
     try {
-      const params = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (withoutMatches) params.without_fit_scores = true;
-      if (lowFit) params.low_fit = true;
-      const response = await jobsApi.list(params);
-      setJobs(response.data);
-    } catch (error) {
+      const jobParams = {};
+      if (statusFilter !== 'all') jobParams.status = statusFilter;
+      if (withoutMatches) jobParams.without_fit_scores = true;
+      if (lowFit) jobParams.low_fit = true;
+
+      const jobsRes = await jobsApi.list(jobParams);
+      setJobs(jobsRes.data || []);
+    } catch {
       setFetchError('Failed to load jobs. Check your connection and try again.');
       setJobs([]);
       toast.error('Failed to fetch jobs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, withoutMatches, lowFit, windowDays]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) setActiveTab(tab);
+    const status = searchParams.get('status');
+    if (status) setStatusFilter(status);
+  }, [searchParams]);
 
   const handleDelete = async (jobId) => {
     if (!window.confirm('Are you sure you want to delete this job?')) return;
     try {
       await jobsApi.delete(jobId);
       toast.success('Job deleted successfully');
-      fetchJobs();
-    } catch (error) {
+      loadData();
+    } catch {
       toast.error('Failed to delete job');
     }
   };
 
-  const orgSearchBlob = (job) =>
-    [job?.business_pillar, job?.business_department, job?.business_sub_department, job?.project_id]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
+  const metrics = useMemo(() => computeCommandMetrics(jobs, null), [jobs]);
 
-  const filteredJobs = (jobs || []).filter((job) => {
-    const title = (job?.title || '').toLowerCase();
-    const location = (job?.location || '').toLowerCase();
-    const q = (searchQuery || '').toLowerCase();
-    return title.includes(q) || location.includes(q) || orgSearchBlob(job).includes(q);
-  });
-
-  const displayJobs = useMemo(
-    () => orderJobsSeededExcelPattern(filteredJobs),
-    [filteredJobs]
+  const filterOptions = useMemo(
+    () => ({
+      departments: uniqueFilterValues(metrics.enriched, (j) => fmtOrg(j.business_department)),
+      locations: uniqueFilterValues(metrics.enriched, (j) => fmtOrg(j.location)),
+      seniorities: uniqueFilterValues(metrics.enriched, (j) => fmtOrg(j.seniority)),
+      owners: uniqueFilterValues(
+        metrics.enriched,
+        (j) => j.hiring_team?.recruiter?.full_name || j.hiring_team?.recruiter?.email
+      ),
+    }),
+    [metrics.enriched]
   );
 
-  const totalJobsCount = jobs.length;
-  const visibleJobsCount = filteredJobs.length;
-  const jobsCountLabel =
-    visibleJobsCount === totalJobsCount
-      ? `${totalJobsCount} job requisitions`
-      : `${visibleJobsCount} of ${totalJobsCount} job requisitions`;
+  const visibleJobs = useMemo(() => {
+    const filtered = filterJobs(metrics.enriched, {
+      searchQuery,
+      tab: activeTab,
+      statusFilter,
+      aiRiskFilter,
+      department,
+      location,
+      seniority,
+      owner,
+    });
+    const sorted = sortJobs(filtered, sortKey);
+    return orderJobsSeededExcelPattern(sorted);
+  }, [
+    metrics.enriched,
+    searchQuery,
+    activeTab,
+    statusFilter,
+    aiRiskFilter,
+    department,
+    location,
+    seniority,
+    owner,
+    sortKey,
+  ]);
 
-  const fmtOrg = (v) => (v != null && String(v).trim() !== '' ? String(v).trim() : '—');
+  const totalJobs = visibleJobs.length;
+  const totalPages = Math.max(1, Math.ceil(totalJobs / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'OPEN': return 'bg-emerald-100 text-emerald-700';
-      case 'PAUSED': return 'bg-amber-100 text-amber-700';
-      case 'CLOSED': return 'bg-slate-100 text-slate-700';
-      default: return 'bg-blue-100 text-blue-700';
-    }
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTab, statusFilter, aiRiskFilter, department, location, seniority, owner, sortKey]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const paginatedJobs = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return visibleJobs.slice(start, start + PAGE_SIZE);
+  }, [visibleJobs, safePage]);
+
+  const rangeStart = totalJobs === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(safePage * PAGE_SIZE, totalJobs);
+  const pageRange = pageWindow(safePage, totalPages);
+
+  const goToPage = (page) => {
+    const next = Math.min(Math.max(1, page), totalPages);
+    setCurrentPage(next);
+    document.querySelector('[data-testid="jobs-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
+  const clearFilters = () => {
+    setDepartment('all');
+    setLocation('all');
+    setSeniority('all');
+    setOwner('all');
+    setStatusFilter('all');
+    setAiRiskFilter('all');
+    setSearchQuery('');
+    setActiveTab('all');
+    setCurrentPage(1);
+    navigate('/jobs', { replace: true });
   };
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-6"
-    >
-      <motion.div variants={itemVariants}>
-        <SmartHiringPageHeader
-          title="Jobs"
-          description={jobsCountLabel}
-          testId="jobs-heading"
-          filters={
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden />
-                <Input
-                  placeholder="Search jobs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                  data-testid="search-jobs-input"
-                  aria-label="Search jobs"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-44 shrink-0" data-testid="status-filter" aria-label="Filter jobs by status">
-                  <Filter className="w-4 h-4 mr-2" aria-hidden />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="OPEN">Open</SelectItem>
-                  <SelectItem value="PAUSED">Paused</SelectItem>
-                  <SelectItem value="CLOSED">Closed</SelectItem>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          }
-          actions={
-            <Link to="/jobs/new" className="w-full sm:w-auto">
-              <Button className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700" data-testid="create-job-btn">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Job
-              </Button>
-            </Link>
-          }
-        />
-      </motion.div>
-
-      {/* Jobs Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+    <div className="hiring-dashboard-root top-operational" data-testid="jobs-command-root">
+      <header className="top">
+        <div>
+          <h1 data-testid="jobs-heading">Jobs Command Center</h1>
+          <p>Manage requisitions, AI fit quality, aging risk, and hiring velocity.</p>
         </div>
-      ) : fetchError ? (
-        <motion.div variants={itemVariants}>
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
-              <h3 className="text-lg font-semibold text-red-900" style={{ fontFamily: 'Outfit' }}>
-                Could not load jobs
-              </h3>
-              <p className="text-red-700 text-sm max-w-md">{fetchError}</p>
-              <Button variant="outline" onClick={fetchJobs} aria-label="Retry loading jobs">
-                Try again
-              </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ) : displayJobs.length > 0 ? (
-        <motion.div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="jobs-grid">
-          {displayJobs.map((job) => (
-            <div key={job.id}>
-              <Card className="card-hover group h-full" data-testid={`job-card-${job.id}`}>
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                        <Briefcase className="w-5 h-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <Badge className={`text-xs ${getStatusColor(job.status)}`}>
-                          {job.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Job actions for ${job.title}`}>
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}`)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/jobs/${job.id}/edit`)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => handleDelete(job.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+        <div className="actions">
+          <PeriodToggle value={windowDays} onChange={setWindowDays} variant="overview-mock" />
+          <button type="button" className="btn" aria-label="Notifications">
+            🔔
+          </button>
+          <Link to="/jobs/new" className="primary jobs-create-btn" data-testid="create-job-btn">
+            ＋ Create Job
+          </Link>
+        </div>
+      </header>
 
-                  <Link to={`/jobs/${job.id}`}>
-                    <h3 className="font-semibold text-slate-900 text-lg mb-2 group-hover:text-indigo-600 transition-colors line-clamp-1" style={{ fontFamily: 'Outfit' }}>
-                      {job.title}
-                    </h3>
-                  </Link>
+      <div className="filterbar" id="jobs-filterbar">
+        <div className="filter-field">
+          <label htmlFor="jobs-dept-filter">Department</label>
+          <select id="jobs-dept-filter" value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option value="all">All</option>
+            {filterOptions.departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-loc-filter">Location</label>
+          <select id="jobs-loc-filter" value={location} onChange={(e) => setLocation(e.target.value)}>
+            <option value="all">All</option>
+            {filterOptions.locations.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-sen-filter">Seniority</label>
+          <select id="jobs-sen-filter" value={seniority} onChange={(e) => setSeniority(e.target.value)}>
+            <option value="all">All</option>
+            {filterOptions.seniorities.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-owner-filter">Owner</label>
+          <select id="jobs-owner-filter" value={owner} onChange={(e) => setOwner(e.target.value)}>
+            <option value="all">All</option>
+            {filterOptions.owners.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" className="clear-filter" onClick={clearFilters}>
+          Clear filters
+        </button>
+      </div>
 
-                  {job.normalized_title && job.normalized_title !== job.title && (
-                    <div className="flex items-center gap-1 text-xs text-indigo-600 mb-3">
-                      <Sparkles className="w-3 h-3" />
-                      <span>{job.normalized_title}</span>
-                    </div>
-                  )}
+      <JobsCommandHero pack={null} metrics={metrics} />
+      <JobsCommandKpis metrics={metrics} pack={null} />
 
-                  <div className="space-y-2 mb-4">
-                    {job.location && (
-                      <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <MapPin className="w-4 h-4" />
-                        <span>{job.location}</span>
-                        {job.work_mode && (
-                          <Badge variant="secondary" className="text-xs">{job.work_mode}</Badge>
-                        )}
-                      </div>
-                    )}
-                    {job.seniority && (
-                      <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <Clock className="w-4 h-4" />
-                        <span>{job.seniority} Level</span>
-                      </div>
-                    )}
-                  </div>
+      <div className="jobs-toolbar">
+        <div className="jobs-toolbar-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`jobs-pill-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="jobs-view-toggle">
+          <button
+            type="button"
+            className={viewMode === 'grid' ? 'active' : ''}
+            onClick={() => setViewMode('grid')}
+            aria-label="Grid view"
+          >
+            ▦
+          </button>
+          <button
+            type="button"
+            className={viewMode === 'list' ? 'active' : ''}
+            onClick={() => setViewMode('list')}
+            aria-label="List view"
+          >
+            ☰
+          </button>
+        </div>
+      </div>
 
-                  <div className="rounded-lg border border-slate-100 bg-white p-3 mb-4 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                      <Layers className="w-3.5 h-3.5" />
-                      Requisition Details
-                    </div>
-                    <dl className="grid grid-cols-1 gap-1 text-xs text-slate-600">
-                      <div className="flex gap-2 min-w-0">
-                        <dt className="text-slate-500 shrink-0 w-28">Pillar</dt>
-                        <dd className="min-w-0 truncate font-medium text-slate-800">{fmtOrg(job.business_pillar)}</dd>
-                      </div>
-                      <div className="flex gap-2 min-w-0">
-                        <dt className="text-slate-500 shrink-0 w-28">Department</dt>
-                        <dd className="min-w-0 truncate font-medium text-slate-800">{fmtOrg(job.business_department)}</dd>
-                      </div>
-                      <div className="flex gap-2 min-w-0">
-                        <dt className="text-slate-500 shrink-0 w-28">Sub-dept</dt>
-                        <dd className="min-w-0 truncate font-medium text-slate-800">{fmtOrg(job.business_sub_department)}</dd>
-                      </div>
-                      <div className="flex gap-2 min-w-0">
-                        <dt className="text-slate-500 shrink-0 w-28">Project ID</dt>
-                        <dd className="min-w-0 truncate font-medium text-slate-800">{fmtOrg(job.project_id)}</dd>
-                      </div>
-                    </dl>
-                  </div>
+      <div className="filterbar jobs-list-filterbar">
+        <div className="filter-field jobs-search-field">
+          <label htmlFor="jobs-search">Search</label>
+          <div className="jobs-search">
+            <span aria-hidden>⌕</span>
+            <input
+              id="jobs-search"
+              type="search"
+              placeholder="Search jobs, skills, department, project ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="search-jobs-input"
+            />
+          </div>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-status-filter">Status</label>
+          <select
+            id="jobs-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            data-testid="status-filter"
+          >
+            <option value="all">All Status</option>
+            <option value="OPEN">Open</option>
+            <option value="PAUSED">Paused</option>
+            <option value="CLOSED">Closed</option>
+            <option value="DRAFT">Draft</option>
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-risk-filter">AI Risk</label>
+          <select id="jobs-risk-filter" value={aiRiskFilter} onChange={(e) => setAiRiskFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="jobs-sort">Sort</label>
+          <select id="jobs-sort" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label.replace('Sort: ', '')}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-                  {/* Skills Preview */}
-                  {job.skills?.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-4">
-                      {job.skills.slice(0, 3).map((skill, i) => (
-                        <Badge 
-                          key={i} 
-                          variant="outline" 
-                          className={`text-xs ${skill.skill_type === 'MUST_HAVE' ? 'badge-must-have' : 'badge-good-to-have'}`}
-                        >
-                          {skill.skill_name}
-                        </Badge>
-                      ))}
-                      {job.skills.length > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{job.skills.length - 3} more
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <Users className="w-4 h-4" />
-                      <span>{job.candidate_count || 0} candidates</span>
-                    </div>
-                    <Link to={`/pipeline?job=${job.id}`}>
-                      <Button variant="ghost" size="sm" className="text-indigo-600 hover:text-indigo-700">
-                        Pipeline
-                      </Button>
+      <section className="jobs-content">
+        {loading ? (
+          <div className="jobs-state card">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto" />
+          </div>
+        ) : fetchError ? (
+          <div className="jobs-state jobs-state-error card">
+            <h3>Could not load jobs</h3>
+            <p>{fetchError}</p>
+            <button type="button" className="primary" onClick={loadData}>
+              Try again
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="jobs-list-panel">
+              {totalJobs > 0 ? (
+                <p className="jobs-page-summary" data-testid="jobs-page-summary">
+                  Showing {rangeStart}–{rangeEnd} of {totalJobs} jobs
+                </p>
+              ) : null}
+              <div className={`jobs-grid ${viewMode === 'list' ? 'list-view' : ''}`} data-testid="jobs-grid">
+                {totalJobs > 0 ? (
+                  paginatedJobs.map((job) => <JobCommandCard key={job.id} job={job} onDelete={handleDelete} />)
+                ) : (
+                  <div className="jobs-state card">
+                    <h3>No jobs found</h3>
+                    <p>
+                      {searchQuery
+                        ? 'Try a different search term or filter.'
+                        : 'Create your first job requisition to get started.'}
+                    </p>
+                    <Link to="/jobs/new" className="primary jobs-create-btn">
+                      ＋ Create Job
                     </Link>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          ))}
-        </motion.div>
-      ) : (
-        <motion.div variants={itemVariants}>
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                <Briefcase className="w-8 h-8 text-slate-400" />
+                )}
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2" style={{ fontFamily: 'Outfit' }}>
-                No jobs found
-              </h3>
-              <p className="text-slate-500 text-center mb-4">
-                {searchQuery ? 'Try a different search term' : 'Create your first job requisition to get started'}
-              </p>
-              <Link to="/jobs/new">
-                <Button className="bg-indigo-600 hover:bg-indigo-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Job
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-    </motion.div>
+              {totalJobs > PAGE_SIZE ? (
+                <nav className="jobs-pagination" aria-label="Jobs pagination" data-testid="jobs-pagination">
+                  <button
+                    type="button"
+                    className="btn jobs-page-btn"
+                    disabled={safePage <= 1}
+                    onClick={() => goToPage(safePage - 1)}
+                    aria-label="Previous page"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: pageRange.end - pageRange.start + 1 }, (_, i) => pageRange.start + i).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`btn jobs-page-btn ${p === safePage ? 'active' : ''}`}
+                      onClick={() => goToPage(p)}
+                      aria-current={p === safePage ? 'page' : undefined}
+                      aria-label={p === safePage ? `Current page, page ${p}` : `Go to page ${p}`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="btn jobs-page-btn"
+                    disabled={safePage >= totalPages}
+                    onClick={() => goToPage(safePage + 1)}
+                    aria-label="Next page"
+                  >
+                    Next
+                  </button>
+                </nav>
+              ) : null}
+            </div>
+            <JobsCommandSidebar pack={null} />
+          </>
+        )}
+      </section>
+    </div>
   );
-};
-
-export default JobsPage;
+}

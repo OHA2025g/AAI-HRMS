@@ -44,6 +44,9 @@ _import_excel_data() {
   echo "Per-job AI fit candidates (for AI Matches grid)..."
   python scripts/seed_job_posting_fit_candidates.py || echo "Fit-candidate seed warning (non-fatal)"
 
+  echo "Placement taxonomy jobs (dashboard org filters)..."
+  python scripts/seed_placement_jobs.py || echo "Placement jobs seed warning (non-fatal)"
+
   echo "Bulk talent pool candidates (if collection is sparse)..."
   BULK_SEED_CANDIDATES="${BULK_SEED_CANDIDATES:-2500}" \
   BULK_SEED_EMPLOYEES="${BULK_SEED_EMPLOYEES:-100}" \

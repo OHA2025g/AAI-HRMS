@@ -12,7 +12,7 @@ from talent_acquisition.hiring_threshold_config import (
 )
 
 if TYPE_CHECKING:
-    from talent_acquisition.hiring_dashboard_config import HiringDashboardConfig
+    from talent_acquisition.hiring_dashboard_config import HiringDashboardConfig, DEFAULT_RULE_FLAGS
 
 
 def build_hiring_alerts(
@@ -29,6 +29,13 @@ def build_hiring_alerts(
     dashboard_config: Optional["HiringDashboardConfig"] = None,
 ) -> List[Dict[str, Any]]:
     alerts: List[Dict[str, Any]] = []
+    from talent_acquisition.hiring_dashboard_config import DEFAULT_RULE_FLAGS, rule_flag_enabled
+
+    rule_flags = (
+        dashboard_config.rule_flags
+        if dashboard_config and getattr(dashboard_config, "rule_flags", None)
+        else DEFAULT_RULE_FLAGS
+    )
     stage_sla = (
         dashboard_config.stage_sla_days if dashboard_config else get_stage_sla_days()
     )
@@ -39,7 +46,7 @@ def build_hiring_alerts(
         dashboard_config.low_fit_threshold if dashboard_config else get_low_fit_threshold()
     )
 
-    if stale_req_zero_interviews > 0:
+    if stale_req_zero_interviews > 0 and rule_flag_enabled(rule_flags, "stale_req"):
         alerts.append(
             {
                 "id": "stale-req-zero-interviews",
@@ -55,47 +62,49 @@ def build_hiring_alerts(
             }
         )
 
-    if req_aging_over_90 > 0:
-        alerts.append(
-            {
-                "id": "req-aging-over-90",
-                "severity": "critical",
-                "title": "Stale open requisitions",
-                "message": f"{req_aging_over_90} job(s) open more than 90 days with little progress.",
-                "action_path": "/jobs?status=OPEN",
-                "count": req_aging_over_90,
-            }
-        )
-    elif req_aging_over_60 > 0:
-        alerts.append(
-            {
-                "id": "req-aging-over-60",
-                "severity": "warning",
-                "title": "Aging open requisitions",
-                "message": f"{req_aging_over_60} job(s) open more than 60 days.",
-                "action_path": "/jobs?status=OPEN",
-                "count": req_aging_over_60,
-            }
-        )
+    if rule_flag_enabled(rule_flags, "stale_req"):
+        if req_aging_over_90 > 0:
+            alerts.append(
+                {
+                    "id": "req-aging-over-90",
+                    "severity": "critical",
+                    "title": "Stale open requisitions",
+                    "message": f"{req_aging_over_90} job(s) open more than 90 days with little progress.",
+                    "action_path": "/jobs?status=OPEN",
+                    "count": req_aging_over_90,
+                }
+            )
+        elif req_aging_over_60 > 0:
+            alerts.append(
+                {
+                    "id": "req-aging-over-60",
+                    "severity": "warning",
+                    "title": "Aging open requisitions",
+                    "message": f"{req_aging_over_60} job(s) open more than 60 days.",
+                    "action_path": "/jobs?status=OPEN",
+                    "count": req_aging_over_60,
+                }
+            )
 
-    for stage, sla in stage_sla.items():
-        n = int(stuck_by_stage.get(stage) or 0)
-        if n <= 0:
-            continue
-        sev = "critical" if n >= stuck_critical else "warning"
-        label = stage.replace("_", " ").title()
-        alerts.append(
-            {
-                "id": f"stuck-{stage}",
-                "severity": sev,
-                "title": f"Stuck in {label}",
-                "message": f"{n} candidate(s) in {label} longer than {sla} days.",
-                "action_path": pipeline_path_for_stage(stage),
-                "count": n,
-            }
-        )
+    if rule_flag_enabled(rule_flags, "stuck_stage"):
+        for stage, sla in stage_sla.items():
+            n = int(stuck_by_stage.get(stage) or 0)
+            if n <= 0:
+                continue
+            sev = "critical" if n >= stuck_critical else "warning"
+            label = stage.replace("_", " ").title()
+            alerts.append(
+                {
+                    "id": f"stuck-{stage}",
+                    "severity": sev,
+                    "title": f"Stuck in {label}",
+                    "message": f"{n} candidate(s) in {label} longer than {sla} days.",
+                    "action_path": pipeline_path_for_stage(stage),
+                    "count": n,
+                }
+            )
 
-    if jobs_without_pipeline > 0:
+    if jobs_without_pipeline > 0 and rule_flag_enabled(rule_flags, "no_pipeline"):
         alerts.append(
             {
                 "id": "jobs-without-pipeline",
@@ -107,7 +116,7 @@ def build_hiring_alerts(
             }
         )
 
-    if jobs_without_ai_matches > 0:
+    if jobs_without_ai_matches > 0 and rule_flag_enabled(rule_flags, "no_ai_matches"):
         alerts.append(
             {
                 "id": "jobs-without-ai-matches",
@@ -119,7 +128,7 @@ def build_hiring_alerts(
             }
         )
 
-    if high_fit_candidates_7d > 0:
+    if high_fit_candidates_7d > 0 and rule_flag_enabled(rule_flags, "high_fit_recent"):
         alerts.append(
             {
                 "id": "new-high-fit-candidates-7d",
@@ -131,7 +140,7 @@ def build_hiring_alerts(
             }
         )
 
-    if low_fit_jobs > 0:
+    if low_fit_jobs > 0 and rule_flag_enabled(rule_flags, "low_fit"):
         low_fit_path = (
             f"/jobs/{low_fit_job_id}?tab=matches"
             if low_fit_job_id

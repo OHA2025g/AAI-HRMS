@@ -1,0 +1,385 @@
+/* Mock parity: Frontend Revamp/smart_hiring_dashboard_all_6_tabs_internal_navigation.html */
+
+.sh-sidebar {
+  width: var(--sh-sidebar-width, 245px);
+  max-width: var(--sh-sidebar-width, 245px);
+  background: linear-gradient(180deg, #080d3b, #06123a 55%, #090f2e);
+  color: #fff;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  transition: width 0.3s ease, max-width 0.3s ease, padding 0.3s ease;
+}
+
+.sh-sidebar--collapsed {
+  width: var(--sh-sidebar-width-collapsed, 72px);
+  max-width: var(--sh-sidebar-width-collapsed, 72px);
+  padding: 24px 10px;
+}
+
+.sh-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sh-brand-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sh-brand-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.sh-brand-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sh-brand-toggle:focus-visible {
+  outline: 2px solid rgba(196, 181, 253, 0.85);
+  outline-offset: 2px;
+}
+
+.sh-sidebar--collapsed .sh-brand-toggle {
+  justify-content: center;
+  width: 100%;
+}
+
+.sh-sidebar--collapsed .sh-brand {
+  justify-content: center;
+}
+
+.sh-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #7566ff, #a855f7);
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sh-brand h2 {
+  font-size: 20px;
+  margin: 0;
+  font-family: Outfit, Inter, sans-serif;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sh-brand p {
+  margin: 3px 0 0;
+  color: #c7d2fe;
+  font-size: 13px;
+}
+
+.sh-nav {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sh-nav-link {
+  color: #e5e7eb;
+  text-decoration: none;
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 500;
+  line-height: 1.25;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+.sh-sidebar .sh-nav-label {
+  text-transform: capitalize;
+}
+
+.sh-nav-link .sh-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-nav-link:hover,
+.sh-nav-link.active {
+  background: linear-gradient(135deg, #6d4cff, #9b5cff);
+  box-shadow: 0 10px 28px rgba(109, 76, 255, 0.35);
+  color: #fff;
+}
+
+.sh-nav-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sh-nav-parent {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  gap: 10px;
+  padding: 11px 12px;
+  font-size: 12.5px;
+}
+
+.sh-nav-parent .sh-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-nav-parent--open:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.sh-nav-chevron {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: transform 0.2s ease;
+}
+
+.sh-nav-chevron--open {
+  transform: rotate(180deg);
+}
+
+.sh-sidebar--collapsed .sh-nav-chevron {
+  display: none;
+}
+
+.sh-nav-group--flat {
+  gap: 6px;
+}
+
+.sh-nav-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1.25;
+  color: #e5e7eb;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sh-nav-group-title .sh-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-nav-group-title--active {
+  color: #fff;
+}
+
+.sh-nav-flat {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sh-nav-flat-link {
+  font-size: 13px;
+  padding: 10px 11px;
+}
+
+.sh-nav-flat-link .sh-nav-label,
+.sh-subnav-link .sh-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sh-subnav {
+  margin-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding-left: 10px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sh-subnav-link {
+  color: #cbd5e1;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 500;
+  line-height: 1.25;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sh-subnav-link:hover,
+.sh-subnav-link.active {
+  background: rgba(109, 76, 255, 0.22);
+  color: #fff;
+}
+
+.sh-subnav-link .sh-nav-glyph {
+  font-size: 12px;
+  width: 14px;
+}
+
+.sh-nav-glyph {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sh-sidebar--collapsed .sh-nav-link {
+  justify-content: center;
+  padding: 11px 10px;
+}
+
+.sh-sidebar--collapsed .sh-nav-label,
+.sh-sidebar--collapsed .sh-brand-text,
+.sh-sidebar--collapsed .sh-assistant-copy,
+.sh-sidebar--collapsed .sh-assistant-btn-label {
+  display: none;
+}
+
+.sh-sidebar-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-gap-sm, 8px);
+  padding-top: var(--sh-gap-md, 12px);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sh-assistant {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(109, 76, 255, 0.45), rgba(155, 92, 255, 0.25));
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 18px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.sh-assistant b {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sh-assistant p {
+  color: #dbeafe;
+  font-size: 13px;
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.sh-assistant-btn {
+  border: 0;
+  background: #fff;
+  color: #5b21b6;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-weight: 700;
+  margin-top: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.sh-assistant-btn:hover {
+  background: #f5f3ff;
+}
+
+.sh-collapse-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  color: #c7d2fe;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sh-collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+@media (max-width: 1200px) {
+  .sh-sidebar--desktop {
+    display: none;
+  }
+}

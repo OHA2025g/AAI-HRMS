@@ -12,6 +12,8 @@ from talent_acquisition.candidate_source import (
     is_talent_pool_only_candidate,
 )
 from talent_acquisition.hiring_alerts import build_hiring_alerts, compute_health_score
+from talent_acquisition.hiring_rbac import job_team_access_filter
+from talent_acquisition.job_org_fields import effective_job_org
 from talent_acquisition.hiring_dashboard_config import get_hiring_dashboard_config
 from talent_acquisition.hiring_dashboard_schemas import (
     AiMatchAdoption,
@@ -29,6 +31,7 @@ from talent_acquisition.hiring_dashboard_schemas import (
     BottleneckSlowHireRow,
     HireJourneyRow,
     HireJourneyStageDwell,
+    InterviewJourneyRow,
     ReferralMetrics,
     ReqAgingBucket,
     SourceMixItem,
@@ -208,6 +211,9 @@ async def _scoped_job_ids(
     user_id: Optional[str],
     job_id: Optional[str] = None,
     owner_id: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> Optional[List[str]]:
     if job_id:
         row = await db.jobs.find_one({"id": job_id}, {"_id": 0, "id": 1})
@@ -248,7 +254,14 @@ async def _scoped_job_ids(
     elif scope_norm == "mine":
         if not user_id:
             return []
-        job_filter["created_by"] = user_id
+        job_filter = job_team_access_filter(user_id)
+
+    if business_pillar:
+        job_filter["business_pillar"] = {"$regex": business_pillar, "$options": "i"}
+    if business_sub_department:
+        job_filter["business_sub_department"] = {"$regex": business_sub_department, "$options": "i"}
+    if project_id:
+        job_filter["project_id"] = {"$regex": project_id, "$options": "i"}
 
     if not job_filter:
         return None
@@ -543,9 +556,13 @@ async def _offer_aging_list(
 
     cand_ids = list({a.get("candidate_id") for a in apps if a.get("candidate_id")})
     job_id_set = list({a.get("job_id") for a in apps if a.get("job_id")})
-    cands = await db.candidates.find({"id": {"$in": cand_ids}}, {"_id": 0, "id": 1, "full_name": 1}).to_list(500)
+    cands = await db.candidates.find(
+        {"id": {"$in": cand_ids}},
+        {"_id": 0, "id": 1, "full_name": 1, "expected_ctc": 1},
+    ).to_list(500)
     jobs = await db.jobs.find({"id": {"$in": job_id_set}}, {"_id": 0, "id": 1, "title": 1}).to_list(500)
     cand_name = {c["id"]: str(c.get("full_name") or "Unknown") for c in cands if c.get("id")}
+    cand_ctc = {c["id"]: c.get("expected_ctc") for c in cands if c.get("id")}
     job_title = {j["id"]: str(j.get("title") or "Untitled") for j in jobs if j.get("id")}
 
     rows: List[OfferAgingRow] = []
@@ -576,6 +593,8 @@ async def _offer_aging_list(
                 sla_days=offer_sla_days,
                 sla_breached=days > offer_sla_days,
                 offer_status=app.get("offer_status"),
+                offer_value=cand_ctc.get(app.get("candidate_id")),
+                action_path=f"/pipeline?application_id={aid}",
             )
         )
     rows.sort(key=lambda r: r.days_in_offer, reverse=True)
@@ -778,6 +797,120 @@ async def _recent_hire_journeys(
             )
         )
     journeys.sort(key=lambda j: j.total_days, reverse=True)
+    return journeys
+
+
+def _stage_display_label(stage: str) -> str:
+    return stage.replace("_", " ").title()
+
+
+def _journey_path_from_history(rows: List[Dict[str, Any]]) -> str:
+    ordered: List[str] = []
+    seen: set[str] = set()
+    for row in sorted(rows, key=lambda item: str(item.get("changed_at") or "")):
+        stage = row.get("to_stage")
+        if not stage or stage in TERMINAL_STAGES or stage in seen:
+            continue
+        seen.add(str(stage))
+        ordered.append(_stage_display_label(str(stage)))
+    return " → ".join(ordered[:8])
+
+
+def _interview_status(stage: str, days_in_stage: float | None) -> tuple[str, str]:
+    if stage == "HR_ROUND":
+        return "Ready", "green"
+    if days_in_stage is not None and days_in_stage >= 7:
+        return "Pending feedback", "orange"
+    if days_in_stage is not None and days_in_stage >= 5:
+        return "Delayed", "warn"
+    return "In progress", "orange"
+
+
+async def _recent_interview_journeys(
+    db,
+    job_ids: Optional[List[str]],
+    *,
+    limit: int = 8,
+) -> List[InterviewJourneyRow]:
+    match = _with_job_scope({"stage": {"$in": list(INTERVIEW_STAGES)}}, job_ids)
+    apps = await db.applications.find(
+        match,
+        {"_id": 0, "id": 1, "candidate_id": 1, "job_id": 1, "stage": 1, "updated_at": 1},
+    ).sort("updated_at", -1).to_list(limit)
+    if not apps:
+        return []
+
+    app_ids = [a["id"] for a in apps if a.get("id")]
+    hist_rows = await db.application_stage_history.find(
+        {"application_id": {"$in": app_ids}},
+        {"_id": 0, "application_id": 1, "to_stage": 1, "changed_at": 1},
+    ).to_list(50000)
+    by_app: Dict[str, List[Dict[str, Any]]] = {}
+    for row in hist_rows:
+        aid = row.get("application_id")
+        if aid:
+            by_app.setdefault(aid, []).append(row)
+
+    cand_ids = list({a.get("candidate_id") for a in apps if a.get("candidate_id")})
+    job_id_set = list({a.get("job_id") for a in apps if a.get("job_id")})
+    cands = await db.candidates.find({"id": {"$in": cand_ids}}, {"_id": 0, "id": 1, "full_name": 1}).to_list(limit)
+    jobs = await db.jobs.find({"id": {"$in": job_id_set}}, {"_id": 0, "id": 1, "title": 1}).to_list(limit)
+    cand_name = {c["id"]: str(c.get("full_name") or "Unknown") for c in cands if c.get("id")}
+    job_title = {j["id"]: str(j.get("title") or "Untitled") for j in jobs if j.get("id")}
+
+    fit_map: Dict[tuple[str, str], float | None] = {}
+    for app in apps:
+        cid, jid = app.get("candidate_id"), app.get("job_id")
+        if not cid or not jid:
+            continue
+        score_doc = await db.fit_scores.find_one(
+            {"candidate_id": cid, "job_id": jid},
+            {"_id": 0, "final_score": 1},
+            sort=[("computed_at", -1)],
+        )
+        fit_map[(cid, jid)] = (
+            float(score_doc.get("final_score"))
+            if score_doc and score_doc.get("final_score") is not None
+            else None
+        )
+
+    from talent_acquisition.hiring_dashboard_insights import _fit_score_label
+
+    journeys: List[InterviewJourneyRow] = []
+    now = datetime.now(timezone.utc)
+    for app in apps:
+        aid = app.get("id")
+        cid = str(app.get("candidate_id") or "")
+        jid = str(app.get("job_id") or "")
+        stage = str(app.get("stage") or "")
+        if not aid or not stage:
+            continue
+        entered_at = app.get("updated_at")
+        for row in reversed(by_app.get(aid) or []):
+            if row.get("to_stage") == stage and row.get("changed_at"):
+                entered_at = row.get("changed_at")
+                break
+        days_in_stage = None
+        entered_dt = _parse_dt(str(entered_at or ""))
+        if entered_dt:
+            days_in_stage = round(max(0.0, (now - entered_dt).total_seconds() / 86400.0), 1)
+        fit_score = fit_map.get((cid, jid))
+        status, tone = _interview_status(stage, days_in_stage)
+        journeys.append(
+            InterviewJourneyRow(
+                application_id=str(aid),
+                candidate_id=cid,
+                candidate_name=cand_name.get(cid, "Unknown"),
+                job_title=job_title.get(jid, "Untitled"),
+                stage=stage,
+                stage_label=_stage_display_label(stage),
+                fit_score=fit_score,
+                fit_label=_fit_score_label(fit_score),
+                status=status,
+                status_tone=tone,  # type: ignore[arg-type]
+                path=_journey_path_from_history(by_app.get(aid) or []),
+            )
+        )
     return journeys
 
 
@@ -1002,6 +1135,86 @@ async def _ai_match_adoption(db, job_ids: Optional[List[str]] = None) -> AiMatch
         jobs_without_matches_count=len(without_ids),
         jobs_without_matches=without_list,
     )
+
+
+async def _department_risk_metrics(
+    db,
+    job_ids: Optional[List[str]] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, int], Dict[str, float], Dict[str, int]]:
+    """Aggregate open-job, ageing, stuck-candidate, and empty-pipeline signals by department."""
+    from talent_acquisition.hiring_dashboard_insights import department_label_from_job
+    from talent_acquisition.hiring_threshold_config import get_stage_sla_days
+
+    now = datetime.now(timezone.utc)
+    jobs = await db.jobs.find(
+        _with_job_filter({"status": "OPEN"}, job_ids),
+        {
+            "_id": 0,
+            "id": 1,
+            "status": 1,
+            "created_at": 1,
+            "title": 1,
+            "business_department": 1,
+            "department": 1,
+            "business_pillar": 1,
+            "business_sub_department": 1,
+        },
+    ).to_list(5000)
+
+    job_dept: Dict[str, str] = {}
+    req_age_sum: Dict[str, float] = {}
+    req_age_count: Dict[str, int] = {}
+
+    for job in jobs:
+        dept = department_label_from_job(job)
+        jid = job.get("id")
+        if jid:
+            job_dept[jid] = dept
+        created = _parse_dt(job.get("created_at"))
+        if created:
+            days = max(0, (now - created).days)
+            req_age_sum[dept] = req_age_sum.get(dept, 0.0) + days
+            req_age_count[dept] = req_age_count.get(dept, 0) + 1
+
+    req_age_by_dept = {
+        dept: round(req_age_sum[dept] / req_age_count[dept], 1)
+        for dept in req_age_sum
+        if req_age_count.get(dept)
+    }
+
+    open_ids = [j["id"] for j in jobs if j.get("id")]
+    jobs_with_apps: set[str] = set()
+    if open_ids:
+        jobs_with_apps = set(await db.applications.distinct("job_id", {"job_id": {"$in": open_ids}}))
+
+    empty_pipeline_by_dept: Dict[str, int] = {}
+    for job in jobs:
+        jid = job.get("id")
+        if not jid or jid in jobs_with_apps:
+            continue
+        dept = department_label_from_job(job)
+        empty_pipeline_by_dept[dept] = empty_pipeline_by_dept.get(dept, 0) + 1
+
+    stuck_by_dept: Dict[str, int] = {}
+    if open_ids:
+        sla_map = get_stage_sla_days()
+        apps = await db.applications.find(
+            {"job_id": {"$in": open_ids}},
+            {"_id": 0, "job_id": 1, "stage": 1, "updated_at": 1},
+        ).to_list(20000)
+        for app in apps:
+            stage = app.get("stage")
+            sla = sla_map.get(stage)
+            if not sla:
+                continue
+            updated = _parse_dt(app.get("updated_at"))
+            if not updated or (now - updated).days <= sla:
+                continue
+            dept = job_dept.get(app.get("job_id") or "")
+            if dept:
+                stuck_by_dept[dept] = stuck_by_dept.get(dept, 0) + 1
+
+    return jobs, stuck_by_dept, req_age_by_dept, empty_pipeline_by_dept
 
 
 async def _req_aging(db, job_ids: Optional[List[str]] = None) -> Tuple[List[ReqAgingBucket], int, int]:
@@ -1320,6 +1533,174 @@ async def _count_stale_open_jobs_zero_interviews(
     return max(0, len(stale_ids) - len(with_interview))
 
 
+def _org_field_matches(value: Any, needle: Optional[str]) -> bool:
+    if not needle or not value:
+        return False
+    return str(needle).strip().lower() in str(value).strip().lower()
+
+
+def _job_department_label(job: Dict[str, Any]) -> Optional[str]:
+    org = effective_job_org(job)
+    return org.get("business_department")
+
+
+def _job_matches_org_filters(
+    job: Dict[str, Any],
+    *,
+    business_pillar: Optional[str] = None,
+    department: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+) -> bool:
+    org = effective_job_org(job)
+    if business_pillar and not _org_field_matches(org.get("business_pillar"), business_pillar):
+        return False
+    if department and not _org_field_matches(org.get("business_department"), department):
+        return False
+    if business_sub_department and not _org_field_matches(org.get("business_sub_department"), business_sub_department):
+        return False
+    return True
+
+
+async def get_dashboard_filter_options(
+    db,
+    job_ids: Optional[List[str]] = None,
+    business_pillar: Optional[str] = None,
+    department: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+) -> Dict[str, List[str]]:
+    """Distinct org filter values from scoped open jobs (cascading by parent selections)."""
+    filt = _with_job_filter({"status": "OPEN"}, job_ids)
+    jobs = await db.jobs.find(
+        filt,
+        {
+            "_id": 0,
+            "business_pillar": 1,
+            "business_department": 1,
+            "department": 1,
+            "business_sub_department": 1,
+            "project_id": 1,
+        },
+    ).to_list(5000)
+
+    def _uniq_org(job_list: List[Dict[str, Any]], field: str) -> List[str]:
+        seen = set()
+        out: List[str] = []
+        for j in job_list:
+            val = effective_job_org(j).get(field)
+            if val and str(val).strip() and str(val) not in seen:
+                seen.add(str(val))
+                out.append(str(val).strip())
+        return sorted(out)
+
+    dept_jobs = [j for j in jobs if _job_matches_org_filters(j, business_pillar=business_pillar)]
+    sub_dept_jobs = [
+        j
+        for j in jobs
+        if _job_matches_org_filters(j, business_pillar=business_pillar, department=department)
+    ]
+    project_jobs = [
+        j
+        for j in jobs
+        if _job_matches_org_filters(
+            j,
+            business_pillar=business_pillar,
+            department=department,
+            business_sub_department=business_sub_department,
+        )
+    ]
+
+    return {
+        "pillars": _uniq_org(jobs, "business_pillar"),
+        "departments": _uniq_org(dept_jobs, "business_department"),
+        "sub_departments": _uniq_org(sub_dept_jobs, "business_sub_department"),
+        "project_ids": _uniq_org(project_jobs, "project_id"),
+    }
+
+
+async def _count_high_fit_awaiting_review(db, job_ids: Optional[List[str]]) -> int:
+    match = _with_job_scope(
+        {"stage": {"$in": ["SOURCED", "SCREENING"]}},
+        job_ids,
+    )
+    apps = await db.applications.find(match, {"_id": 0, "id": 1, "candidate_id": 1, "job_id": 1}).to_list(5000)
+    if not apps:
+        return 0
+    count = 0
+    for app in apps:
+        cid, jid = app.get("candidate_id"), app.get("job_id")
+        if not cid or not jid:
+            continue
+        score = await db.fit_scores.find_one(
+            {"candidate_id": cid, "job_id": jid},
+            {"_id": 0, "final_score": 1},
+            sort=[("computed_at", -1)],
+        )
+        if score and float(score.get("final_score") or 0) >= 90:
+            count += 1
+    return count
+
+
+async def _aggregate_talent_intelligence(db, job_ids: Optional[List[str]]) -> Dict[str, int]:
+    match = _with_job_scope({"stage": {"$nin": list(TERMINAL_STAGES)}}, job_ids)
+    apps = await db.applications.find(match, {"_id": 0, "candidate_id": 1, "job_id": 1}).to_list(2000)
+    cand_ids = list({a.get("candidate_id") for a in apps if a.get("candidate_id")})
+    job_id_list = list({a.get("job_id") for a in apps if a.get("job_id")})
+    skill_counts: Dict[str, int] = {}
+    if cand_ids:
+        cands = await db.candidates.find({"id": {"$in": cand_ids}}, {"_id": 0, "skills": 1}).to_list(2000)
+        for c in cands:
+            for sk in c.get("skills") or []:
+                name = sk.get("skill_name") if isinstance(sk, dict) else str(sk)
+                if name and name.strip():
+                    key = name.strip()
+                    skill_counts[key] = skill_counts.get(key, 0) + 1
+    if job_id_list:
+        jobs = await db.jobs.find({"id": {"$in": job_id_list}}, {"_id": 0, "must_have_skills": 1}).to_list(500)
+        for j in jobs:
+            for sk in j.get("must_have_skills") or []:
+                key = str(sk).strip()
+                if key:
+                    skill_counts[key] = skill_counts.get(key, 0) + 1
+    return skill_counts
+
+
+async def _recruiter_performance_rows(db, job_ids: Optional[List[str]]) -> List[Dict[str, Any]]:
+    filt = _with_job_filter({}, job_ids)
+    jobs = await db.jobs.find(filt, {"_id": 0, "id": 1, "created_by": 1, "status": 1}).to_list(5000)
+    by_recruiter: Dict[str, Dict[str, int]] = {}
+    for j in jobs:
+        uid = j.get("created_by")
+        if not uid:
+            continue
+        bucket = by_recruiter.setdefault(str(uid), {"open": 0, "filled": 0})
+        if str(j.get("status") or "").upper() == "OPEN":
+            bucket["open"] += 1
+        elif str(j.get("status") or "").upper() in ("CLOSED", "FILLED"):
+            bucket["filled"] += 1
+    user_ids = list(by_recruiter.keys())
+    users = await db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(500)
+    user_map = {u["id"]: u.get("full_name") or u.get("email") or u["id"] for u in users if u.get("id")}
+    rows: List[Dict[str, Any]] = []
+    for uid, stats in by_recruiter.items():
+        total = stats["open"] + stats["filled"]
+        fill_rate = round(100.0 * stats["filled"] / total, 2) if total else None
+        stuck = await db.applications.count_documents(
+            _with_job_scope({"stage": "ASSESSMENT_SENT"}, [j["id"] for j in jobs if j.get("created_by") == uid][:500])
+        )
+        from talent_acquisition.hiring_dashboard_insights import recruiter_health_score
+
+        rows.append(
+            {
+                "recruiter_id": uid,
+                "recruiter_name": user_map.get(uid, f"Recruiter ({uid[:8]}…)"),
+                "reqs": stats["open"],
+                "fill_rate_pct": fill_rate,
+                "health_score": recruiter_health_score(stuck, 0),
+            }
+        )
+    return rows
+
+
 async def build_hiring_dashboard_pack(
     db,
     *,
@@ -1329,13 +1710,24 @@ async def build_hiring_dashboard_pack(
     user_id: Optional[str] = None,
     job_id: Optional[str] = None,
     owner_id: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> HiringDashboardPack:
     wd = _clamp_window(window_days)
     cur_start, prior_start, prior_end = _window_bounds(wd)
     now_iso = datetime.now(timezone.utc).isoformat()
     scope_norm = (scope or "all").strip().lower()
     job_ids = await _scoped_job_ids(
-        db, department, scope_norm, user_id, job_id=job_id, owner_id=owner_id
+        db,
+        department,
+        scope_norm,
+        user_id,
+        job_id=job_id,
+        owner_id=owner_id,
+        business_pillar=business_pillar,
+        business_sub_department=business_sub_department,
+        project_id=project_id,
     )
     dashboard_config = await get_hiring_dashboard_config(db)
 
@@ -1429,6 +1821,7 @@ async def build_hiring_dashboard_pack(
     interview_round_metrics = _interview_round_metrics(stage_counts, stage_aging_summary)
     conversion_bottleneck = await _conversion_bottleneck(db, cur_start, job_ids)
     hire_journeys = await _recent_hire_journeys(db, cur_start, job_ids)
+    interview_journeys = await _recent_interview_journeys(db, job_ids)
     sla_map = dict(dashboard_config.stage_sla_days or {})
     bottleneck_slow_hires = await _bottleneck_slow_hires(db, cur_start, job_ids, sla_map)
 
@@ -1501,6 +1894,138 @@ async def build_hiring_dashboard_pack(
     talent_acquisition = await compute_talent_acquisition_metrics(db, window_days=wd, job_ids=job_ids)
     recent = await _recent_activities(db, job_ids)
 
+    from talent_acquisition.assessments_analytics import build_assessment_hiring_slice
+
+    assessment_slice_raw = await build_assessment_hiring_slice(db, window_days=wd, job_ids=job_ids)
+    assessment_slice = AssessmentHiringSlice(
+        funnel=assessment_slice_raw.get("funnel") or [],
+        completion_rate_pct=assessment_slice_raw.get("completion_rate_pct"),
+        pass_rate_pct=assessment_slice_raw.get("pass_rate_pct"),
+        command_center_path=assessment_slice_raw.get("command_center_path") or "/assessments?tab=overview",
+    )
+
+    from talent_acquisition.hiring_dashboard_insights import (
+        build_ai_insights,
+        build_ai_recommendation,
+        build_analytics_summary,
+        build_department_risk,
+        build_hero_risk_metrics,
+        build_interview_action_queue,
+        build_offer_insight,
+        build_offer_priority_actions,
+        build_recruiter_performance,
+        build_signal_recommendations,
+        build_signal_strength,
+        build_smart_actions,
+        build_tab_kpis,
+        build_talent_intelligence,
+        build_talent_quality,
+        compute_expected_hires,
+        compute_offer_acceptance_pct,
+    )
+
+    high_fit_awaiting = await _count_high_fit_awaiting_review(db, job_ids)
+    hero_risk = build_hero_risk_metrics(
+        over_60=over_60,
+        over_90=over_90,
+        stale_zero_interviews=stale_zero_interviews,
+        high_fit_awaiting=high_fit_awaiting,
+    )
+    alerts_dicts = [a if isinstance(a, dict) else (a.model_dump() if hasattr(a, 'model_dump') else dict(a)) for a in alerts]
+    ai_rec = build_ai_recommendation(alerts_dicts)
+    ai_insights = build_ai_insights(alerts_dicts)
+    insights_source = "rule_based"
+
+    offer_acceptance = compute_offer_acceptance_pct(offer_status_counts)
+    interview_ready = int(stage_counts.get("ASSESSMENT_CLEARED") or 0) + int(stage_counts.get("INTERVIEW_1") or 0)
+    expected_hires_val = compute_expected_hires(
+        window_days=wd,
+        hires_in_window=hires,
+        pending_offers=pending_offers,
+        interview_ready=interview_ready,
+        monthly_target=dashboard_config.monthly_hire_target,
+    )
+    prior_expected = compute_expected_hires(
+        window_days=wd,
+        hires_in_window=prior_hires,
+        pending_offers=prior_pending,
+        interview_ready=0,
+        monthly_target=dashboard_config.monthly_hire_target,
+    )
+
+    open_jobs_rows, stuck_by_dept, req_age_by_dept, empty_pipeline_by_dept = await _department_risk_metrics(
+        db, job_ids
+    )
+    dept_risk = build_department_risk(
+        open_jobs_rows,
+        stuck_by_dept,
+        req_age_by_dept,
+        empty_pipeline_by_dept,
+    )
+    skill_counts = await _aggregate_talent_intelligence(db, job_ids)
+    talent_intel = build_talent_intelligence(skill_counts)
+    recruiter_rows = build_recruiter_performance(await _recruiter_performance_rows(db, job_ids))
+    stuck_assessment = int(stuck.get("ASSESSMENT_SENT") or 0)
+    schedule_interviews = int(stage_counts.get("ASSESSMENT_CLEARED") or 0)
+    smart_actions = build_smart_actions(
+        pending_offers=pending_offers,
+        high_fit_count=high_fit_awaiting,
+        schedule_interviews=schedule_interviews,
+        escalate_delays=over_60 + over_90,
+        hiring_risks=len([a for a in alerts if (a.severity if hasattr(a, 'severity') else a.get('severity')) == 'critical']),
+    )
+    interview_action_queue = build_interview_action_queue(interview_round_metrics, smart_actions)
+    ai_recommended = await _count_applications(
+        db,
+        _with_job_scope({"stage": {"$in": list(INTERVIEW_STAGES)}}, job_ids),
+    )
+    talent_quality = build_talent_quality(fit_distribution, ai_recommended)
+
+    sourced_avg = None
+    for s in stage_aging_summary:
+        if s.stage == "SOURCED":
+            sourced_avg = s.avg_days
+            break
+    funnel_to_offer = None
+    if funnel and funnel[0].count > 0:
+        offer_count = int(stage_counts.get("OFFER") or 0)
+        funnel_to_offer = round(100.0 * offer_count / funnel[0].count, 2)
+
+    tab_kpis = build_tab_kpis(
+        stage_counts=stage_counts,
+        active_pipeline=active_pipeline,
+        stuck_assessment=stuck_assessment,
+        offer_status_counts=offer_status_counts,
+        offer_aging=offer_aging,
+        interview_round_metrics=interview_round_metrics,
+        new_apps=new_apps,
+        avg_fit=avg_fit,
+        high_fit_pct=high_fit_pct,
+        funnel_to_offer_pct=funnel_to_offer,
+        avg_stage_age=sourced_avg,
+    )
+    offer_at_risk = sum(1 for r in offer_aging if r.sla_breached)
+    offer_insight = build_offer_insight(offer_aging, offer_at_risk)
+    offer_priority = build_offer_priority_actions(offer_aging)
+    signal_strength = build_signal_strength(
+        ai_adoption_pct=ai_match_adoption.adoption_pct,
+        avg_fit=avg_fit,
+        trajectory_coverage_pct=career_trajectory_coverage.coverage_pct,
+        referral_share_pct=referral_metrics.referral_share_pct,
+    )
+    signal_recs = build_signal_recommendations(
+        trajectory_coverage_pct=career_trajectory_coverage.coverage_pct,
+        ai_adoption_pct=ai_match_adoption.adoption_pct,
+        referral_share_pct=referral_metrics.referral_share_pct,
+    )
+    analytics_summary = build_analytics_summary(
+        new_apps=new_apps,
+        prior_new_apps=prior_new_apps,
+        sourced_avg_days=sourced_avg,
+        sourced_count=int(stage_counts.get("SOURCED") or 0),
+        median_fit=median_fit,
+    )
+
     headline = HiringDashboardHeadline(
         open_jobs=_delta_metric(open_jobs, prior_open),
         active_pipeline=_delta_metric(active_pipeline, prior_active),
@@ -1520,16 +2045,10 @@ async def build_hiring_dashboard_pack(
         if cur_tth_median is not None
         else None,
         pending_offers=_delta_metric(pending_offers, prior_pending),
-    )
-
-    from talent_acquisition.assessments_analytics import build_assessment_hiring_slice
-
-    assessment_slice_raw = await build_assessment_hiring_slice(db, window_days=wd, job_ids=job_ids)
-    assessment_slice = AssessmentHiringSlice(
-        funnel=assessment_slice_raw.get("funnel") or [],
-        completion_rate_pct=assessment_slice_raw.get("completion_rate_pct"),
-        pass_rate_pct=assessment_slice_raw.get("pass_rate_pct"),
-        command_center_path=assessment_slice_raw.get("command_center_path") or "/assessments?tab=overview",
+        expected_hires=_delta_metric(expected_hires_val, prior_expected),
+        offer_acceptance_pct=_delta_metric(offer_acceptance or 0, None)
+        if offer_acceptance is not None
+        else None,
     )
 
     return HiringDashboardPack(
@@ -1538,6 +2057,9 @@ async def build_hiring_dashboard_pack(
         data_freshness="live",
         scope=scope_norm,
         department=department,
+        business_pillar=business_pillar,
+        business_sub_department=business_sub_department,
+        project_id=project_id,
         job_id=job_id,
         owner_id=owner_id,
         health_score=health_score,
@@ -1559,6 +2081,8 @@ async def build_hiring_dashboard_pack(
         conversion_bottleneck=conversion_bottleneck,
         bottleneck_slow_hires=bottleneck_slow_hires,
         hire_journeys=hire_journeys,
+        interview_journeys=interview_journeys,
+        interview_action_queue=interview_action_queue,
         req_aging=req_aging,
         top_jobs=top_jobs,
         alerts=alerts,
@@ -1568,6 +2092,21 @@ async def build_hiring_dashboard_pack(
         career_trajectory_coverage=career_trajectory_coverage,
         assessment=assessment_slice,
         recent_activities=recent,
+        hero_risk_metrics=hero_risk,
+        ai_recommendation=ai_rec,
+        ai_insights=ai_insights,
+        ai_insights_source=insights_source,
+        department_risk=dept_risk,
+        talent_intelligence=talent_intel,
+        recruiter_performance=recruiter_rows,
+        smart_actions=smart_actions,
+        talent_quality=talent_quality,
+        tab_kpis=tab_kpis,
+        offer_insight=offer_insight,
+        offer_priority_actions=offer_priority,
+        signal_strength=signal_strength,
+        signal_recommendations=signal_recs,
+        analytics_summary=analytics_summary,
         total_jobs=total_jobs,
         total_candidates=total_candidates,
         total_applications=total_applications,
