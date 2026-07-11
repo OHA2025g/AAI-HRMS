@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 
 async def up(db) -> None:
-    from m5_training.constants import COL_LEARNING_PATH_TEMPLATES
+    from training.constants import COL_LEARNING_PATH_TEMPLATES
 
     now = datetime.now(timezone.utc).isoformat()
     await db[COL_LEARNING_PATH_TEMPLATES].update_one(

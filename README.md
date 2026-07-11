@@ -207,27 +207,24 @@ Create a new account on the registration page, or use:
 
 - **Unit / backend:** `cd backend && pytest -q` (see `.github/workflows/quality-gates.yml` for the default subset).
 - **Optional API integration:** set `RUN_PHASE1_INTEGRATION=1`, `PHASE1_BASE_URL`, `PHASE1_BEARER_TOKEN` — `backend/tests/test_phase1_integration.py`.
-- **End-to-end (Playwright):** full catalog in **`memory/E2E_TEST_CASES.md`**; runbook **`e2e/README.md`**. Quick start (after Mongo + migrate + `seed_qa_baseline.py`): API on `:11001`, UI with `REACT_APP_BACKEND_URL` set, then `cd e2e && npm install && npx playwright install chromium && npm test`.
+- **End-to-end (Playwright):** runbook **`e2e/README.md`**. Quick start (after Mongo + migrate + `seed_qa_baseline.py`): API on `:11001`, UI with `REACT_APP_BACKEND_URL` set, then `cd e2e && npm install && npx playwright install chromium && npm test`.
 - **CI:** workflow **E2E (Playwright)** (`.github/workflows/e2e-playwright.yml`) on PRs touching `frontend/`, `backend/`, or `e2e/`, plus **workflow_dispatch**.
 
 ## Project Structure
 ```
 aai-hrms/
-├── backend/
-│   ├── server.py          # FastAPI application
-│   ├── requirements.txt   # Python dependencies
-│   └── .env               # Environment variables
+├── backend/                 # FastAPI app (domain packages + server.py)
 ├── frontend/
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── pages/         # Page components
-│   │   ├── context/       # Auth context
-│   │   ├── lib/           # API utilities
-│   │   └── App.jsx        # Main app
-│   ├── package.json       # Node dependencies
-│   └── .env               # Frontend env
-├── e2e/                   # Playwright E2E tests + README
-├── memory/                # PRD, runbooks, E2E_TEST_CASES.md
+│   └── src/
+│       ├── app/             # App shell + routes
+│       ├── features/        # Feature modules (smart-hiring, admin, …)
+│       ├── shared/          # Shared UI, lib, hooks, config
+│       └── data/            # Static frontend data helpers
+├── data/excel/              # Local Excel seed workbooks (gitignored)
+├── deploy/                  # Kubernetes + observability
+├── docs/                    # Engineering / testing docs
+├── e2e/                     # Playwright E2E tests
+├── scripts/                 # Load/perf + validation helpers
 └── README.md
 ```
 

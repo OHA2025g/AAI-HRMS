@@ -1,0 +1,15 @@
+{
+  "load_health_n": 50,
+  "load_health_p50_ms": 0.8454585040453821,
+  "load_health_p95_ms": 1.1428330035414547,
+  "load_health_max_ms": 1.5704170218668878,
+  "auth_jobs_n": 30,
+  "auth_jobs_p50_ms": 6.7535630078054965,
+  "auth_jobs_p95_ms": 7.688041019719094,
+  "stress_burst_n": 80,
+  "stress_burst_p50_ms": 28.834458513301797,
+  "stress_burst_p95_ms": 53.00970800453797,
+  "stress_burst_max_ms": 54.48416597209871,
+  "pass_criteria": "p95 health < 500ms and p95 jobs < 2000ms under moderate load",
+  "passed": true
+}

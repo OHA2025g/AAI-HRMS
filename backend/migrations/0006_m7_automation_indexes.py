@@ -6,7 +6,7 @@ Idempotent — mirrors `ensure_phase1_indexes` in server.py.
 
 from __future__ import annotations
 
-from m7_automation.constants import COL_HR_COPILOT_AUDIT, COL_MANUAL_WORKFLOW_BASELINES, COL_WORKFLOW_RULES, COL_WORKFLOW_RUNS
+from automation.constants import COL_HR_COPILOT_AUDIT, COL_MANUAL_WORKFLOW_BASELINES, COL_WORKFLOW_RULES, COL_WORKFLOW_RUNS
 
 
 async def up(db) -> None:

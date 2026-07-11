@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from m9_analytics.constants import COL_M9_KPI_DEFINITIONS, COL_M9_LEADERSHIP_SNAPSHOTS
+from analytics.constants import COL_M9_KPI_DEFINITIONS, COL_M9_LEADERSHIP_SNAPSHOTS
 
 
 async def up(db) -> None:

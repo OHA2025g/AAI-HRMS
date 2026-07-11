@@ -47,8 +47,8 @@ Legacy jobs without `hiring_team` fall back to `created_by` as recruiter on acce
 
 ## Frontend
 
-- `frontend/src/hooks/useHiringPermissions.js`
-- `frontend/src/lib/hiringPipelinePermissions.js`
+- `frontend/src/shared/hooks/useHiringPermissions.js`
+- `frontend/src/shared/lib/hiringPipelinePermissions.js`
 - Gated pages: **Create job**, **Job detail**, **Pipeline** (incl. offer proposals), **Assessments** (grade hidden for PM), **Candidates**, **Interviews**, **Referrals**
 
 ## QA demo users (after seed)

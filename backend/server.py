@@ -128,16 +128,16 @@ from talent_acquisition.hiring_rbac import (
 from talent_acquisition.candidate_import.routes import create_candidate_import_router
 from talent_acquisition.linkedin_routes import create_linkedin_router
 from talent_acquisition.apify_routes import create_apify_linkedin_router
-from m2_employee_lifecycle.state_machine import (
+from employee_lifecycle.state_machine import (
     approval_rule_for_event,
     target_status_for_event,
     validate_direct_status_transition,
     validate_lifecycle_event_for_status,
 )
-from m2_employee_lifecycle.document_sla import default_sla_due, is_past_iso
+from employee_lifecycle.document_sla import default_sla_due, is_past_iso
 
-from m3_workforce_intel.baseline_model import BaselineParams, evaluate_on_history, fit_per_skill_baseline, predict_demand
-from m3_workforce_intel.constants import (
+from workforce_intel.baseline_model import BaselineParams, evaluate_on_history, fit_per_skill_baseline, predict_demand
+from workforce_intel.constants import (
     COL_DRIFT_EVENTS,
     COL_ETL_RUNS,
     COL_EVAL_RUNS,
@@ -148,23 +148,23 @@ from m3_workforce_intel.constants import (
     MODEL_STATE_DOC_ID,
     MONITORING_STATE_DOC_ID,
 )
-from m3_workforce_intel.features import extract_workforce_intel_feature_rows
-from m3_workforce_intel.hist_store import load_demand_series_by_skill
-from m3_workforce_intel.monitoring import evaluate_active_model_vs_current, retrain_trigger_evaluation
-from m3_workforce_intel.pipeline import etl_backfill_demo, etl_snapshot
+from workforce_intel.features import extract_workforce_intel_feature_rows
+from workforce_intel.hist_store import load_demand_series_by_skill
+from workforce_intel.monitoring import evaluate_active_model_vs_current, retrain_trigger_evaluation
+from workforce_intel.pipeline import etl_backfill_demo, etl_snapshot
 
-import m3_workforce_intel.prom_metrics  # noqa: F401 — register M3 Prometheus gauges
+import workforce_intel.prom_metrics  # noqa: F401 — register M3 Prometheus gauges
 
-from m4_resource_optimization.constants import COL_ALLOCATION_SCENARIOS, COL_ALLOCATION_SETTINGS, SETTINGS_DOC_ID
-from m4_resource_optimization.io import (
+from resource_optimization.constants import COL_ALLOCATION_SCENARIOS, COL_ALLOCATION_SETTINGS, SETTINGS_DOC_ID
+from resource_optimization.io import (
     apply_assignments_to_project_allocations,
     ensure_default_settings,
     get_merged_settings,
     run_allocation_solve,
 )
-from m4_resource_optimization.solver import compare_solve_results
+from resource_optimization.solver import compare_solve_results
 
-from m5_training.constants import (
+from training.constants import (
     COL_ASSIGNMENTS,
     COL_CERTIFICATIONS,
     COL_LEARNING_PATH_TEMPLATES,
@@ -172,22 +172,22 @@ from m5_training.constants import (
     COL_LMS_SYNC_RUNS,
     DEFAULT_LMS_PROVIDER,
 )
-from m5_training.lms_sync import run_lms_catalog_sync
-from m5_training.recommendation_rules import build_employee_recommendation_payloads
-from m5_training.service import load_path_templates_map, manager_team_training_summary, scan_certification_expiry
+from training.lms_sync import run_lms_catalog_sync
+from training.recommendation_rules import build_employee_recommendation_payloads
+from training.service import load_path_templates_map, manager_team_training_summary, scan_certification_expiry
 
-from m6_engagement.audit_log import log_engagement_privacy_event
-from m6_engagement.constants import (
+from engagement.audit_log import log_engagement_privacy_event
+from engagement.constants import (
     COL_PRIVACY_AUDIT,
     COL_SURVEY_SCHEDULES,
     COL_SURVEY_TEMPLATES,
 )
-from m6_engagement.privacy import anonymity_min_threshold, redacted_dashboard_payload, should_redact_survey_aggregates
-from m6_engagement.schedules import next_run_after, parse_iso_dt
-from m6_engagement.sentiment import compute_sentiment as m6_compute_sentiment
-from m6_engagement.topics import aggregate_topic_counts, classify_topic, confidence_tier, weekly_rating_trends
+from engagement.privacy import anonymity_min_threshold, redacted_dashboard_payload, should_redact_survey_aggregates
+from engagement.schedules import next_run_after, parse_iso_dt
+from engagement.sentiment import compute_sentiment as m6_compute_sentiment
+from engagement.topics import aggregate_topic_counts, classify_topic, confidence_tier, weekly_rating_trends
 
-from m7_automation.constants import (
+from automation.constants import (
     COL_HR_COPILOT_AUDIT,
     COL_MANUAL_WORKFLOW_BASELINES,
     COL_WORKFLOW_RULES,
@@ -195,15 +195,15 @@ from m7_automation.constants import (
     COPILOT_ENGINE_VERSION,
     WORKFLOW_ENGINE_VERSION,
 )
-from m7_automation.copilot_hf import resolve_copilot_intent_async
-from m7_automation.copilot_intent import extract_employee_code_hint, help_text
-from m7_automation.retry import run_with_retries
-from m7_automation.savings import baseline_map, compute_savings_totals
-from m7_automation.workflow_flow import execute_flow_graph
-from m7_automation.workflow_triggers import should_execute_trigger
-from m7_automation.workflow_webhook import execute_http_webhook
+from automation.copilot_hf import resolve_copilot_intent_async
+from automation.copilot_intent import extract_employee_code_hint, help_text
+from automation.retry import run_with_retries
+from automation.savings import baseline_map, compute_savings_totals
+from automation.workflow_flow import execute_flow_graph
+from automation.workflow_triggers import should_execute_trigger
+from automation.workflow_webhook import execute_http_webhook
 
-from m8_retention.constants import (
+from retention.constants import (
     ATTRITION_MODEL_VERSION,
     COL_ATTRITION_MODEL_STATE,
     COL_ATTRITION_SCORES_LATEST,
@@ -211,11 +211,11 @@ from m8_retention.constants import (
     COL_RETENTION_PLAYBOOKS,
     COL_RETENTION_SEGMENT_SETTINGS,
 )
-from m8_retention import service as m8_retention_service
+from retention import service as retention_service
 
-from m9_analytics.constants import COL_M9_KPI_DEFINITIONS, COL_M9_LEADERSHIP_SNAPSHOTS
+from analytics.constants import COL_M9_KPI_DEFINITIONS, COL_M9_LEADERSHIP_SNAPSHOTS
 
-from m10_allocation_section.constants import (
+from allocation_section.constants import (
     COL_ACTIVITY_LOGS,
     COL_AI_INSIGHTS,
     COL_ALERTS,
@@ -231,8 +231,8 @@ from m10_allocation_section.constants import (
     COL_STAFFING_REQUESTS,
     COL_WORKFLOW_APPROVALS,
 )
-from m10_allocation_section.routes import create_allocation_section_router
-from m11_resource_section.constants import (
+from allocation_section.routes import create_allocation_section_router
+from resource_section.constants import (
     COL_ACTIVITY as RS_COL_ACTIVITY,
     COL_AI_INSIGHTS as RS_COL_AI_INSIGHTS,
     COL_APPROVALS as RS_COL_APPROVALS,
@@ -256,9 +256,9 @@ from m11_resource_section.constants import (
     COL_SKILL_RECORDS as RS_COL_SKILL_RECORDS,
     COL_UTIL_SNAPSHOTS as RS_COL_UTIL_SNAPSHOTS,
 )
-from m11_resource_section.routes import create_resource_section_router
-from m12_training_development.routes import create_training_development_router
-from m12_training_development.constants import (
+from resource_section.routes import create_resource_section_router
+from training_development.routes import create_training_development_router
+from training_development.constants import (
     COL_APPROVAL_REQUESTS as TD_COL_APPROVAL_REQUESTS,
     COL_ASSESSMENT_RESULTS as TD_COL_ASSESSMENT_RESULTS,
     COL_ASSESSMENTS as TD_COL_ASSESSMENTS,
@@ -270,12 +270,12 @@ from m12_training_development.constants import (
     COL_TRAINING_PROGRAMS as TD_COL_TRAINING_PROGRAMS,
     COL_TRAINING_SESSIONS as TD_COL_TRAINING_SESSIONS,
 )
-from m13_high_skill_talent_retention.routes import create_high_skill_retention_router
+from high_skill_retention.routes import create_high_skill_retention_router
 from career_trajectory.async_jobs import recover_stale_analyze_jobs
 from career_trajectory.auto_analyze import trigger_auto_analyze_if_eligible
 from career_trajectory.routes import create_career_trajectory_router
-from candidate_fit_phase2.routes import create_phase2_fit_router
-from m13_high_skill_talent_retention.constants import (
+from candidate_fit.routes import create_phase2_fit_router
+from high_skill_retention.constants import (
     COL_AI_FLIGHT_RISK as HSR_COL_AI_FLIGHT_RISK,
     COL_AI_RECOMMENDATIONS as HSR_COL_AI_RECOMMENDATIONS,
     COL_ATTRITION_PREDICTIONS as HSR_COL_ATTRITION_PREDICTIONS,
@@ -290,8 +290,8 @@ from m13_high_skill_talent_retention.constants import (
     COL_TALENT_SEGMENTS as HSR_COL_TALENT_SEGMENTS,
     COL_RETENTION_CASES as HSR_COL_RETENTION_CASES,
 )
-from m14_employee_lifecycle_management.routes import create_employee_lifecycle_management_router
-from m14_employee_lifecycle_management.constants import (
+from employee_lifecycle_management.routes import create_employee_lifecycle_management_router
+from employee_lifecycle_management.constants import (
     COL_PREBOARDING as ELM_COL_PREBOARDING,
     COL_ONBOARDING as ELM_COL_ONBOARDING,
     COL_PROBATION as ELM_COL_PROBATION,
@@ -312,8 +312,8 @@ from m14_employee_lifecycle_management.constants import (
     COL_LIFECYCLE_NOTES as ELM_COL_LIFECYCLE_NOTES,
     COL_ACTIVITY_LOGS as ELM_COL_ACTIVITY_LOGS,
 )
-from m15_workforce_intelligence.routes import create_workforce_intelligence_router
-from m15_workforce_intelligence.constants import (
+from workforce_intelligence.routes import create_workforce_intelligence_router
+from workforce_intelligence.constants import (
     COL_SNAPSHOT_RECORDS as WFI_COL_SNAPSHOT_RECORDS,
     COL_HEADCOUNT_RECORDS as WFI_COL_HEADCOUNT_RECORDS,
     COL_DEMOGRAPHIC_SNAPSHOTS as WFI_COL_DEMOGRAPHIC_SNAPSHOTS,
@@ -340,11 +340,11 @@ from m15_workforce_intelligence.constants import (
     COL_EXECUTIVE_SUMMARY_SNAPSHOTS as WFI_COL_EXECUTIVE_SUMMARY_SNAPSHOTS,
     COL_ACTIVITY_LOGS as WFI_COL_ACTIVITY_LOGS,
 )
-from m16_cost_optimization_automation.constants import ALL_INDEXED_COLLECTIONS
-from m16_cost_optimization_automation.routes import create_cost_optimization_automation_router
-from m17_employee_satisfaction_engagement.routes import create_employee_satisfaction_engagement_router
-from m17_employee_satisfaction_engagement import service as m17_ese_service
-from m9_analytics.export_packs import (
+from cost_optimization.constants import ALL_INDEXED_COLLECTIONS
+from cost_optimization.routes import create_cost_optimization_automation_router
+from employee_satisfaction.routes import create_employee_satisfaction_engagement_router
+from employee_satisfaction import service as m17_ese_service
+from analytics.export_packs import (
     create_full_leadership_pack_zip,
     create_monthly_cron_snapshots,
     create_monthly_snapshot_and_deliver,
@@ -354,23 +354,23 @@ from m9_analytics.export_packs import (
     get_snapshot_doc,
     list_snapshots,
 )
-from m9_analytics.talent_kpis import compute_talent_acquisition_metrics
-from m9_analytics.freshness import compute_source_freshness
-from m9_analytics.compare import compare_snapshots
-from m9_analytics.bundle import get_executive_dashboard_bundle
-from m9_analytics.constants import COL_M9_KPI_THRESHOLDS
-from m9_analytics.service import drill_filter_options, get_drill_dashboard_cached, get_kpi_pack, load_merged_kpi_definitions
-from m9_analytics.definition_config import delete_definition_override
-from m9_analytics.threshold_config import delete_threshold_override, list_threshold_overrides, upsert_threshold_override
-from m9_analytics.predictive import get_executive_predictive_views
-from m9_analytics.trends import get_kpi_trends
-from m9_analytics.strategic_aggregate import build_strategic_dashboard_data
+from analytics.talent_kpis import compute_talent_acquisition_metrics
+from analytics.freshness import compute_source_freshness
+from analytics.compare import compare_snapshots
+from analytics.bundle import get_executive_dashboard_bundle
+from analytics.constants import COL_M9_KPI_THRESHOLDS
+from analytics.service import drill_filter_options, get_drill_dashboard_cached, get_kpi_pack, load_merged_kpi_definitions
+from analytics.definition_config import delete_definition_override
+from analytics.threshold_config import delete_threshold_override, list_threshold_overrides, upsert_threshold_override
+from analytics.predictive import get_executive_predictive_views
+from analytics.trends import get_kpi_trends
+from analytics.strategic_aggregate import build_strategic_dashboard_data
 
-from m10_events.constants import COL_M10_EVENTS, COL_M10_HANDLER_AUDIT, COL_M10_IDEMPOTENCY
-from m10_events.consumer import spawn_consumer_task
-from m10_events.replay import replay_events
-from m10_events.schemas import M10ReplayRequest
-from m10_events.topics import (
+from event_backbone.constants import COL_M10_EVENTS, COL_M10_HANDLER_AUDIT, COL_M10_IDEMPOTENCY
+from event_backbone.consumer import spawn_consumer_task
+from event_backbone.replay import replay_events
+from event_backbone.schemas import M10ReplayRequest
+from event_backbone.topics import (
     TOPIC_EMPLOYEE_LIFECYCLE_EVENT_CREATED,
     TOPIC_WORKFLOW_RUN_COMPLETED,
     TOPIC_WORKFLOW_RUN_FAILED,
@@ -461,11 +461,11 @@ logger = logging.getLogger(__name__)
 async def _m10_publish_safe(**kwargs: Any) -> None:
     """Best-effort M10 outbox publish — never raises to callers."""
     try:
-        from m10_events.producer import publish_event
+        from event_backbone.producer import publish_event
 
         await publish_event(db, **kwargs)
     except Exception:
-        logger.exception("m10_events publish failed")
+        logger.exception("event_backbone publish failed")
 
 
 # Basic in-memory API metrics for M0 observability baseline (admin JSON: GET /api/metrics).
@@ -11211,7 +11211,7 @@ async def create_training_assignment(
         raise HTTPException(status_code=404, detail="Employee not found")
     sk_lc = sk.lower()
     templates = await load_path_templates_map(db)
-    from m5_training.recommendation_rules import path_for_skill
+    from training.recommendation_rules import path_for_skill
 
     steps = path_for_skill(sk, sk_lc, templates)
     now = datetime.now(timezone.utc).isoformat()
@@ -11987,10 +11987,10 @@ async def get_high_skill_retention(current_user: dict = Depends(get_current_user
 
 
 @api_router.post("/workforce/retention/v1/score-run")
-async def m8_retention_score_run(current_user: dict = Depends(get_current_user)):
+async def retention_score_run(current_user: dict = Depends(get_current_user)):
     """M8-1: batch score active employees; requires kpi_read."""
     _require_phase1_access(current_user, "kpi_read")
-    out = await m8_retention_service.run_score_batch(db)
+    out = await retention_service.run_score_batch(db)
     return out
 
 
@@ -12007,7 +12007,7 @@ def _m8_model_public_view(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @api_router.post("/workforce/retention/v1/score-run-cron")
-async def m8_retention_score_run_cron(request: Request):
+async def retention_score_run_cron(request: Request):
     """
     Scheduled attrition score batch (no JWT). Requires env M8_SCORE_RUN_TOKEN and header
     X-M8-Score-Token matching it. Use GitHub Actions or internal cron.
@@ -12016,15 +12016,15 @@ async def m8_retention_score_run_cron(request: Request):
     got = (request.headers.get("X-M8-Score-Token") or "").strip()
     if not expected or got != expected:
         raise HTTPException(status_code=401, detail="Invalid or missing X-M8-Score-Token")
-    return await m8_retention_service.run_score_batch(db)
+    return await retention_service.run_score_batch(db)
 
 
 @api_router.post("/workforce/retention/v1/train")
-async def m8_retention_train(payload: M8AttritionTrainRequest, current_user: dict = Depends(get_current_user)):
+async def retention_train(payload: M8AttritionTrainRequest, current_user: dict = Depends(get_current_user)):
     """M8-1: refit default logistic weights from labeled employees (admin)."""
     _require_admin(current_user)
     labels = [{"employee_id": x.employee_id, "churned": x.churned} for x in (payload.labels or [])]
-    return await m8_retention_service.train_and_store(
+    return await retention_service.train_and_store(
         db,
         labels,
         use_gradient_boosting=bool(payload.use_gradient_boosting),
@@ -12033,21 +12033,21 @@ async def m8_retention_train(payload: M8AttritionTrainRequest, current_user: dic
 
 
 @api_router.get("/workforce/retention/v1/model")
-async def m8_retention_get_model(current_user: dict = Depends(get_current_user)):
+async def retention_get_model(current_user: dict = Depends(get_current_user)):
     _require_admin(current_user)
-    doc = await m8_retention_service.get_model_state_doc(db)
+    doc = await retention_service.get_model_state_doc(db)
     return _m8_model_public_view(doc)
 
 
 @api_router.patch("/workforce/retention/v1/model")
-async def m8_retention_patch_model(
+async def retention_patch_model(
     payload: M8ModelRuntimePatch,
     current_user: dict = Depends(get_current_user),
 ):
     """Switch ensemble_mode (linear / gb / avg) or interaction features without retraining."""
     _require_admin(current_user)
     p = payload.model_dump(exclude_none=True)
-    updated = await m8_retention_service.patch_model_runtime_settings(
+    updated = await retention_service.patch_model_runtime_settings(
         db,
         ensemble_mode=p.get("ensemble_mode"),
         interaction_features_enabled=p.get("interaction_features_enabled"),
@@ -12056,7 +12056,7 @@ async def m8_retention_patch_model(
 
 
 @api_router.get("/workforce/retention/v1/scores")
-async def m8_retention_list_scores(
+async def retention_list_scores(
     department: Optional[str] = None,
     segment: Optional[str] = None,
     band: Optional[str] = None,
@@ -12066,7 +12066,7 @@ async def m8_retention_list_scores(
 ):
     _require_phase1_access(current_user, "kpi_read")
     limit = min(max(1, int(limit)), 500)
-    return await m8_retention_service.list_latest_scores(
+    return await retention_service.list_latest_scores(
         db,
         department=department,
         segment=segment,
@@ -12077,43 +12077,43 @@ async def m8_retention_list_scores(
 
 
 @api_router.get("/workforce/retention/v1/employees/{employee_id}/score")
-async def m8_retention_employee_score(employee_id: str, current_user: dict = Depends(get_current_user)):
+async def retention_employee_score(employee_id: str, current_user: dict = Depends(get_current_user)):
     _require_phase1_access(current_user, "kpi_read")
-    row = await m8_retention_service.get_employee_latest_score(db, employee_id)
+    row = await retention_service.get_employee_latest_score(db, employee_id)
     if not row:
         raise HTTPException(status_code=404, detail="No score — run POST /workforce/retention/v1/score-run first")
     return row
 
 
 @api_router.get("/workforce/retention/v1/segments/settings")
-async def m8_retention_segment_settings_get(current_user: dict = Depends(get_current_user)):
+async def retention_segment_settings_get(current_user: dict = Depends(get_current_user)):
     _require_phase1_access(current_user, "kpi_read")
-    return await m8_retention_service.get_segment_settings(db)
+    return await retention_service.get_segment_settings(db)
 
 
 @api_router.put("/workforce/retention/v1/segments/settings")
-async def m8_retention_segment_settings_put(
+async def retention_segment_settings_put(
     payload: M8SegmentSettingsUpdate,
     current_user: dict = Depends(get_current_user),
 ):
     _require_admin(current_user)
     patch = payload.model_dump(exclude_none=True)
-    return await m8_retention_service.save_segment_settings(db, patch)
+    return await retention_service.save_segment_settings(db, patch)
 
 
 @api_router.get("/workforce/retention/v1/playbooks")
-async def m8_retention_playbooks_list(current_user: dict = Depends(get_current_user)):
+async def retention_playbooks_list(current_user: dict = Depends(get_current_user)):
     _require_phase1_access(current_user, "kpi_read")
-    return await m8_retention_service.list_playbooks(db)
+    return await retention_service.list_playbooks(db)
 
 
 @api_router.post("/workforce/retention/v1/playbooks")
-async def m8_retention_playbooks_create(
+async def retention_playbooks_create(
     payload: M8RetentionPlaybookCreate,
     current_user: dict = Depends(get_current_user),
 ):
     _require_admin(current_user)
-    return await m8_retention_service.create_playbook(
+    return await retention_service.create_playbook(
         db,
         {
             "title": payload.title,
@@ -12125,7 +12125,7 @@ async def m8_retention_playbooks_create(
 
 
 @api_router.get("/workforce/retention/v1/interventions")
-async def m8_retention_interventions_list(
+async def retention_interventions_list(
     employee_id: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 100,
@@ -12133,17 +12133,17 @@ async def m8_retention_interventions_list(
 ):
     _require_phase1_access(current_user, "kpi_read")
     limit = min(max(1, int(limit)), 300)
-    return await m8_retention_service.list_interventions(db, employee_id=employee_id, status=status, limit=limit)
+    return await retention_service.list_interventions(db, employee_id=employee_id, status=status, limit=limit)
 
 
 @api_router.post("/workforce/retention/v1/interventions")
-async def m8_retention_interventions_create(
+async def retention_interventions_create(
     payload: M8RetentionInterventionCreate,
     current_user: dict = Depends(get_current_user),
 ):
     _require_phase1_access(current_user, "employees_write")
     try:
-        return await m8_retention_service.create_intervention(
+        return await retention_service.create_intervention(
             db,
             employee_id=payload.employee_id,
             playbook_id=payload.playbook_id,
@@ -12160,14 +12160,14 @@ async def m8_retention_interventions_create(
 
 
 @api_router.patch("/workforce/retention/v1/interventions/{intervention_id}/timeline")
-async def m8_retention_intervention_timeline(
+async def retention_intervention_timeline(
     intervention_id: str,
     payload: M8RetentionTimelineEvent,
     current_user: dict = Depends(get_current_user),
 ):
     _require_phase1_access(current_user, "employees_write")
     try:
-        return await m8_retention_service.append_timeline_event(
+        return await retention_service.append_timeline_event(
             db,
             intervention_id,
             event_type=payload.event_type,
@@ -12178,14 +12178,14 @@ async def m8_retention_intervention_timeline(
 
 
 @api_router.put("/workforce/retention/v1/interventions/{intervention_id}/outcome")
-async def m8_retention_intervention_outcome(
+async def retention_intervention_outcome(
     intervention_id: str,
     payload: M8RetentionOutcomeUpdate,
     current_user: dict = Depends(get_current_user),
 ):
     _require_phase1_access(current_user, "employees_write")
     try:
-        return await m8_retention_service.set_intervention_outcome(
+        return await retention_service.set_intervention_outcome(
             db,
             intervention_id,
             outcome=payload.outcome,
@@ -12198,9 +12198,9 @@ async def m8_retention_intervention_outcome(
 
 
 @api_router.get("/workforce/retention/v1/metrics")
-async def m8_retention_metrics(current_user: dict = Depends(get_current_user)):
+async def retention_metrics(current_user: dict = Depends(get_current_user)):
     _require_phase1_access(current_user, "kpi_read")
-    return await m8_retention_service.retention_metrics(db)
+    return await retention_service.retention_metrics(db)
 
 # ========================
 # Phase-4/5 M9: Analytics & Executive Dashboard (MVP)
@@ -12692,7 +12692,7 @@ async def m9_deliver_export_pack(
 
 
 @api_router.post("/admin/m10-events/replay")
-async def admin_m10_events_replay(
+async def admin_event_backbone_replay(
     body: M10ReplayRequest,
     clear_idempotency: bool = Query(False),
     current_user: dict = Depends(get_current_user),
@@ -12706,7 +12706,7 @@ async def admin_m10_events_replay(
 
 
 @api_router.get("/admin/m10-events/stats")
-async def admin_m10_events_stats(current_user: dict = Depends(get_current_user)):
+async def admin_event_backbone_stats(current_user: dict = Depends(get_current_user)):
     """Outbox depth for ops dashboards."""
     _require_admin(current_user)
     pending = await db[COL_M10_EVENTS].count_documents({"status": "PENDING"})
@@ -14174,9 +14174,9 @@ async def ensure_phase1_indexes():
     await idx_db[COL_ATTRITION_SCORES_LATEST].create_index([("attrition_risk", -1)], name="ix_m8_attrition_risk")
     await idx_db[COL_ATTRITION_SCORES_LATEST].create_index([("risk_band", 1), ("department", 1)], name="ix_m8_attrition_band_dept")
     await idx_db[COL_ATTRITION_SCORES_LATEST].create_index("segments", name="ix_m8_attrition_segments")
-    await idx_db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_m8_retention_segment_settings")
-    await idx_db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_m8_retention_playbook_id")
-    await idx_db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_m8_retention_intervention_id")
+    await idx_db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_retention_segment_settings")
+    await idx_db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_retention_playbook_id")
+    await idx_db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_retention_intervention_id")
     await idx_db[COL_RETENTION_INTERVENTIONS].create_index(
         [("employee_id", 1), ("created_at", -1)],
         name="ix_m8_intervention_emp_created",

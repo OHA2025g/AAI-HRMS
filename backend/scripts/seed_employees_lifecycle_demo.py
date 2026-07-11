@@ -171,15 +171,15 @@ async def _seed_lcd50_cross_module(
     now_iso: str,
 ) -> None:
     """Training, engagement, M4 project, M8 scores, workforce skills, LMS catalog."""
-    from m5_training.catalog_normalize import normalize_course_record
-    from m5_training.constants import COL_ASSIGNMENTS, COL_CERTIFICATIONS
-    from m5_training.lms_sync import upsert_normalized_course
-    from m5_training.recommendation_rules import default_path_steps
-    from m6_engagement.sentiment import compute_sentiment
-    from m6_engagement.topics import classify_topic
-    from m8_retention.constants import ATTRITION_MODEL_VERSION, FEATURE_KEYS
-    from m8_retention.model_v1 import risk_band
-    from m8_retention.segments import compute_segments, default_segment_settings
+    from training.catalog_normalize import normalize_course_record
+    from training.constants import COL_ASSIGNMENTS, COL_CERTIFICATIONS
+    from training.lms_sync import upsert_normalized_course
+    from training.recommendation_rules import default_path_steps
+    from engagement.sentiment import compute_sentiment
+    from engagement.topics import classify_topic
+    from retention.constants import ATTRITION_MODEL_VERSION, FEATURE_KEYS
+    from retention.model_v1 import risk_band
+    from retention.segments import compute_segments, default_segment_settings
 
     prefix_re = re.compile(f"^{re.escape(EMP_PREFIX)}-")
 

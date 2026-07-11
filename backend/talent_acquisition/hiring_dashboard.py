@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from m9_analytics.talent_kpis import compute_talent_acquisition_metrics
+from analytics.talent_kpis import compute_talent_acquisition_metrics
 from talent_acquisition.candidate_source import (
     is_ai_generated_candidate,
     is_excel_imported_candidate,

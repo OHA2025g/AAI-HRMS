@@ -1,16 +1,13 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { loginAs } = require('../helpers/auth');
 
 const email = process.env.PLAYWRIGHT_USER_EMAIL || 'qa_admin@aai-hrms.local';
 const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'QA_Seed_ChangeMe!';
 const apiURL = process.env.PLAYWRIGHT_API_URL || 'http://127.0.0.1:11001';
 
 async function login(page) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in|log in/i }).click();
-  await page.waitForURL(/\/(dashboard|jobs)/, { timeout: 30_000 });
+  await loginAs(page, email, password, /\/(dashboard|jobs)/);
 }
 
 async function authHeaders(page) {

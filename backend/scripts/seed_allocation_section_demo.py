@@ -36,7 +36,7 @@ def _load_env() -> None:
 MARKER = "_allocation_section_seed"
 VERSION = 1
 
-from m10_allocation_section.constants import (  # noqa: E402
+from allocation_section.constants import (  # noqa: E402
     COL_ACTIVITY_LOGS,
     COL_AI_INSIGHTS,
     COL_ALERTS,

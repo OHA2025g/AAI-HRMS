@@ -1,4 +1,4 @@
-from candidate_fit_phase2.simulator import build_phase2_report
+from candidate_fit.simulator import build_phase2_report
 
 
 def _sample_phase1() -> dict:

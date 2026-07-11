@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from m8_retention.constants import (
+from retention.constants import (
     COL_ATTRITION_MODEL_STATE,
     COL_ATTRITION_SCORES_LATEST,
     COL_RETENTION_INTERVENTIONS,
@@ -22,12 +22,12 @@ async def up(db) -> None:
     await db[COL_ATTRITION_SCORES_LATEST].create_index([("risk_band", 1), ("department", 1)], name="ix_m8_attrition_band_dept")
     await db[COL_ATTRITION_SCORES_LATEST].create_index("segments", name="ix_m8_attrition_segments")
 
-    await db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_m8_retention_segment_settings")
+    await db[COL_RETENTION_SEGMENT_SETTINGS].create_index("id", unique=True, name="uq_retention_segment_settings")
 
-    await db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_m8_retention_playbook_id")
+    await db[COL_RETENTION_PLAYBOOKS].create_index("id", unique=True, name="uq_retention_playbook_id")
     await db[COL_RETENTION_PLAYBOOKS].create_index([("category", 1), ("title", 1)], name="ix_m8_playbook_cat_title")
 
-    await db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_m8_retention_intervention_id")
+    await db[COL_RETENTION_INTERVENTIONS].create_index("id", unique=True, name="uq_retention_intervention_id")
     await db[COL_RETENTION_INTERVENTIONS].create_index([("employee_id", 1), ("created_at", -1)], name="ix_m8_intervention_emp_created")
     await db[COL_RETENTION_INTERVENTIONS].create_index([("status", 1), ("created_at", -1)], name="ix_m8_intervention_status_created")
 

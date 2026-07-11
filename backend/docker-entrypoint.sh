@@ -32,13 +32,13 @@ _import_excel_data() {
     echo "Importing candidates from $cand ..."
     python scripts/import_candidates_from_excel.py || echo "Excel candidates import warning (non-fatal)"
   else
-    echo "No candidates workbook at $cand (place 'Candidates 1.xlsx' in repo root for Docker mount)."
+    echo "No candidates workbook at $cand (place 'Candidates 1.xlsx' in data/excel/ for Docker mount)."
   fi
   if [ -f "$jobs" ]; then
     echo "Importing jobs from $jobs ..."
     python scripts/import_jobs_from_excel.py || echo "Excel jobs import warning (non-fatal)"
   else
-    echo "No jobs workbook at $jobs (place 'Job Descriptions 1.xlsx' in repo root for Docker mount)."
+    echo "No jobs workbook at $jobs (place 'Job Descriptions 1.xlsx' in data/excel/ for Docker mount)."
   fi
 
   echo "Per-job AI fit candidates (for AI Matches grid)..."

@@ -85,8 +85,8 @@ services:
       HIRING_SNAPSHOT_TOKEN: ${HIRING_SNAPSHOT_TOKEN:-docker_dev_hiring_snapshot_token}
       HIRING_SNAPSHOT_ON_BOOT: ${HIRING_SNAPSHOT_ON_BOOT:-1}
     volumes:
-      - ./Candidates 1.xlsx:/data/excel/Candidates 1.xlsx:ro
-      - ./Job Descriptions 1.xlsx:/data/excel/Job Descriptions 1.xlsx:ro
+      - ./data/excel/Candidates 1.xlsx:/data/excel/Candidates 1.xlsx:ro
+      - ./data/excel/Job Descriptions 1.xlsx:/data/excel/Job Descriptions 1.xlsx:ro
     depends_on:
       mongo:
         condition: service_healthy

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from m10_events.constants import COL_M10_EVENTS, COL_M10_HANDLER_AUDIT, COL_M10_IDEMPOTENCY
+from event_backbone.constants import COL_M10_EVENTS, COL_M10_HANDLER_AUDIT, COL_M10_IDEMPOTENCY
 
 
 async def up(db) -> None:

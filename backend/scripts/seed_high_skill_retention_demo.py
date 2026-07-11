@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from m13_high_skill_talent_retention.constants import (
+from high_skill_retention.constants import (
     COL_ACTIVITY_LOGS,
     COL_AI_FLIGHT_RISK,
     COL_AI_RECOMMENDATIONS,

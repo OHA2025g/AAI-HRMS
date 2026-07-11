@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from m7_automation.constants import COL_WORKFLOW_RULES, WORKFLOW_ENGINE_VERSION
+from automation.constants import COL_WORKFLOW_RULES, WORKFLOW_ENGINE_VERSION
 
 
 async def up(db) -> None:

@@ -1,5 +1,6 @@
-@import './styles/hiring-dashboard.css';
-@import './styles/smart-hiring-sidebar.css';
+@import '@/features/smart-hiring/styles/hiring-dashboard.css';
+@import '@/features/smart-hiring/styles/smart-hiring-sidebar.css';
+@import '@/shared/styles/responsive-app.css';
 
 @tailwind base;
 @tailwind components;

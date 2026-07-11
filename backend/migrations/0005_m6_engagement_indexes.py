@@ -6,7 +6,7 @@ Idempotent — matches `ensure_phase1_indexes` in server.py for versioned rollou
 
 from __future__ import annotations
 
-from m6_engagement.constants import COL_PRIVACY_AUDIT, COL_SURVEY_SCHEDULES, COL_SURVEY_TEMPLATES
+from engagement.constants import COL_PRIVACY_AUDIT, COL_SURVEY_SCHEDULES, COL_SURVEY_TEMPLATES
 
 
 async def up(db) -> None:

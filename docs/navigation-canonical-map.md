@@ -2,7 +2,7 @@
 
 **Product mode:** When `REACT_APP_SMART_HIRING_ONLY=1` (default in Docker), only Smart Hiring routes and admin pages listed below are exposed. Set `REACT_APP_SMART_HIRING_ONLY=0` for the full HRMS sidebar.
 
-**Source of truth in code:** `frontend/src/components/Layout.jsx`, `frontend/src/config/appModules.js`, `frontend/src/App.jsx`.
+**Source of truth in code:** `frontend/src/shared/components/Layout.jsx`, `frontend/src/shared/config/appModules.js`, `frontend/src/app/App.jsx`, `frontend/src/app/routes.jsx`.
 
 ---
 

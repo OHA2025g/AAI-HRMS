@@ -24,7 +24,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from m15_workforce_intelligence.constants import (  # noqa: E402
+from workforce_intelligence.constants import (  # noqa: E402
     COL_ACTIVITY_LOGS,
     COL_AI_RECOMMENDATIONS,
     COL_ATTRITION_PREDICTIONS,

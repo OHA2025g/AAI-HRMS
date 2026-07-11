@@ -31,7 +31,7 @@ def _load_env() -> None:
 MARKER = "td_training_dev_seed"
 VERSION = 2
 
-from m12_training_development.constants import (  # noqa: E402
+from training_development.constants import (  # noqa: E402
     COL_APPROVAL_REQUESTS,
     COL_ASSESSMENT_RESULTS,
     COL_ASSESSMENTS,

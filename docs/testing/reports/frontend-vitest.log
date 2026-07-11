@@ -1,0 +1,2340 @@
+
+> aai-hrms-web@0.1.0 test
+> vitest run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/aghoresgwarprasadsingh/Desktop/AGRAYIAN AI LABS PVT LTD/KPMG/LTI-MIndree AI HRMS/aai-hrms-smart-hiring v1/frontend
+
+ ✓ src/shared/lib/aggregateOverviewFunnel.test.js (2 tests) 2ms
+ ✓ src/shared/lib/chartTitleCase.test.js (5 tests) 2ms
+ ✓ src/shared/config/smartHiringNav.test.js (9 tests) 4ms
+ ✓ src/shared/lib/hiringDashboardInsights.test.js (3 tests) 2ms
+ ✓ src/shared/lib/candidatesCommandUtils.test.js (4 tests) 2ms
+ ✓ src/features/smart-hiring/components/hiring-dashboard/ChartAccessibleTable.test.jsx (2 tests) 25ms
+ ✓ src/shared/hooks/useHiringAlertDismissals.test.js (2 tests) 115ms
+ ✓ src/features/smart-hiring/components/hiring-dashboard/PeriodToggle.test.jsx (3 tests) 63ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/DashboardHeroHealth.test.jsx > DashboardHeroHealth > renders score and risk metrics
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ❯ src/features/smart-hiring/components/hiring-dashboard/DashboardHeroHealth.test.jsx (2 tests | 1 failed) 42ms
+   × DashboardHeroHealth > shows LLM badge when insights source is llm 7ms
+     → Unable to find an element by: [data-testid="dashboard-llm-insights-badge"]
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"hero"[39m
+      [33mdata-testid[39m=[32m"dashboard-hero-health"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hero-score"[39m
+      [36m>[39m
+        [36m<h4>[39m
+          [0mAI HIRING HEALTH SCORE[0m
+        [36m</h4>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"score"[39m
+        [36m>[39m
+          [0m57[0m
+          [36m<span>[39m
+            [0m/100[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"badge badge--watch"[39m
+        [36m>[39m
+          [0m↗[0m
+          [0m [0m
+          [0mModerate Risk[0m
+        [36m</span>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"risk-list hero-risks"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--warn"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m⚠️[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mRequisitions at risk[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--warn"[39m
+            [36m>[39m
+              [0mNeeds attention[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--action"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m⚠️[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mJobs likely to miss SLA[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--action"[39m
+            [36m>[39m
+              [0mAction required[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--info"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m🔔[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mHigh-fit candidates[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--info"[39m
+            [36m>[39m
+              [0mAwaiting review[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"ai hero-ai"[39m
+      [36m>[39m
+        [36m<h4>[39m
+          [0m🧠 AI RECOMMENDATION[0m
+        [36m</h4>[39m
+        [36m<b>[39m
+          [0mLLM rec[0m
+        [36m</b>[39m
+        [36m<p>[39m
+          [0mExpected hiring delay reduction[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"primary"[39m
+          [33mhref[39m=[32m"/pipeline"[39m
+        [36m>[39m
+          [0mView Recommendation →[0m
+        [36m</a>[39m
+      [36m</div>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+stderr | src/shared/components/SmartHiringSidebar.test.jsx > SmartHiringSidebar > renders operational nav on dashboard (same as other sections)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/shared/components/SmartHiringSidebar.test.jsx (5 tests) 52ms
+stderr | src/features/admin/pages/AdminIntegrationsPage.test.jsx > AdminIntegrationsPage > renders health grid and overview tab
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/features/admin/pages/AdminCareerTrajectoryConfigPage.test.jsx > AdminCareerTrajectoryConfigPage > renders command center layout and fairness dashboard
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/features/admin/pages/AdminDatabasePage.test.jsx (2 tests) 69ms
+ ✓ src/features/admin/pages/AdminIntegrationsPage.test.jsx (2 tests) 61ms
+ ✓ src/features/admin/pages/AdminCareerTrajectoryConfigPage.test.jsx (2 tests) 91ms
+stderr | src/features/admin/pages/AdminHiringDashboardConfigPage.test.jsx > AdminHiringDashboardConfigPage > loads rule toggles and audit trail from API
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/features/admin/pages/AdminRoleManagementPage.test.jsx (2 tests) 132ms
+ ✓ src/features/admin/pages/AdminHiringDashboardConfigPage.test.jsx (2 tests) 116ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/AnalyticsTrendChart.test.jsx > AnalyticsTrendChart > renders chart when points exist
+The width(0) and height(0) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+
+ ✓ src/features/smart-hiring/components/hiring-dashboard/AnalyticsTrendChart.test.jsx (3 tests) 19ms
+ ✓ src/features/smart-hiring/components/hiring-dashboard/dashboardOrgFilterUtils.test.js (4 tests) 1ms
+ ✓ src/shared/lib/insightActionLabel.test.js (2 tests) 1ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/RecentActivityFeed.test.jsx > RecentActivityFeed > renders activity rows with drill links
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/features/smart-hiring/components/hiring-dashboard/RecentActivityFeed.test.jsx (2 tests) 20ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/MiniKpiTile.test.jsx > MiniKpiTile > renders label, value, and subtitle
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/features/smart-hiring/components/hiring-dashboard/MiniKpiTile.test.jsx (1 test) 20ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/KpiTile.test.jsx > KpiTile > renders label, value, and positive delta
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/features/smart-hiring/components/hiring-dashboard/KpiTile.test.jsx (1 test) 20ms
+ ✓ src/features/smart-hiring/components/hiring-dashboard/SwipeableChartRow.test.jsx (1 test) 14ms
+ ✓ src/features/smart-hiring/components/hiring-dashboard/OverviewTrendCharts.test.jsx (2 tests) 36ms
+stderr | src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx > Dashboard tab sections > renders Overview with velocity and TTF charts
+Warning: validateDOMNesting(...): <tr> cannot appear as a child of <table>. Add a <tbody>, <thead> or <tfoot> to your code to match the DOM tree generated by the browser.
+    at tr
+    at table
+    at div
+    at section
+    at div
+    at OverviewTabContent (/Users/aghoresgwarprasadsingh/Desktop/AGRAYIAN AI LABS PVT LTD/KPMG/LTI-MIndree AI HRMS/aai-hrms-smart-hiring v1/frontend/src/features/smart-hiring/components/hiring-dashboard/tabs/OverviewTabContent.jsx:53:31)
+    at Router (/Users/aghoresgwarprasadsingh/Desktop/AGRAYIAN AI LABS PVT LTD/KPMG/LTI-MIndree AI HRMS/aai-hrms-smart-hiring v1/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/aghoresgwarprasadsingh/Desktop/AGRAYIAN AI LABS PVT LTD/KPMG/LTI-MIndree AI HRMS/aai-hrms-smart-hiring v1/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx > Dashboard tab sections > opens all insights modal from View all insights
+Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}.
+
+stderr | src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx > Dashboard tab sections > renders Analytics tab
+The width(0) and height(0) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+
+ ❯ src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx (9 tests | 2 failed) 154ms
+   × Dashboard tab sections > renders Signals tab 9ms
+     → Unable to find an element with the text: Signal strength by category. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mdata-testid[39m=[32m"dash-signals"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"signal-hero signals-hero-row"[39m
+        [33mdata-testid[39m=[32m"signals-hero-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signal-main signals-adoption-card"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill purple"[39m
+          [36m>[39m
+            [0m✦ AI Matches adoption[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m100%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mOpen jobs with fit scores. All 52 open roles have active AI fit scoring and ranking enabled.[0m
+          [36m</p>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip progress"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<i[39m
+              [33mstyle[39m=[32m"width: 100%;"[39m
+            [36m/>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mAI match adoption: 100% · 52 of 52 roles covered[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [36m<b>[39m
+              [0m52[0m
+            [36m</b>[39m
+            [0m of [0m
+            [36m<b>[39m
+              [0m52[0m
+            [36m</b>[39m
+            [0m open roles covered[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-quality-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mQuality Signal[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m80%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mMedian fit score across active candidates.[0m
+          [36m</p>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill signals-quality-pill"[39m
+          [36m>[39m
+            [0mHealthy[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-trajectory-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mCareer trajectory coverage[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m0.19%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0m1[0m
+            [0m of [0m
+            [0m531[0m
+            [0m active pipeline candidates has career trajectory analysis.[0m
+          [36m</p>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill signals-trajectory-pill warn"[39m
+          [36m>[39m
+            [0mNeeds enrichment[0m
+          [36m</span>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"signals-kpi-row"[39m
+        [33mdata-testid[39m=[32m"signals-kpi-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-referrals-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mReferrals in window[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m0[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0m0[0m
+            [0m% of applications[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-match-precision-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mMatch precision proxy[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m79.64%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mSkills match signal strength[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-assessment-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAssessment in progress[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m24[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mInvite → submit tracking[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid2 signals-grid2-row"[39m
+        [33mdata-testid[39m=[32m"signals-grid2-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-strength-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mSignal Strength by Category[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip barrow"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mFit scoring[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"bar"[39m
+            [36m>[39m
+              [36m<i[39m
+                [33mstyle[39m=[32m"width: 100%;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+            [36m<b>[39m
+              [0m100%[0m
+            [36m</b>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mFit scoring: 100% signal strength[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip barrow"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mSkills match[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"bar"[39m
+            [36m>[39m
+              [36m<i[39m
+                [33mstyle[39m=[32m"width: 79.64%;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+            [36m<b>[39m
+              [0m79.64%[0m
+            [36m</b>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mSkills match: 79.64% signal strength[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-recommendations-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAI recommendations[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"signal-list"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"signal-item"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"signal-icon"[39m
+              [36m>[39m
+                [0m1[0m
+              [36m</div>[39m
+              [36m<div>[39m
+                [36m<h4>[39m
+                  [0mBoost referrals[0m
+                [36m</h4>[39m
+                [36m<p>[39m
+                  [0mAdd referral tags[0m
+                [36m</p>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"assessment signals-assessment-row"[39m
+        [33mdata-testid[39m=[32m"signals-assessment-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-funnel-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAssessment Completion Funnel[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mInvite → submit → score funnel across the selected 30-day window.[0m
+          [36m</p>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"funnel-bars"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"chart-hover-tip funnel-step"[39m
+              [33mtabindex[39m=[32m"0"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mInvited[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"bar"[39m
+              [36m>[39m
+                [36m<i[39m
+                  [33mstyle[39m=[32m"width: 56%;"[39m
+                [36m/>[39m
+              [36m</div>[39m
+              [36m<b>[39m
+                [0m56%[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                [33mrole[39m=[32m"tooltip"[39m
+              [36m>[39m
+                [0mInvited: 56% · 56 candidates[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-actions-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mSignal actions[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"scorecards"[39m
+          [36m>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/assessments?tab=overview"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill purple"[39m
+              [36m>[39m
+                [0mCommand[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mOpen assessment command center[0m
+              [36m</p>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/candidates"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill"[39m
+              [36m>[39m
+                [0mReview[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mAdd referral tags[0m
+              [36m</p>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/referrals"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill warn"[39m
+              [36m>[39m
+                [0mFix[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mImprove referral signal capture[0m
+              [36m</p>[39m
+            [36m</a>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hd-glass-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-violet-50 to-sky-50 border-violet-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0"[39m
+        [36m>[39m
+          [36m<h3[39m
+            [33mclass[39m=[32m"font-bold text-slate-900"[39m
+          [36m>[39m
+            [0mSuggested action: improve signal coverage[0m
+          [36m</h3>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"text-sm text-slate-600 mt-1"[39m
+          [36m>[39m
+            [0mAdd referral tags[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex gap-2 shrink-0"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-violet-600 hover:bg-violet-700"[39m
+            [33mhref[39m=[32m"/assessments?tab=overview"[39m
+          [36m>[39m
+            [0mTake action →[0m
+          [36m</a>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+   × Dashboard tab sections > renders Analytics tab 8ms
+     → Unable to find an element with the text: 6-month hiring trend. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"space-y-6"[39m
+      [33mdata-testid[39m=[32m"dash-charts"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"kpi-row analytics-kpi-row"[39m
+        [33mdata-testid[39m=[32m"analytics-kpi-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-applications-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mApplications[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m530[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0m↑ 100% last 30d[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-fit-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mAvg Fit Score[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m80%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0mStable quality[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-offer-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mOffer Conversion[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m0.4%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"down"[39m
+          [36m>[39m
+            [0mNeeds action[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-stage-age-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mAvg Stage Age[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m18d[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"down"[39m
+          [36m>[39m
+            [0mSourced bottleneck[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-high-fit-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mHigh Fit Talent[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m10%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0mReady shortlist[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid2 analytics-grid2-row"[39m
+        [33mdata-testid[39m=[32m"analytics-grid2-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-trend-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<div>[39m
+              [36m<h2>[39m
+                [0m6-Month Hiring Trend[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"analytics-trend-sub"[39m
+              [36m>[39m
+                [0mApplications, fit score, hires and pending offers in one executive view.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn analytics-trend-btn"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mDaily snapshots + backfill[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart analytics-trend-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"analytics-trend-chart-inner"[39m
+              [33mdata-testid[39m=[32m"analytics-trend-chart"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"recharts-responsive-container"[39m
+                [33mstyle[39m=[32m"width: 100%; height: 100%; min-width: 0;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"legend analytics-trend-legend"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mApplications[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mAvg fit %[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mPending offers[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mTime to fill[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mHire target[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card insight-panel analytics-summary-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mAI analytics summary[0m
+            [36m</h3>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"tag"[39m
+            [36m>[39m
+              [0mPriority[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"insight-list"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m⚠️[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mPipeline spike detected[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0mApplications rose sharply after 17 May; recruiter load should be reviewed.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m⏳[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mSourced ageing risk[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0m495 candidates are concentrated in sourced stage with 18-day average age.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m🎯[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mQuality remains healthy[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0m80% median fit score with strong high-fit candidate pool.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m✅[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mRecommended action[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0mPrioritize candidates aged 15–30 days and route high-fit profiles to screening.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-source-row"[39m
+        [33mdata-testid[39m=[32m"analytics-source-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-source-mix-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mCandidate Source Mix[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-source-mix-embedded"[39m
+            [33mdata-testid[39m=[32m"source-mix-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 240px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-fit-source-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mAverage Fit by Source[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-fit-source-embedded"[39m
+            [33mdata-testid[39m=[32m"quality-by-source-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-fit-aging-row"[39m
+        [33mdata-testid[39m=[32m"analytics-fit-aging-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-fit-dist-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mFit Score Distribution[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-fit-dist-embedded"[39m
+            [33mdata-testid[39m=[32m"fit-score-histogram"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card heat analytics-stage-heat-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mTime in Stage Heatmap[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-stage-heat-embedded"[39m
+            [33mdata-testid[39m=[32m"stage-aging-heatmap"[39m
+          [36m>[39m
+            [36m<table>[39m
+              [36m<thead>[39m
+                [36m<tr>[39m
+                  [36m<th>[39m
+                    [0mStage[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m0–7d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m8–14d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m15–30d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0mAvg[0m
+                  [36m</th>[39m
+                [36m</tr>[39m
+              [36m</thead>[39m
+              [36m<tbody>[39m
+                [36m<tr>[39m
+                  [36m<td>[39m
+                    [0mSourced[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"chart-hover-tip heatbox hot"[39m
+                      [33mrole[39m=[32m"button"[39m
+                      [33mtabindex[39m=[32m"0"[39m
+                    [36m>[39m
+                      [0m495[0m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                        [33mrole[39m=[32m"tooltip"[39m
+                      [36m>[39m
+                        [0mSourced · 15-30d: 495 candidates[0m
+                      [36m</span>[39m
+                    [36m</span>[39m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m18d[0m
+                  [36m</td>[39m
+                [36m</tr>[39m
+                [36m<tr>[39m
+                  [36m<td>[39m
+                    [0mInterview 1[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"chart-hover-tip heatbox"[39m
+                      [33mrole[39m=[32m"button"[39m
+                      [33mtabindex[39m=[32m"0"[39m
+                    [36m>[39m
+                      [0m1[0m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                        [33mrole[39m=[32m"tooltip"[39m
+                      [36m>[39m
+                        [0mInterview 1 · 8-14d: 1 candidate[0m
+                      [36m</span>[39m
+                    [36m</span>[39m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m8.5d[0m
+                  [36m</td>[39m
+                [36m</tr>[39m
+              [36m</tbody>[39m
+            [36m</table>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-req-row"[39m
+        [33mdata-testid[39m=[32m"analytics-req-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-req-aging-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mRequisition Aging[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-req-aging-embedded"[39m
+            [33mdata-testid[39m=[32m"req-aging-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-top-jobs-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mTop open roles[0m
+            [36m</h3>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"analytics-all-jobs-link"[39m
+              [33mhref[39m=[32m"/jobs"[39m
+            [36m>[39m
+              [0mAll jobs[0m
+            [36m</a>[39m
+          [36m</div>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"table analytics-top-jobs-table"[39m
+          [36m>[39m
+            [36m<thead>[39m
+              [36m<tr>[39m
+                [36m<th>[39m
+                  [0mRole[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mOpen[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mPipeline[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mAvg fit[0m
+                [36m</th>[39m
+              [36m</tr>[39m
+            [36m</thead>[39m
+            [36m<tbody>[39m
+              [36m<tr>[39m
+                [36m<td>[39m
+                  [36m<b>[39m
+                    [0mQA Seed — Software Engineer[0m
+                  [36m</b>[39m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m17d[0m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m21[0m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m80%[0m
+                [36m</td>[39m
+              [36m</tr>[39m
+            [36m</tbody>[39m
+          [36m</table>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"card analytics-recent-activity-card"[39m
+        [33mdata-testid[39m=[32m"recent-activity-feed"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"section-head analytics-recent-head"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mRecent activity[0m
+          [36m</h3>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"analytics-pipeline-link"[39m
+            [33mhref[39m=[32m"/pipeline"[39m
+          [36m>[39m
+            [0mView pipeline[0m
+          [36m</a>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"analytics-recent-empty"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"lucide lucide-clock w-12 h-12 mx-auto mb-3 text-slate-300"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"24"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"12"[39m
+              [33mcy[39m=[32m"12"[39m
+              [33mr[39m=[32m"10"[39m
+            [36m/>[39m
+            [36m<polyline[39m
+              [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<p>[39m
+            [0mNo recent activity[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/smart-hiring/components/hiring-dashboard/DashboardHeroHealth.test.jsx > DashboardHeroHealth > shows LLM badge when insights source is llm
+TestingLibraryElementError: Unable to find an element by: [data-testid="dashboard-llm-insights-badge"]
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33mclass[39m=[32m"hero"[39m
+      [33mdata-testid[39m=[32m"dashboard-hero-health"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hero-score"[39m
+      [36m>[39m
+        [36m<h4>[39m
+          [0mAI HIRING HEALTH SCORE[0m
+        [36m</h4>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"score"[39m
+        [36m>[39m
+          [0m57[0m
+          [36m<span>[39m
+            [0m/100[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"badge badge--watch"[39m
+        [36m>[39m
+          [0m↗[0m
+          [0m [0m
+          [0mModerate Risk[0m
+        [36m</span>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"risk-list hero-risks"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--warn"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m⚠️[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mRequisitions at risk[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--warn"[39m
+            [36m>[39m
+              [0mNeeds attention[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--action"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m⚠️[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mJobs likely to miss SLA[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--action"[39m
+            [36m>[39m
+              [0mAction required[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"risk risk--info"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"ico"[39m
+          [36m>[39m
+            [0m🔔[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"risk-copy"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"risk-headline"[39m
+            [36m>[39m
+              [36m<b>[39m
+                [0m0[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"risk-label"[39m
+              [36m>[39m
+                [0mHigh-fit candidates[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<small[39m
+              [33mclass[39m=[32m"risk-hint risk-hint--info"[39m
+            [36m>[39m
+              [0mAwaiting review[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"ai hero-ai"[39m
+      [36m>[39m
+        [36m<h4>[39m
+          [0m🧠 AI RECOMMENDATION[0m
+        [36m</h4>[39m
+        [36m<b>[39m
+          [0mLLM rec[0m
+        [36m</b>[39m
+        [36m<p>[39m
+          [0mExpected hiring delay reduction[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mclass[39m=[32m"primary"[39m
+          [33mhref[39m=[32m"/pipeline"[39m
+        [36m>[39m
+          [0mView Recommendation →[0m
+        [36m</a>[39m
+      [36m</div>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/features/smart-hiring/components/hiring-dashboard/DashboardHeroHealth.test.jsx:40:19
+     38|       </MemoryRouter>
+     39|     );
+     40|     expect(screen.getByTestId('dashboard-llm-insights-badge')).toHaveT…
+       |                   ^
+     41|   });
+     42| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx > Dashboard tab sections > renders Signals tab
+TestingLibraryElementError: Unable to find an element with the text: Signal strength by category. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mdata-testid[39m=[32m"dash-signals"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"signal-hero signals-hero-row"[39m
+        [33mdata-testid[39m=[32m"signals-hero-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signal-main signals-adoption-card"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill purple"[39m
+          [36m>[39m
+            [0m✦ AI Matches adoption[0m
+          [36m</span>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m100%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mOpen jobs with fit scores. All 52 open roles have active AI fit scoring and ranking enabled.[0m
+          [36m</p>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip progress"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<i[39m
+              [33mstyle[39m=[32m"width: 100%;"[39m
+            [36m/>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mAI match adoption: 100% · 52 of 52 roles covered[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [36m<b>[39m
+              [0m52[0m
+            [36m</b>[39m
+            [0m of [0m
+            [36m<b>[39m
+              [0m52[0m
+            [36m</b>[39m
+            [0m open roles covered[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-quality-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mQuality Signal[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m80%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mMedian fit score across active candidates.[0m
+          [36m</p>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill signals-quality-pill"[39m
+          [36m>[39m
+            [0mHealthy[0m
+          [36m</span>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-trajectory-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mCareer trajectory coverage[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m0.19%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0m1[0m
+            [0m of [0m
+            [0m531[0m
+            [0m active pipeline candidates has career trajectory analysis.[0m
+          [36m</p>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"pill signals-trajectory-pill warn"[39m
+          [36m>[39m
+            [0mNeeds enrichment[0m
+          [36m</span>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"signals-kpi-row"[39m
+        [33mdata-testid[39m=[32m"signals-kpi-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-referrals-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mReferrals in window[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m0[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0m0[0m
+            [0m% of applications[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-match-precision-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mMatch precision proxy[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m79.64%[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mSkills match signal strength[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-assessment-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAssessment in progress[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"big"[39m
+          [36m>[39m
+            [0m24[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mInvite → submit tracking[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid2 signals-grid2-row"[39m
+        [33mdata-testid[39m=[32m"signals-grid2-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-strength-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mSignal Strength by Category[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip barrow"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mFit scoring[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"bar"[39m
+            [36m>[39m
+              [36m<i[39m
+                [33mstyle[39m=[32m"width: 100%;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+            [36m<b>[39m
+              [0m100%[0m
+            [36m</b>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mFit scoring: 100% signal strength[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart-hover-tip barrow"[39m
+            [33mtabindex[39m=[32m"0"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mSkills match[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"bar"[39m
+            [36m>[39m
+              [36m<i[39m
+                [33mstyle[39m=[32m"width: 79.64%;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+            [36m<b>[39m
+              [0m79.64%[0m
+            [36m</b>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+              [33mrole[39m=[32m"tooltip"[39m
+            [36m>[39m
+              [0mSkills match: 79.64% signal strength[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-recommendations-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAI recommendations[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"signal-list"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"signal-item"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"signal-icon"[39m
+              [36m>[39m
+                [0m1[0m
+              [36m</div>[39m
+              [36m<div>[39m
+                [36m<h4>[39m
+                  [0mBoost referrals[0m
+                [36m</h4>[39m
+                [36m<p>[39m
+                  [0mAdd referral tags[0m
+                [36m</p>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"assessment signals-assessment-row"[39m
+        [33mdata-testid[39m=[32m"signals-assessment-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-funnel-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mAssessment Completion Funnel[0m
+          [36m</div>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"sub"[39m
+          [36m>[39m
+            [0mInvite → submit → score funnel across the selected 30-day window.[0m
+          [36m</p>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"funnel-bars"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"chart-hover-tip funnel-step"[39m
+              [33mtabindex[39m=[32m"0"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mInvited[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"bar"[39m
+              [36m>[39m
+                [36m<i[39m
+                  [33mstyle[39m=[32m"width: 56%;"[39m
+                [36m/>[39m
+              [36m</div>[39m
+              [36m<b>[39m
+                [0m56%[0m
+              [36m</b>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                [33mrole[39m=[32m"tooltip"[39m
+              [36m>[39m
+                [0mInvited: 56% · 56 candidates[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card signals-actions-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"metric-label"[39m
+          [36m>[39m
+            [0mSignal actions[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"scorecards"[39m
+          [36m>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/assessments?tab=overview"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill purple"[39m
+              [36m>[39m
+                [0mCommand[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mOpen assessment command center[0m
+              [36m</p>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/candidates"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill"[39m
+              [36m>[39m
+                [0mReview[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mAdd referral tags[0m
+              [36m</p>[39m
+            [36m</a>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"scorecard signals-action-tile"[39m
+              [33mhref[39m=[32m"/referrals"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"pill warn"[39m
+              [36m>[39m
+                [0mFix[0m
+              [36m</span>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"sub"[39m
+              [36m>[39m
+                [0mImprove referral signal capture[0m
+              [36m</p>[39m
+            [36m</a>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hd-glass-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-violet-50 to-sky-50 border-violet-200"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0"[39m
+        [36m>[39m
+          [36m<h3[39m
+            [33mclass[39m=[32m"font-bold text-slate-900"[39m
+          [36m>[39m
+            [0mSuggested action: improve signal coverage[0m
+          [36m</h3>[39m
+          [36m<p[39m
+            [33mclass[39m=[32m"text-sm text-slate-600 mt-1"[39m
+          [36m>[39m
+            [0mAdd referral tags[0m
+          [36m</p>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex gap-2 shrink-0"[39m
+        [36m>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 text-primary-foreground shadow h-8 rounded-md px-3 text-xs bg-violet-600 hover:bg-violet-700"[39m
+            [33mhref[39m=[32m"/assessments?tab=overview"[39m
+          [36m>[39m
+            [0mTake action →[0m
+          [36m</a>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx:122:19
+    120|     expect(container.querySelector('.signals-strength-card')).toBeTrut…
+    121|     expect(container.querySelector('.signals-recommendations-card')).t…
+    122|     expect(screen.getByText('Signal strength by category')).toBeInTheD…
+       |                   ^
+    123|     expect(screen.getByText('AI recommendations')).toBeInTheDocument();
+    124|     expect(screen.getByTestId('signals-assessment-row')).toBeInTheDocu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx > Dashboard tab sections > renders Analytics tab
+TestingLibraryElementError: Unable to find an element with the text: 6-month hiring trend. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"space-y-6"[39m
+      [33mdata-testid[39m=[32m"dash-charts"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"kpi-row analytics-kpi-row"[39m
+        [33mdata-testid[39m=[32m"analytics-kpi-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-applications-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mApplications[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m530[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0m↑ 100% last 30d[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-fit-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mAvg Fit Score[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m80%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0mStable quality[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-offer-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mOffer Conversion[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m0.4%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"down"[39m
+          [36m>[39m
+            [0mNeeds action[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-stage-age-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mAvg Stage Age[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m18d[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"down"[39m
+          [36m>[39m
+            [0mSourced bottleneck[0m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card metric analytics-high-fit-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"label"[39m
+          [36m>[39m
+            [0mHigh Fit Talent[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"num"[39m
+          [36m>[39m
+            [0m10%[0m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"up"[39m
+          [36m>[39m
+            [0mReady shortlist[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid2 analytics-grid2-row"[39m
+        [33mdata-testid[39m=[32m"analytics-grid2-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-trend-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<div>[39m
+              [36m<h2>[39m
+                [0m6-Month Hiring Trend[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"analytics-trend-sub"[39m
+              [36m>[39m
+                [0mApplications, fit score, hires and pending offers in one executive view.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"btn analytics-trend-btn"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0mDaily snapshots + backfill[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"chart analytics-trend-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"analytics-trend-chart-inner"[39m
+              [33mdata-testid[39m=[32m"analytics-trend-chart"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"recharts-responsive-container"[39m
+                [33mstyle[39m=[32m"width: 100%; height: 100%; min-width: 0;"[39m
+              [36m/>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"legend analytics-trend-legend"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [0mApplications[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mAvg fit %[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mPending offers[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mTime to fill[0m
+            [36m</span>[39m
+            [36m<span>[39m
+              [0mHire target[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card insight-panel analytics-summary-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mAI analytics summary[0m
+            [36m</h3>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"tag"[39m
+            [36m>[39m
+              [0mPriority[0m
+            [36m</span>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"insight-list"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m⚠️[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mPipeline spike detected[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0mApplications rose sharply after 17 May; recruiter load should be reviewed.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m⏳[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mSourced ageing risk[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0m495 candidates are concentrated in sourced stage with 18-day average age.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m🎯[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mQuality remains healthy[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0m80% median fit score with strong high-fit candidate pool.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"insight-item"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"insight-icon"[39m
+              [36m>[39m
+                [0m✅[0m
+              [36m</span>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"insight-copy"[39m
+              [36m>[39m
+                [36m<b>[39m
+                  [0mRecommended action[0m
+                [36m</b>[39m
+                [36m<small>[39m
+                  [0mPrioritize candidates aged 15–30 days and route high-fit profiles to screening.[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-source-row"[39m
+        [33mdata-testid[39m=[32m"analytics-source-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-source-mix-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mCandidate Source Mix[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-source-mix-embedded"[39m
+            [33mdata-testid[39m=[32m"source-mix-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 240px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-fit-source-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mAverage Fit by Source[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-fit-source-embedded"[39m
+            [33mdata-testid[39m=[32m"quality-by-source-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-fit-aging-row"[39m
+        [33mdata-testid[39m=[32m"analytics-fit-aging-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-fit-dist-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mFit Score Distribution[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-fit-dist-embedded"[39m
+            [33mdata-testid[39m=[32m"fit-score-histogram"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card heat analytics-stage-heat-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mTime in Stage Heatmap[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-stage-heat-embedded"[39m
+            [33mdata-testid[39m=[32m"stage-aging-heatmap"[39m
+          [36m>[39m
+            [36m<table>[39m
+              [36m<thead>[39m
+                [36m<tr>[39m
+                  [36m<th>[39m
+                    [0mStage[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m0–7d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m8–14d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0m15–30d[0m
+                  [36m</th>[39m
+                  [36m<th>[39m
+                    [0mAvg[0m
+                  [36m</th>[39m
+                [36m</tr>[39m
+              [36m</thead>[39m
+              [36m<tbody>[39m
+                [36m<tr>[39m
+                  [36m<td>[39m
+                    [0mSourced[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"chart-hover-tip heatbox hot"[39m
+                      [33mrole[39m=[32m"button"[39m
+                      [33mtabindex[39m=[32m"0"[39m
+                    [36m>[39m
+                      [0m495[0m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                        [33mrole[39m=[32m"tooltip"[39m
+                      [36m>[39m
+                        [0mSourced · 15-30d: 495 candidates[0m
+                      [36m</span>[39m
+                    [36m</span>[39m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m18d[0m
+                  [36m</td>[39m
+                [36m</tr>[39m
+                [36m<tr>[39m
+                  [36m<td>[39m
+                    [0mInterview 1[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [36m<span[39m
+                      [33mclass[39m=[32m"chart-hover-tip heatbox"[39m
+                      [33mrole[39m=[32m"button"[39m
+                      [33mtabindex[39m=[32m"0"[39m
+                    [36m>[39m
+                      [0m1[0m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"chart-hover-tip__popup"[39m
+                        [33mrole[39m=[32m"tooltip"[39m
+                      [36m>[39m
+                        [0mInterview 1 · 8-14d: 1 candidate[0m
+                      [36m</span>[39m
+                    [36m</span>[39m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m—[0m
+                  [36m</td>[39m
+                  [36m<td>[39m
+                    [0m8.5d[0m
+                  [36m</td>[39m
+                [36m</tr>[39m
+              [36m</tbody>[39m
+            [36m</table>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<section[39m
+        [33mclass[39m=[32m"grid22 analytics-req-row"[39m
+        [33mdata-testid[39m=[32m"analytics-req-row"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-req-aging-card"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mRequisition Aging[0m
+          [36m</h3>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"analytics-embedded-chart analytics-req-aging-embedded"[39m
+            [33mdata-testid[39m=[32m"req-aging-chart"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"recharts-responsive-container"[39m
+              [33mstyle[39m=[32m"width: 100%; height: 220px; min-width: 0;"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"card analytics-top-jobs-card"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"section-head"[39m
+          [36m>[39m
+            [36m<h3>[39m
+              [0mTop open roles[0m
+            [36m</h3>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"analytics-all-jobs-link"[39m
+              [33mhref[39m=[32m"/jobs"[39m
+            [36m>[39m
+              [0mAll jobs[0m
+            [36m</a>[39m
+          [36m</div>[39m
+          [36m<table[39m
+            [33mclass[39m=[32m"table analytics-top-jobs-table"[39m
+          [36m>[39m
+            [36m<thead>[39m
+              [36m<tr>[39m
+                [36m<th>[39m
+                  [0mRole[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mOpen[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mPipeline[0m
+                [36m</th>[39m
+                [36m<th>[39m
+                  [0mAvg fit[0m
+                [36m</th>[39m
+              [36m</tr>[39m
+            [36m</thead>[39m
+            [36m<tbody>[39m
+              [36m<tr>[39m
+                [36m<td>[39m
+                  [36m<b>[39m
+                    [0mQA Seed — Software Engineer[0m
+                  [36m</b>[39m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m17d[0m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m21[0m
+                [36m</td>[39m
+                [36m<td>[39m
+                  [0m80%[0m
+                [36m</td>[39m
+              [36m</tr>[39m
+            [36m</tbody>[39m
+          [36m</table>[39m
+        [36m</div>[39m
+      [36m</section>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"card analytics-recent-activity-card"[39m
+        [33mdata-testid[39m=[32m"recent-activity-feed"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"section-head analytics-recent-head"[39m
+        [36m>[39m
+          [36m<h3>[39m
+            [0mRecent activity[0m
+          [36m</h3>[39m
+          [36m<a[39m
+            [33mclass[39m=[32m"analytics-pipeline-link"[39m
+            [33mhref[39m=[32m"/pipeline"[39m
+          [36m>[39m
+            [0mView pipeline[0m
+          [36m</a>[39m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"analytics-recent-empty"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33mclass[39m=[32m"lucide lucide-clock w-12 h-12 mx-auto mb-3 text-slate-300"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"24"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"12"[39m
+              [33mcy[39m=[32m"12"[39m
+              [33mr[39m=[32m"10"[39m
+            [36m/>[39m
+            [36m<polyline[39m
+              [33mpoints[39m=[32m"12 6 12 12 16 14"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<p>[39m
+            [0mNo recent activity[0m
+          [36m</p>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/features/smart-hiring/components/hiring-dashboard/DashboardTabSections.test.jsx:152:19
+    150|     expect(container.querySelector('.analytics-trend-card')).toBeTruth…
+    151|     expect(container.querySelector('.analytics-summary-card')).toBeTru…
+    152|     expect(screen.getByText('6-month hiring trend')).toBeInTheDocument…
+       |                   ^
+    153|     expect(screen.getByText('AI analytics summary')).toBeInTheDocument…
+    154|     expect(container.querySelectorAll('.analytics-summary-card .insigh…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  2 failed | 22 passed (24)
+      Tests  3 failed | 69 passed (72)
+   Start at  15:45:16
+   Duration  3.09s (transform 1.41s, setup 4.00s, collect 5.47s, tests 1.06s, environment 28.50s, prepare 1.64s)
+

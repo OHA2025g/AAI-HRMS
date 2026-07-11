@@ -8,7 +8,7 @@ async function login(page) {
   await page.goto('/login');
   await page.getByTestId('login-email-input').fill(email);
   await page.getByTestId('login-password-input').fill(password);
-  await page.getByRole('button', { name: /sign in|log in/i }).click();
+  await page.getByTestId('login-submit-btn').click();
   await page.waitForURL(/\/(dashboard|jobs)/, { timeout: 60_000 });
 }
 

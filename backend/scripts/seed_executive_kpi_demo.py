@@ -31,13 +31,13 @@ SEED_MARKER = "EXEC_KPI_DEMO_V1"
 SEED_COLLECTION = "_executive_kpi_seed"
 CATALOG_VERSION = "1.1.0"
 
-from m6_engagement.sentiment import compute_sentiment  # noqa: E402
-from m7_automation.constants import COL_MANUAL_WORKFLOW_BASELINES, COL_WORKFLOW_RUNS  # noqa: E402
-from m8_retention.constants import COL_ATTRITION_MODEL_STATE, COL_ATTRITION_SCORES_LATEST  # noqa: E402
-from m8_retention.model_v1 import default_model_state  # noqa: E402
-from m9_analytics.constants import COL_M9_LEADERSHIP_SNAPSHOTS  # noqa: E402
-from m9_analytics.freshness import compute_source_freshness  # noqa: E402
-from m9_analytics.strategic_aggregate import build_strategic_dashboard_data  # noqa: E402
+from engagement.sentiment import compute_sentiment  # noqa: E402
+from automation.constants import COL_MANUAL_WORKFLOW_BASELINES, COL_WORKFLOW_RUNS  # noqa: E402
+from retention.constants import COL_ATTRITION_MODEL_STATE, COL_ATTRITION_SCORES_LATEST  # noqa: E402
+from retention.model_v1 import default_model_state  # noqa: E402
+from analytics.constants import COL_M9_LEADERSHIP_SNAPSHOTS  # noqa: E402
+from analytics.freshness import compute_source_freshness  # noqa: E402
+from analytics.strategic_aggregate import build_strategic_dashboard_data  # noqa: E402
 
 
 def _load_env() -> None:

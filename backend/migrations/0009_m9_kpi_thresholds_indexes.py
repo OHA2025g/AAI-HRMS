@@ -1,6 +1,6 @@
 """M9 KPI threshold overrides — unique kpi_id index."""
 
-from m9_analytics.constants import COL_M9_KPI_THRESHOLDS
+from analytics.constants import COL_M9_KPI_THRESHOLDS
 
 
 async def up(db):

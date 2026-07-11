@@ -1,0 +1,173 @@
+/**
+ * App-wide responsive foundation — phones, tablets, desktops, large screens.
+ * Safe-area aware; prevents horizontal overflow; improves touch targets & tables.
+ */
+
+:root {
+  --app-gutter: clamp(12px, 2.5vw, 24px);
+  --app-header-h: 64px;
+  --app-touch-min: 44px;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* Touch-friendly interactive targets on coarse pointers */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  a.slp-btn-primary,
+  a.slp-btn-ghost,
+  a.slp-btn-outline,
+  .shl-submit,
+  .sh-nav-link,
+  .hiring-dashboard-root .tab,
+  .hiring-dashboard-root .btn {
+    min-height: var(--app-touch-min);
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important; /* avoid iOS zoom on focus */
+  }
+}
+
+/* Tables / wide panels: scroll instead of blowing layout */
+.app-table-scroll,
+.table-responsive,
+.hiring-dashboard-root .table-wrap,
+.hiring-dashboard-root .table-scroll,
+[data-responsive-table] {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hiring-dashboard-root table,
+.app-table-scroll table {
+  min-width: 560px;
+}
+
+/* Dialogs / sheets: fit small viewports */
+[data-radix-dialog-content],
+[role='dialog'] {
+  max-width: min(100vw - 24px, 640px) !important;
+}
+
+@media (max-width: 640px) {
+  [data-radix-dialog-content],
+  [role='dialog'] {
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+}
+
+/* App shell: main content never overflows */
+.app-shell-main,
+.hd-mock-main,
+main {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Generic page padding rhythm for non-mock pages */
+@media (max-width: 768px) {
+  .page-container,
+  .page-content,
+  [data-page-content] {
+    padding-left: var(--app-gutter) !important;
+    padding-right: var(--app-gutter) !important;
+  }
+}
+
+/* Horizontal tab bars scroll on narrow screens */
+.hiring-dashboard-root .tabs,
+[data-testid='dashboard-tabs'] {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.hiring-dashboard-root .tabs .tab,
+[data-testid='dashboard-tabs'] [role='tab'] {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Grid helpers used across feature pages */
+@media (max-width: 1024px) {
+  .grid-responsive-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-responsive-3,
+  .grid-responsive-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Stack common Tailwind-ish command bars when they overflow */
+  .command-bar,
+  .page-toolbar,
+  .hd-mock-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --app-gutter: 12px;
+  }
+
+  h1 {
+    font-size: clamp(1.35rem, 6vw, 1.75rem);
+  }
+}
+
+/* Landscape phones: reduce vertical chrome */
+@media (max-height: 500px) and (orientation: landscape) {
+  .shl-login-side {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .slp-header-inner {
+    height: 56px;
+  }
+
+  .slp {
+    padding-top: 56px;
+  }
+}
+
+/* Large desktops: keep content readable */
+@media (min-width: 1600px) {
+  .hd-mock-main,
+  .page-container {
+    max-width: 1600px;
+  }
+}

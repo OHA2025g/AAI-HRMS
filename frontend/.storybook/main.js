@@ -2,7 +2,7 @@
 const path = require('path');
 
 const config = {
-  stories: ['../src/components/hiring-dashboard/**/*.stories.@(js|jsx)'],
+  stories: ['../src/features/smart-hiring/components/hiring-dashboard/**/*.stories.@(js|jsx)'],
   addons: ['@storybook/addon-essentials', '@storybook/addon-links'],
   framework: {
     name: '@storybook/react-webpack5',

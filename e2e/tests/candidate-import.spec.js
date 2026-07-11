@@ -1,17 +1,14 @@
 // @ts-check
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { loginAs } = require('../helpers/auth');
 
 const email = process.env.PLAYWRIGHT_USER_EMAIL || 'qa_admin@aai-hrms.local';
 const password = process.env.PLAYWRIGHT_USER_PASSWORD || 'QA_Seed_ChangeMe!';
 const fixturePath = path.join(__dirname, '../fixtures/candidate-import-sample.csv');
 
 async function login(page) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in|log in/i }).click();
-  await page.waitForURL(/\/(dashboard|jobs|candidates)/, { timeout: 30_000 });
+  await loginAs(page, email, password, /\/(dashboard|jobs|candidates)/);
 }
 
 test.describe('Candidate bulk import', () => {

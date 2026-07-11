@@ -80,9 +80,9 @@ def _resolve_excel_path() -> Path:
         raise SystemExit(f"CANDIDATES_EXCEL_PATH file not found: {p}")
     paths = [
         Path("/data/excel/Candidates 1.xlsx"),
+        BACKEND_DIR.parent / "data" / "excel" / "Candidates 1.xlsx",
         BACKEND_DIR.parent / "Candidates 1.xlsx",
         BACKEND_DIR.parent / "docs" / "Candidates 1.xlsx",
-        BACKEND_DIR / "docs" / "Candidates 1.xlsx",
         BACKEND_DIR / "Candidates 1.xlsx",
         BACKEND_DIR / "scripts" / "Candidates 1.xlsx",
     ]
@@ -90,7 +90,7 @@ def _resolve_excel_path() -> Path:
         if p.is_file():
             return p
     raise SystemExit(
-        "Place 'Candidates 1.xlsx' in the project root or docs/, or set CANDIDATES_EXCEL_PATH.\n"
+        "Place 'Candidates 1.xlsx' in data/excel/ (or project root), or set CANDIDATES_EXCEL_PATH.\n"
         f"Tried: {[str(x) for x in paths]}"
     )
 

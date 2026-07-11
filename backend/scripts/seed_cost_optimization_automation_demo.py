@@ -21,7 +21,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from m16_cost_optimization_automation.constants import (  # noqa: E402
+from cost_optimization.constants import (  # noqa: E402
     COL_ACTIVITY_LOGS,
     COL_AI_COST_RECOMMENDATION_RECORDS,
     COL_AI_PRODUCTIVITY_RECOMMENDATION_RECORDS,

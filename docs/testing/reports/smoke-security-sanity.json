@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-07-11T10:14:07.833106+00:00",
+  "target": {
+    "web": "http://127.0.0.1:3001",
+    "api": "http://127.0.0.1:8004"
+  },
+  "summary": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0
+  },
+  "results": [
+    {
+      "category": "Smoke",
+      "name": "GET / (landing)",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 12.195458024507388
+    },
+    {
+      "category": "Smoke",
+      "name": "GET /login (login)",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 0.9567920060362667
+    },
+    {
+      "category": "Smoke",
+      "name": "GET /api/health (health via web proxy)",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 4.026541020721197
+    },
+    {
+      "category": "Smoke",
+      "name": "GET API /api/health direct",
+      "ok": true,
+      "detail": "status=200 body=b'{\"status\":\"healthy\",\"timestamp\":\"2026-07-11T10:14:07.145519+00:00\"}'",
+      "latency_ms": 2.3919999948702753
+    },
+    {
+      "category": "Smoke",
+      "name": "Auth login",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 185.77033301698975
+    },
+    {
+      "category": "Smoke",
+      "name": "Auth GET /api/jobs",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 7.933583983685821
+    },
+    {
+      "category": "Smoke",
+      "name": "Auth GET /api/candidates",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 107.90416697273031
+    },
+    {
+      "category": "Smoke",
+      "name": "Auth GET /api/assessments",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 11.970624997047707
+    },
+    {
+      "category": "Smoke",
+      "name": "Auth GET /api/applications",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 20.32658297684975
+    },
+    {
+      "category": "Sanity",
+      "name": "QA seed job present",
+      "ok": true,
+      "detail": "jobs_count=139",
+      "latency_ms": 7.468166993930936
+    },
+    {
+      "category": "Sanity",
+      "name": "QA hiring_manager login",
+      "ok": true,
+      "detail": "status=200",
+      "latency_ms": 162.98137500416487
+    },
+    {
+      "category": "Security",
+      "name": "Unauthenticated /api/jobs rejected",
+      "ok": true,
+      "detail": "status=403",
+      "latency_ms": 1.3057500182185322
+    },
+    {
+      "category": "Security",
+      "name": "Bad password rejected",
+      "ok": true,
+      "detail": "status=401",
+      "latency_ms": 162.25108297658153
+    },
+    {
+      "category": "Security",
+      "name": "Security-related response headers present (informational)",
+      "ok": true,
+      "detail": "x-frame-options=None, x-content-type-options=None, csp=False",
+      "latency_ms": 1.0350830270908773
+    },
+    {
+      "category": "Security",
+      "name": "Invalid JWT rejected",
+      "ok": true,
+      "detail": "status=401",
+      "latency_ms": 1.136541977757588
+    },
+    {
+      "category": "Reliability",
+      "name": "Health 10x success",
+      "ok": true,
+      "detail": "p50=1ms max=1ms",
+      "latency_ms": null
+    },
+    {
+      "category": "Usability",
+      "name": "Landing renders app shell",
+      "ok": true,
+      "detail": "len=783",
+      "latency_ms": 0.8325419912580401
+    },
+    {
+      "category": "Accessibility",
+      "name": "HTML lang attribute on shell",
+      "ok": true,
+      "detail": "shell only (SPA content JS-rendered)",
+      "latency_ms": 0.6566660013049841
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from candidate_fit_phase2.constants import COL_PHASE2_REPORTS
+from candidate_fit.constants import COL_PHASE2_REPORTS
 
 
 async def up(db) -> None:

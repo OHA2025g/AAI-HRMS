@@ -31,7 +31,7 @@ def _load_env() -> None:
 MARKER = "_resource_section_seed"
 VERSION = 1
 
-from m11_resource_section.constants import (  # noqa: E402
+from resource_section.constants import (  # noqa: E402
     COL_ACTIVITY,
     COL_AI_INSIGHTS,
     COL_APPROVALS,

@@ -35,10 +35,17 @@ dist
 .pytest_cache/
 **/.pytest_cache/
 
-# Accidental downloads
+# Accidental downloads / local sample workbooks
 *.crdownload
 /Candidates*.xlsx
 /Job Descriptions*.xlsx
+/data/excel/*.xlsx
+
+# Legacy / local-only folders (do not commit)
+.git.broken-backup*/
+/db_dump/
+/memory/
+/tests/
 
 # Environment files (comprehensive coverage)
 

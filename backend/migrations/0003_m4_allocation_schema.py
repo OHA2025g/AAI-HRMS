@@ -10,7 +10,7 @@ Idempotent: only updates docs missing demand_min.
 
 from __future__ import annotations
 
-from m4_resource_optimization.constants import COL_ALLOCATION_SETTINGS, DEFAULT_SETTINGS
+from resource_optimization.constants import COL_ALLOCATION_SETTINGS, DEFAULT_SETTINGS
 
 
 async def up(db) -> None:
