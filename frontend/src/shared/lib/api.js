@@ -11,6 +11,7 @@ export const jobsApi = {
   create: (data) => axios.post(`${API_URL}/jobs`, data),
   update: (id, data) => axios.put(`${API_URL}/jobs/${id}`, data),
   delete: (id) => axios.delete(`${API_URL}/jobs/${id}`),
+  generateJd: (data) => axios.post(`${API_URL}/jobs/generate-jd`, data),
   match: (id, params) => axios.post(`${API_URL}/match/${id}`, null, { params }),
   getMatches: (id, limit = 50) => axios.get(`${API_URL}/jobs/${id}/matches`, { params: { limit } }),
   generateDemoCandidates: (id, count = 50) => axios.post(`${API_URL}/jobs/${id}/demo-candidates`, { count }),

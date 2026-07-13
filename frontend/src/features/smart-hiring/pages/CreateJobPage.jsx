@@ -42,13 +42,13 @@ const STEP_META = {
   2: {
     title: 'Step 2 — Job / Role Details',
     subtitle:
-      'Capture the role summary, location, experience range, and JD details that AI will convert into matching signals.',
+      'Capture title, location, and experience. You can write a role summary now or generate it with Mistral after adding skills.',
     next: 'Next: Skills & Scoring',
   },
   3: {
     title: 'Step 3 — Skills & Scoring',
     subtitle:
-      'Define required skills, good-to-have signals, and default matching emphasis for candidate ranking.',
+      'Define must-have and good-to-have skills, then generate a full JD with Mistral AI before review.',
     next: 'Next: Review',
   },
   4: {
@@ -108,6 +108,7 @@ export default function CreateJobPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [generatingJd, setGeneratingJd] = useState(false);
   const [fetchJobLoading, setFetchJobLoading] = useState(!!editJobId);
   const [lastSavedAt, setLastSavedAt] = useState(null);
 
@@ -306,7 +307,7 @@ export default function CreateJobPage() {
   const meta = STEP_META[step];
 
   const isStep1Valid = Boolean(pillarId && departmentId && subDepartment);
-  const isStep2Valid = Boolean(title.trim() && description.trim());
+  const isStep2Valid = Boolean(title.trim());
   const isStep3Valid = skillsNeeded.length > 0 && mustHaveSkills.length > 0;
 
   const canGoNext =
@@ -371,7 +372,67 @@ export default function CreateJobPage() {
     }
   };
 
+  const handleGenerateJd = async ({ jumpToSummary = false } = {}) => {
+    if (!title.trim()) {
+      toast.error('Add a job title before generating a JD.');
+      if (step !== 2) setStep(2);
+      return;
+    }
+    if (!mustHaveSkills.length) {
+      toast.error('Add at least one must-have skill before generating a JD.');
+      if (step !== 3) setStep(3);
+      return;
+    }
+
+    const goodSkills = skillsNeeded.filter(
+      (s) => !mustHaveSkills.some((m) => m.toLowerCase() === s.toLowerCase())
+    );
+
+    setGeneratingJd(true);
+    try {
+      const { data } = await jobsApi.generateJd({
+        title: title.trim(),
+        must_have_skills: mustHaveSkills,
+        good_to_have_skills: goodSkills.length ? goodSkills : parseSkillList(goodHaveText),
+        location: location.trim() || null,
+        work_mode: workMode || null,
+        seniority: seniority || null,
+        experience_range: experienceRange.trim() || null,
+        business_pillar: pillarLabel || null,
+        business_department: deptLabel || null,
+        business_sub_department: subDepartment || null,
+        project_id: projectId.trim() || null,
+      });
+      const nextDescription = (data?.description || '').trim();
+      if (!nextDescription) {
+        toast.error('AI returned an empty job description. Try again.');
+        return;
+      }
+      setDescription(nextDescription);
+      if (jumpToSummary || step === 3) setStep(2);
+      if (data?.used_fallback) {
+        toast.success('JD draft generated from a template (Mistral unavailable). Review and edit.');
+      } else {
+        toast.success(
+          data?.provider === 'mistral'
+            ? 'JD generated with Mistral AI. Review and edit as needed.'
+            : 'JD generated with AI. Review and edit as needed.'
+        );
+      }
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Could not generate JD. Try again.');
+    } finally {
+      setGeneratingJd(false);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (!description.trim()) {
+      toast.error('Add or generate a role summary / JD before publishing.');
+      setStep(2);
+      return;
+    }
     const skillsPayload = skillsNeeded.map((name) => ({
       skill_name: name,
       skill_type: mustHaveSkills.includes(name) ? 'MUST_HAVE' : 'GOOD_TO_HAVE',
@@ -484,7 +545,7 @@ export default function CreateJobPage() {
               <div>
                 <div className="cj-title-row">
                   <h1>{isEdit ? 'Edit Job Requisition' : 'Create New Job'}</h1>
-                  <span className="cj-chip green">AI JD Analyzer enabled</span>
+                  <span className="cj-chip green">AI JD Generator (Mistral)</span>
                   <span className="cj-chip purple">{isEdit ? 'Edit mode' : 'Draft mode'}</span>
                 </div>
                 <p className="cj-hero-sub">
@@ -776,16 +837,40 @@ export default function CreateJobPage() {
                       </select>
                     </div>
                     <div className="cj-field full">
-                      <label htmlFor="cj-summary">
-                        Role Summary <span className="cj-req">*</span>
-                      </label>
+                      <div className="cj-label-row">
+                        <label htmlFor="cj-summary">
+                          Role Summary / JD <span className="cj-req">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="cj-btn soft cj-btn-sm"
+                          onClick={() => handleGenerateJd({ jumpToSummary: false })}
+                          disabled={generatingJd || loading}
+                          data-testid="generate-jd-btn"
+                        >
+                          {generatingJd ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Generating…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={16} strokeWidth={2} />
+                              Generate with Mistral
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <textarea
                         id="cj-summary"
-                        placeholder="Paste or write the short role summary here. AI will convert it into responsibilities, skill signals, and scoring criteria."
+                        placeholder="Write a short role summary, or generate a full JD with Mistral after adding must-have / good-to-have skills."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         data-testid="job-description-input"
                       />
+                      <p className="cj-field-hint">
+                        Tip: add skills in Step 3, then use Generate with Mistral to draft the full JD from title + skills.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -863,6 +948,33 @@ export default function CreateJobPage() {
                         {tag.label}
                       </button>
                     ))}
+                  </div>
+                  <div className="cj-generate-jd-banner">
+                    <div>
+                      <strong>Generate Job Description</strong>
+                      <span>
+                        Use title, org placement, must-have, and good-to-have skills to draft a full JD with Mistral AI.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="cj-btn primary"
+                      onClick={() => handleGenerateJd({ jumpToSummary: true })}
+                      disabled={generatingJd || loading || !mustHaveSkills.length || !title.trim()}
+                      data-testid="generate-jd-from-skills-btn"
+                    >
+                      {generatingJd ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Generating JD…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={17} strokeWidth={2} />
+                          Generate JD with Mistral
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
                 <div className="cj-subsection">

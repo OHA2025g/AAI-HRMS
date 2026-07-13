@@ -120,6 +120,7 @@ from talent_acquisition.hiring_rbac import (
     assert_stage_transition,
     build_hiring_team,
     get_hiring_team,
+    has_permission,
     hiring_team_recipient_ids,
     OFFER_STAGES,
     merge_candidate_query_with_access,
@@ -992,6 +993,28 @@ class JobUpdate(BaseModel):
     project_id: Optional[str] = None
     skills: Optional[List[Dict[str, Any]]] = None
     hiring_team: Optional[JobHiringTeamInput] = None
+
+
+class JobGenerateJdRequest(BaseModel):
+    title: str
+    must_have_skills: List[str]
+    good_to_have_skills: List[str] = []
+    skills_needed: List[str] = []
+    location: Optional[str] = None
+    work_mode: Optional[str] = None
+    seniority: Optional[str] = None
+    experience_range: Optional[str] = None
+    business_pillar: Optional[str] = None
+    business_department: Optional[str] = None
+    business_sub_department: Optional[str] = None
+    project_id: Optional[str] = None
+
+
+class JobGenerateJdResponse(BaseModel):
+    description: str
+    provider: str = "mistral"
+    used_fallback: bool = False
+
 
 # Candidate Models
 class ExperienceInput(BaseModel):
@@ -3461,6 +3484,168 @@ def generate_default_jd_analysis(title: str, skills_needed: List[str], must_have
         }
     }
 
+
+def _dedupe_skill_names(skills: List[str]) -> List[str]:
+    seen = set()
+    out: List[str] = []
+    for raw in skills or []:
+        name = re.sub(r"\s+", " ", (raw or "").strip())
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name)
+    return out
+
+
+def generate_default_jd_text(
+    title: str,
+    must_have_skills: List[str],
+    good_to_have_skills: List[str],
+    *,
+    location: Optional[str] = None,
+    work_mode: Optional[str] = None,
+    seniority: Optional[str] = None,
+    experience_range: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_department: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+) -> str:
+    """Deterministic JD text when Mistral is unavailable."""
+    must = _dedupe_skill_names(must_have_skills)
+    good = _dedupe_skill_names(good_to_have_skills)
+    good = [s for s in good if s.lower() not in {m.lower() for m in must}]
+
+    org_bits = [b for b in [business_pillar, business_department, business_sub_department] if (b or "").strip()]
+    org_line = " / ".join(org_bits) if org_bits else None
+    meta_bits = []
+    if seniority:
+        meta_bits.append(f"Seniority: {seniority}")
+    if experience_range:
+        meta_bits.append(f"Experience: {experience_range}")
+    if location:
+        meta_bits.append(f"Location: {location}")
+    if work_mode:
+        meta_bits.append(f"Work mode: {work_mode}")
+
+    lines = [
+        f"Role: {title.strip()}",
+        "",
+        "About the role",
+        (
+            f"We are hiring a {title.strip()}"
+            + (f" for {org_line}" if org_line else "")
+            + " to deliver outcomes aligned with business goals and collaborate across teams."
+        ),
+        "",
+        "Key responsibilities",
+        f"- Own day-to-day delivery for the {title.strip()} scope and related stakeholders.",
+        "- Apply must-have skills to solve problems, improve quality, and meet timelines.",
+        "- Partner with hiring managers and peers to translate requirements into actionable work.",
+        "- Document progress, risks, and recommendations clearly for decision makers.",
+        "",
+        "Must-have skills",
+    ]
+    lines.extend([f"- {s}" for s in must] or ["- (to be confirmed with hiring manager)"])
+    lines.extend(["", "Good-to-have skills"])
+    lines.extend([f"- {s}" for s in good] or ["- Related domain tools and communication skills"])
+    if meta_bits:
+        lines.extend(["", "Role details", *[f"- {b}" for b in meta_bits]])
+    lines.extend(
+        [
+            "",
+            "What success looks like",
+            "- Strong evidence of must-have skill application in prior work.",
+            "- Clear ownership, communication, and ability to learn adjacent tools quickly.",
+        ]
+    )
+    return "\n".join(lines).strip()
+
+
+async def generate_jd_with_ai(
+    title: str,
+    must_have_skills: List[str],
+    good_to_have_skills: List[str],
+    *,
+    location: Optional[str] = None,
+    work_mode: Optional[str] = None,
+    seniority: Optional[str] = None,
+    experience_range: Optional[str] = None,
+    business_pillar: Optional[str] = None,
+    business_department: Optional[str] = None,
+    business_sub_department: Optional[str] = None,
+    project_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a full job description from role details and skills (Mistral preferred)."""
+    must = _dedupe_skill_names(must_have_skills)
+    good = _dedupe_skill_names(good_to_have_skills)
+    good = [s for s in good if s.lower() not in {m.lower() for m in must}]
+
+    fallback = generate_default_jd_text(
+        title,
+        must,
+        good,
+        location=location,
+        work_mode=work_mode,
+        seniority=seniority,
+        experience_range=experience_range,
+        business_pillar=business_pillar,
+        business_department=business_department,
+        business_sub_department=business_sub_department,
+    )
+
+    system_message = """You are an expert technical recruiter and HR writer.
+Write clear, inclusive, professional job descriptions for enterprise hiring.
+Always respond with valid JSON only. No markdown fences."""
+    prompt = f"""Generate a complete job description from these requisition details.
+
+Job Title: {title}
+Seniority: {seniority or "Not specified"}
+Experience Range: {experience_range or "Not specified"}
+Location: {location or "Not specified"}
+Work Mode: {work_mode or "Not specified"}
+Business Pillar: {business_pillar or "Not specified"}
+Department: {business_department or "Not specified"}
+Sub-department: {business_sub_department or "Not specified"}
+Project ID: {project_id or "Not specified"}
+Must-have skills: {", ".join(must) if must else "None provided"}
+Good-to-have skills: {", ".join(good) if good else "None provided"}
+
+Return JSON exactly in this shape:
+{{
+  "description": "full job description as plain text with short section headings"
+}}
+
+The description MUST include these sections in order:
+1) About the role
+2) Key responsibilities (5-8 bullets)
+3) Must-have skills (use the provided list; do not invent critical skills)
+4) Good-to-have skills (use the provided list)
+5) Qualifications / experience
+Keep tone professional and concise. Do not invent salary, benefits, or company-specific legal language."""
+
+    try:
+        if (os.environ.get("MISTRAL_API_KEY") or "").strip():
+            response = await _mistral_chat(system_message, prompt)
+            provider = "mistral"
+        else:
+            response = await _llm_chat(system_message, prompt)
+            provider = "llm"
+        clean = (response or "").strip()
+        if clean.startswith("```"):
+            clean = re.sub(r"^```(?:json)?\n?", "", clean)
+            clean = re.sub(r"\n?```$", "", clean)
+        parsed = json.loads(clean)
+        description = (parsed.get("description") or "").strip()
+        if not description:
+            raise ValueError("Empty description from LLM")
+        return {"description": description, "provider": provider, "used_fallback": False}
+    except Exception as e:
+        logger.error("AI JD generation failed, using template fallback: %s", e)
+        return {"description": fallback, "provider": "template", "used_fallback": True}
+
 async def compute_fit_score(job: Dict, candidate: Dict) -> Dict[str, Any]:
     """Compute fit score between candidate and job"""
     try:
@@ -4374,6 +4559,43 @@ async def list_hiring_team_members(
         {"_id": 0, "id": 1, "email": 1, "full_name": 1, "role": 1},
     ).sort("full_name", 1).to_list(500)
     return {"items": users}
+
+
+@api_router.post("/jobs/generate-jd", response_model=JobGenerateJdResponse)
+async def generate_job_description(
+    body: JobGenerateJdRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate a job description from role details + skills using Mistral AI."""
+    if not (
+        has_permission(current_user, PERM_JOB_CREATE)
+        or has_permission(current_user, PERM_JOB_EDIT)
+    ):
+        raise HTTPException(status_code=403, detail="Missing permission: job.create or job.edit")
+
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Job title is required")
+
+    must = _dedupe_skill_names(list(body.must_have_skills or []))
+    if not must:
+        raise HTTPException(status_code=400, detail="At least one must-have skill is required")
+
+    good = _dedupe_skill_names(list(body.good_to_have_skills or []) + list(body.skills_needed or []))
+    result = await generate_jd_with_ai(
+        title,
+        must,
+        good,
+        location=body.location,
+        work_mode=body.work_mode,
+        seniority=body.seniority,
+        experience_range=body.experience_range,
+        business_pillar=body.business_pillar,
+        business_department=body.business_department,
+        business_sub_department=body.business_sub_department,
+        project_id=body.project_id,
+    )
+    return JobGenerateJdResponse(**result)
 
 
 @api_router.post("/jobs", response_model=JobResponse)
