@@ -27,12 +27,9 @@ import {
   Eye,
 } from 'lucide-react';
 import { SMART_HIRING_ONLY } from '@/shared/config/appModules';
+import VedhireBrandLockup from '@/shared/components/VedhireBrandLockup';
+import { PRODUCT_NAME_PLAIN as PRODUCT_NAME } from '@/shared/components/VedhireWordmark';
 import '@/features/smart-hiring/styles/smart-hiring-landing.css';
-
-const PRODUCT_NAME = SMART_HIRING_ONLY ? 'AAI Smart Hiring' : 'AAI-HRMS';
-const PRODUCT_TAGLINE = SMART_HIRING_ONLY
-  ? 'Agentic talent acquisition'
-  : 'Enterprise workforce systems';
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview' },
@@ -276,13 +273,7 @@ const LandingPage = () => {
       <header className="slp-header">
         <div className="slp-header-inner">
           <a href="#overview" className="slp-brand" onClick={(e) => handleNavClick(e, 'overview')}>
-            <div className="slp-brand-mark" aria-hidden="true">
-              ✦
-            </div>
-            <div>
-              <div className="slp-brand-title">{PRODUCT_NAME}</div>
-              <div className="slp-brand-sub">{PRODUCT_TAGLINE}</div>
-            </div>
+            <VedhireBrandLockup variant="light" markSize={30} className="slp-brand-lockup" />
           </a>
 
           <nav className="slp-nav" aria-label="Landing page">

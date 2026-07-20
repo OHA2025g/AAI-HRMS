@@ -11,8 +11,10 @@ describe('SmartHiringSidebar', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('AAI-HRMS')).toBeTruthy();
-    expect(screen.getByText('Smart Hiring')).toBeTruthy();
+    expect(screen.getByTestId('vedhire-wordmark')).toBeTruthy();
+    expect(screen.getByText('vedhire')).toBeTruthy();
+    expect(screen.getByText('.ai')).toBeTruthy();
+    expect(screen.getByText('Inspired by Ved & Powered by AI')).toBeTruthy();
     expect(screen.getByTestId('nav-dashboard')).toBeTruthy();
     expect(screen.getByTestId('nav-jobs')).toBeTruthy();
     expect(screen.getByTestId('nav-pipeline')).toBeTruthy();

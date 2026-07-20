@@ -595,11 +595,24 @@ const AdminIntegrationsPage = () => {
                 <b>No proactive LinkedIn search (RSC mode).</b> RSC only delivers profiles when a
                 recruiter uses one-click export in LinkedIn Recruiter.
               </div>
+            ) : apifyStatus == null ? (
+              <div className="aic-info" data-testid="apify-status-loading-banner">
+                <b>Apify mode — proactive people search.</b> Checking APIFY_API_TOKEN and connector
+                status…
+              </div>
+            ) : apifyStatus.token_set ? (
+              <div className="aic-success" data-testid="apify-ready-banner">
+                <b>Apify mode — proactive people search.</b> APIFY_API_TOKEN is configured.
+                Find Matches starts a search + enrich pipeline automatically when fewer than 10
+                LinkedIn profiles exist for the job.
+              </div>
             ) : (
-              <div className="aic-info">
-                <b>Apify mode — proactive people search.</b> Set APIFY_API_TOKEN in server
-                environment. Find Matches starts a search + enrich pipeline automatically when fewer
-                than 10 LinkedIn profiles exist for the job.
+              <div className="aic-note" data-testid="apify-token-missing-banner">
+                <b>Apify mode — proactive people search.</b> Set{' '}
+                <code>APIFY_API_TOKEN</code> in the server environment (for Docker: root{' '}
+                <code>.env</code>, then recreate the <code>api</code> container). Find Matches
+                starts a search + enrich pipeline automatically when fewer than 10 LinkedIn
+                profiles exist for the job.
               </div>
             )}
 

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import VedhireBrandMark from '@/shared/components/VedhireBrandMark';
+import VedhireBrandLockup from '@/shared/components/VedhireBrandLockup';
 import {
   getSmartHiringSidebarNav,
   isSmartHiringNavGroupActive,
@@ -12,7 +14,7 @@ import {
 export default function SmartHiringSidebar({
   user,
   navVariant = 'operational',
-  brandGlyph = 'A',
+  brandGlyph,
   collapsed = false,
   onToggleCollapse,
   onNavigate,
@@ -56,18 +58,16 @@ export default function SmartHiringSidebar({
     });
   };
 
-  const brandContent = (
-    <>
-      <div className="sh-logo" aria-hidden>
-        {brandGlyph}
-      </div>
-      {!collapsed ? (
-        <div className="sh-brand-text">
-          <h2>AAI-HRMS</h2>
-          <p>Smart Hiring</p>
-        </div>
-      ) : null}
-    </>
+  const brandContent = collapsed ? (
+    <div className="sh-logo" aria-hidden>
+      {brandGlyph ? brandGlyph : <VedhireBrandMark size={28} />}
+    </div>
+  ) : (
+    <VedhireBrandLockup
+      variant="dark"
+      markSize={28}
+      className="sh-brand-lockup"
+    />
   );
 
   return (

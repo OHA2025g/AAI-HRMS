@@ -53,7 +53,7 @@ const TransformationPage = () => {
           BRD + SRS Transformation
         </h1>
         <p className="text-slate-600 mt-1">
-          Evolving AAI-HRMS into an AI-powered workforce intelligence platform.
+          Evolving vedhire.ai into an AI-powered workforce intelligence platform.
         </p>
       </div>
 

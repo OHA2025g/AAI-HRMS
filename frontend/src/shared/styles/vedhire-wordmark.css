@@ -1,0 +1,99 @@
+/* Vedhire brand lockup — logo + name, tagline below both */
+
+.vedhire-brand-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vedhire-brand-lockup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vedhire-brand-lockup-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: linear-gradient(160deg, #241a4f 0%, #1b1440 55%, #14102e 100%);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 4px;
+  box-shadow:
+    0 12px 28px rgba(27, 20, 64, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.vedhire-brand-lockup-mark .vedhire-brand-mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.vedhire-brand-lockup-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.vedhire-brand-lockup-tagline {
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  max-width: 22rem;
+  padding-left: 0;
+}
+
+.vedhire-brand-lockup--light .vedhire-brand-lockup-tagline {
+  color: #6366f1;
+}
+
+.vedhire-brand-lockup--dark .vedhire-brand-lockup-tagline {
+  color: #c4b5fd;
+}
+
+/* When collapsed / mark-only contexts hide text via parent */
+.vedhire-brand-lockup--compact .vedhire-brand-lockup-tagline {
+  padding-left: 0;
+}
+
+
+.vedhire-wordmark {
+  font-family: Syne, Outfit, Inter, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.vedhire-wordmark-name,
+.vedhire-wordmark-ai {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/* Light surfaces (landing, mobile login) — matches attached wordmark */
+.vedhire-wordmark--light .vedhire-wordmark-name {
+  color: #1a1635;
+}
+
+.vedhire-wordmark--light .vedhire-wordmark-ai {
+  color: #8b7cf7;
+}
+
+/* Dark surfaces (sidebar, login visual panel) */
+.vedhire-wordmark--dark .vedhire-wordmark-name {
+  color: #f2f0fa;
+}
+
+.vedhire-wordmark--dark .vedhire-wordmark-ai {
+  color: #a08cff;
+}

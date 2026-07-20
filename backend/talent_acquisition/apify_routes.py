@@ -13,9 +13,10 @@ from talent_acquisition.apify_linkedin_connector import (
     APIFY_RUNS_COLLECTION,
     CONNECTOR_COLL,
     CONNECTOR_NAME,
+    PIPELINE_ENRICH_RUNNING,
+    PIPELINE_SEARCH_RUNNING,
     ensure_apify_linkedin_defaults,
     get_apify_token,
-    get_latest_pipeline_for_job,
     process_pending_apify_pipelines,
     start_apify_pipeline_for_job,
     test_apify_connection,
@@ -115,9 +116,40 @@ def create_apify_linkedin_router(
         job_id: str,
         current_user: dict = Depends(get_current_user),
     ):
+        """Return latest pipeline status.
+
+        Also advances an active pipeline one step. EasyPanel / single-container
+        deploys often lack the apify-linkedin-process-cron service; the job UI
+        already polls this endpoint every ~12s, so advancing here unblocks
+        search_running → completed without a separate cron.
+        """
         _ = current_user
-        pipeline = await get_latest_pipeline_for_job(db, job_id)
-        return {"job_id": job_id, "pipeline": pipeline}
+        await ensure_apify_linkedin_defaults(db)
+        doc = await db[APIFY_RUNS_COLLECTION].find_one(
+            {"job_id": job_id},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+        if doc and doc.get("status") in (PIPELINE_SEARCH_RUNNING, PIPELINE_ENRICH_RUNNING):
+            cfg = await _load_cfg()
+            try:
+                await process_pending_apify_pipelines(
+                    db,
+                    cfg,
+                    upsert_candidate,
+                    limit=1,
+                    pipeline_id=str(doc.get("id") or ""),
+                )
+            except Exception:
+                logger.exception("Apify pipeline advance on status poll failed for job %s", job_id)
+            doc = await db[APIFY_RUNS_COLLECTION].find_one(
+                {"id": doc.get("id")},
+                {"_id": 0},
+            ) or doc
+        return {
+            "job_id": job_id,
+            "pipeline": _public_pipeline(doc) if doc else None,
+        }
 
     @router.post("/jobs/{job_id}/apify-linkedin/search")
     async def apify_start_job_search(

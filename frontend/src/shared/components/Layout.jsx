@@ -4,6 +4,8 @@ import { useAuth } from '@/shared/context/AuthContext';
 import { usePlacementFilters } from '@/shared/context/PlacementFiltersContext';
 import { notificationsApi } from '@/shared/lib/api';
 import { jobsApi } from '@/shared/lib/api';
+import VedhireBrandLockup from '@/shared/components/VedhireBrandLockup';
+import VedhireBrandMark from '@/shared/components/VedhireBrandMark';
 import {
   LayoutDashboard,
   Briefcase,
@@ -380,7 +382,6 @@ const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const smartHiringNavVariant = resolveSmartHiringNavVariant(location.pathname, location.search);
-  const smartHiringBrandGlyph = '✦';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const placement = usePlacementFilters();
@@ -799,7 +800,6 @@ const Layout = ({ children }) => {
         <SmartHiringSidebar
           user={user}
           navVariant={smartHiringNavVariant}
-          brandGlyph={smartHiringBrandGlyph}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 z-40"
@@ -815,11 +815,13 @@ const Layout = ({ children }) => {
             className={`h-16 flex items-center border-b border-slate-800 ${sidebarCollapsed ? 'justify-center px-2' : 'px-4'}`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
               {!sidebarCollapsed && (
-                <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
+                <VedhireBrandLockup variant="dark" markSize={22} className="min-w-0" />
+              )}
+              {sidebarCollapsed && (
+                <div className="w-8 h-8 rounded-lg bg-[#1B1440] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  <VedhireBrandMark size={22} />
+                </div>
               )}
             </div>
           </div>
@@ -862,7 +864,6 @@ const Layout = ({ children }) => {
             <SmartHiringSidebar
               user={user}
               navVariant={smartHiringNavVariant}
-              brandGlyph={smartHiringBrandGlyph}
               showCollapse={false}
               onNavigate={() => setMobileMenuOpen(false)}
               className="h-full"
@@ -877,10 +878,7 @@ const Layout = ({ children }) => {
         >
           <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-lg text-white font-['Outfit'] truncate">AAI-HRMS</span>
+              <VedhireBrandLockup variant="dark" markSize={22} className="min-w-0" />
             </div>
             <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 hover:text-white flex-shrink-0">
               <X className="w-5 h-5" />

@@ -4,6 +4,7 @@ import { useAuth } from '@/shared/context/AuthContext';
 import { Mail, Lock, User, Building2, ArrowRight, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '@/shared/lib/apiBaseUrl';
+import VedhireBrandLockup from '@/shared/components/VedhireBrandLockup';
 import '@/features/smart-hiring/styles/smart-hiring-login.css';
 
 const REMEMBER_KEY = 'aai_hrms_remember_email';
@@ -120,15 +121,7 @@ const LoginPage = () => {
         <div className="shl-orb shl-orb-one" />
         <div className="shl-orb shl-orb-two" />
         <div className="shl-visual-inner">
-          <div className="shl-brand">
-            <div className="shl-brand-mark" aria-hidden="true">
-              ✦
-            </div>
-            <div>
-              <div className="shl-brand-title">AAI Smart Hiring</div>
-              <div className="shl-brand-sub">Agentic talent acquisition</div>
-            </div>
-          </div>
+          <VedhireBrandLockup variant="dark" markSize={34} className="shl-brand" />
 
           <div className="shl-hero">
             <div className="shl-eyebrow">
@@ -184,15 +177,7 @@ const LoginPage = () => {
 
       <section className="shl-login-side">
         <div className="shl-login-wrap">
-          <div className="shl-mobile-brand">
-            <div className="shl-brand-mark" aria-hidden="true">
-              ✦
-            </div>
-            <div>
-              <div className="shl-brand-title">AAI-HRMS</div>
-              <div className="shl-brand-sub">Agentic AI HR Platform</div>
-            </div>
-          </div>
+          <VedhireBrandLockup variant="light" markSize={30} className="shl-mobile-brand" />
 
           <div className="shl-welcome">
             <h2>Welcome back</h2>

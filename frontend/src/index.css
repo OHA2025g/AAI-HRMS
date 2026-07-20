@@ -1,6 +1,7 @@
 @import '@/features/smart-hiring/styles/hiring-dashboard.css';
 @import '@/features/smart-hiring/styles/smart-hiring-sidebar.css';
 @import '@/shared/styles/responsive-app.css';
+@import '@/shared/styles/vedhire-wordmark.css';
 
 @tailwind base;
 @tailwind components;

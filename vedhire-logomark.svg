@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="240" height="240">
+  <!-- VEDHIRE.AI — "The Bindu Apex" · Product Theme
+       Palette matched to smart-hiring.agrayianailabs.com: deep indigo field,
+       lavender shruti strokes, violet bindu. -->
+  <defs>
+    <radialGradient id="pglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A08CFF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#6D5AE6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pbindu" cx="38%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#A08CFF"/>
+      <stop offset="100%" stop-color="#6D5AE6"/>
+    </radialGradient>
+  </defs>
+
+  <!-- shruti lines: lavender-white, presence deepening toward the decision -->
+  <path d="M 44.7 24 L 60 48 L 75.3 24" fill="none" stroke="#F2F0FA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.32"/>
+  <path d="M 35.8 24 L 60 62 L 84.2 24" fill="none" stroke="#F2F0FA" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.52"/>
+  <path d="M 26.9 24 L 60 76 L 93.1 24" fill="none" stroke="#F2F0FA" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.78"/>
+  <path d="M 18 24 L 47.3 70"  fill="none" stroke="#F2F0FA" stroke-width="5.5" stroke-linecap="round" opacity="0.95"/>
+  <path d="M 102 24 L 72.7 70" fill="none" stroke="#F2F0FA" stroke-width="5.5" stroke-linecap="round" opacity="0.95"/>
+
+  <!-- the bindu: violet, the product's decision colour -->
+  <circle cx="60" cy="90" r="22" fill="url(#pglow)"/>
+  <circle cx="60" cy="90" r="12.5" fill="none" stroke="#8B7CF7" stroke-width="1.4" opacity="0.55"/>
+  <circle cx="60" cy="90" r="7.5" fill="url(#pbindu)"/>
+</svg>

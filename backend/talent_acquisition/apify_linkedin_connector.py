@@ -485,9 +485,31 @@ async def start_apify_pipeline_for_job(
 
     active = await get_active_pipeline_for_job(db, job_id)
     if active:
+        # EasyPanel / no-cron deploys: advance the stuck-or-running pipeline when
+        # Find Matches / Search LinkedIn is clicked again.
+        try:
+            await process_pending_apify_pipelines(
+                db,
+                cfg,
+                upsert_candidate,
+                limit=1,
+                pipeline_id=str(active.get("id") or ""),
+            )
+            refreshed = await db[APIFY_RUNS_COLLECTION].find_one(
+                {"id": active.get("id")},
+                {"_id": 0},
+            )
+            if refreshed:
+                active = refreshed
+        except Exception:
+            logger.exception("Apify advance on active pipeline re-entry failed for job %s", job_id)
         return {
             "started": False,
-            "message": "Apify pipeline already running for this job",
+            "message": (
+                "Apify pipeline already running for this job"
+                if active.get("status") in (PIPELINE_SEARCH_RUNNING, PIPELINE_ENRICH_RUNNING)
+                else f"Apify pipeline status: {active.get('status')}"
+            ),
             "pipeline": _public_pipeline(active),
         }
 

@@ -83,30 +83,59 @@
 
 .shl-brand {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.shl-brand.vedhire-brand-lockup .vedhire-brand-lockup-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  padding: 6px;
+  box-shadow: 0 18px 38px rgba(27, 20, 64, 0.45);
+}
+
+.shl-brand.vedhire-brand-lockup .vedhire-brand-lockup-name {
+  font-size: 24px;
+}
+
+.shl-brand.vedhire-brand-lockup .vedhire-brand-lockup-tagline {
+  color: #c4b5fd;
+  font-size: 12px;
 }
 
 .shl-brand-mark {
   width: 52px;
   height: 52px;
   border-radius: 15px;
-  background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+  background: linear-gradient(160deg, #241a4f 0%, #1b1440 55%, #14102e 100%);
   display: grid;
   place-items: center;
-  font-size: 26px;
-  font-weight: 900;
-  box-shadow: 0 18px 38px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 18px 38px rgba(27, 20, 64, 0.45);
   color: #fff;
   line-height: 1;
   flex-shrink: 0;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.shl-brand-mark .vedhire-brand-mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .shl-brand-title {
   font-size: 22px;
   font-weight: 800;
-  color: #fff;
   line-height: 1.2;
+}
+
+.shl-brand-title.vedhire-wordmark {
+  font-size: 24px;
+  font-weight: 700;
 }
 
 .shl-brand-sub {
@@ -230,7 +259,7 @@
 }
 
 .shl-mobile-brand .shl-brand-title {
-  color: var(--shl-ink);
+  /* Two-tone wordmark colors come from .vedhire-wordmark--light */
 }
 
 .shl-mobile-brand .shl-brand-sub {
@@ -571,13 +600,27 @@
 
   .shl-mobile-brand {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 4px;
     margin-bottom: 28px;
   }
 
-  .shl-mobile-brand .shl-brand-mark {
+  .shl-mobile-brand.vedhire-brand-lockup {
+    align-items: center;
+  }
+
+  .shl-mobile-brand .vedhire-brand-lockup-row {
+    justify-content: center;
+  }
+
+  .shl-mobile-brand .vedhire-brand-lockup-tagline {
+    text-align: center;
+    color: #6366f1;
+  }
+
+  .shl-mobile-brand .vedhire-brand-lockup-mark {
     width: 48px;
     height: 48px;
   }

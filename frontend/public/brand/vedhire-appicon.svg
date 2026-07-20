@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="320" height="320">
+  <!-- VEDHIRE.AI — app icon / favicon · Product Theme (Smart Hiring site palette) -->
+  <defs>
+    <linearGradient id="pbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#241A4F"/>
+      <stop offset="55%" stop-color="#1B1440"/>
+      <stop offset="100%" stop-color="#14102E"/>
+    </linearGradient>
+    <radialGradient id="pambient" cx="78%" cy="18%" r="75%">
+      <stop offset="0%" stop-color="#6D5AE6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#6D5AE6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A08CFF" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#6D5AE6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pbindu" cx="38%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#A08CFF"/>
+      <stop offset="100%" stop-color="#6D5AE6"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="160" rx="36" fill="url(#pbg)"/>
+  <rect width="160" height="160" rx="36" fill="url(#pambient)"/>
+  <g transform="translate(20,20)">
+    <path d="M 44.7 24 L 60 48 L 75.3 24" fill="none" stroke="#F2F0FA" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.32"/>
+    <path d="M 35.8 24 L 60 62 L 84.2 24" fill="none" stroke="#F2F0FA" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.52"/>
+    <path d="M 26.9 24 L 60 76 L 93.1 24" fill="none" stroke="#F2F0FA" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.78"/>
+    <path d="M 18 24 L 47.3 70"  fill="none" stroke="#F2F0FA" stroke-width="6" stroke-linecap="round" opacity="0.95"/>
+    <path d="M 102 24 L 72.7 70" fill="none" stroke="#F2F0FA" stroke-width="6" stroke-linecap="round" opacity="0.95"/>
+    <circle cx="60" cy="90" r="24" fill="url(#pglow)"/>
+    <circle cx="60" cy="90" r="14" fill="none" stroke="#8B7CF7" stroke-width="1.6" opacity="0.55"/>
+    <circle cx="60" cy="90" r="8.5" fill="url(#pbindu)"/>
+  </g>
+</svg>
