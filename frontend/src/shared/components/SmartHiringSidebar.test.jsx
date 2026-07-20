@@ -1,13 +1,42 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SmartHiringSidebar from './SmartHiringSidebar';
 
+const logoutMock = vi.fn();
+
+vi.mock('@/shared/context/AuthContext', () => ({
+  useAuth: () => ({
+    logout: logoutMock,
+    user: { role: 'admin', full_name: 'QA Admin' },
+    isAuthenticated: true,
+  }),
+}));
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 describe('SmartHiringSidebar', () => {
+  beforeEach(() => {
+    logoutMock.mockClear();
+    mockNavigate.mockClear();
+  });
+
   it('renders operational nav on dashboard (same as other sections)', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/dashboard']}>
-        <SmartHiringSidebar user={{ role: 'admin' }} navVariant="operational" brandGlyph="✦" showCollapse={false} />
+        <SmartHiringSidebar
+          user={{ role: 'admin', full_name: 'QA Admin' }}
+          navVariant="operational"
+          brandGlyph="✦"
+          showCollapse={false}
+        />
       </MemoryRouter>
     );
 
@@ -20,10 +49,27 @@ describe('SmartHiringSidebar', () => {
     expect(screen.getByTestId('nav-pipeline')).toBeTruthy();
     expect(screen.getByTestId('nav-admin')).toBeTruthy();
     expect(screen.getByTestId('smart-hiring-ask-ai')).toBeTruthy();
+    expect(screen.getByTestId('sidebar-logout-btn')).toBeTruthy();
     expect(container.querySelector('.sh-sidebar-footer .sh-assistant')).toBeTruthy();
     expect(screen.getByText('Ask AI Assistant')).toBeTruthy();
     expect(screen.getByText('Ask anything about your hiring pipeline.')).toBeTruthy();
     expect(screen.getByText('Ask Now →')).toBeTruthy();
+  });
+
+  it('logs out and navigates to login from the sidebar button', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <SmartHiringSidebar
+          user={{ role: 'admin', full_name: 'QA Admin' }}
+          navVariant="operational"
+          showCollapse={false}
+        />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByTestId('sidebar-logout-btn'));
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
   it('renders operational nav on pipeline route', () => {

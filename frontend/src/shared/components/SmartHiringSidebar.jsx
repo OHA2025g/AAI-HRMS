@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronDown, LogOut } from 'lucide-react';
 import { cn } from '@/shared/lib/utils';
+import { useAuth } from '@/shared/context/AuthContext';
 import VedhireBrandMark from '@/shared/components/VedhireBrandMark';
 import VedhireBrandLockup from '@/shared/components/VedhireBrandLockup';
 import {
@@ -22,6 +23,8 @@ export default function SmartHiringSidebar({
   showCollapse = true,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const items = getSmartHiringSidebarNav(user, navVariant);
   const canToggle = showCollapse && onToggleCollapse;
   const [expandedGroups, setExpandedGroups] = useState(() => {
@@ -57,6 +60,21 @@ export default function SmartHiringSidebar({
       return next;
     });
   };
+
+  const handleLogout = () => {
+    logout();
+    onNavigate?.();
+    navigate('/login');
+  };
+
+  const userLabel = user?.full_name || user?.email || 'Account';
+  const userInitials =
+    String(userLabel)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'U';
 
   const brandContent = collapsed ? (
     <div className="sh-logo" aria-hidden>
@@ -177,6 +195,28 @@ export default function SmartHiringSidebar({
             </Link>
           </div>
         ) : null}
+
+        <div className="sh-account">
+          {!collapsed ? (
+            <div className="sh-account-meta" title={userLabel}>
+              <span className="sh-account-avatar" aria-hidden>
+                {userInitials}
+              </span>
+              <span className="sh-account-name">{userLabel}</span>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="sh-logout-btn"
+            onClick={handleLogout}
+            data-testid="sidebar-logout-btn"
+            title="Logout"
+            aria-label="Logout"
+          >
+            <LogOut className="sh-logout-icon" aria-hidden />
+            <span className="sh-nav-label">Logout</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

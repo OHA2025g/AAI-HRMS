@@ -331,7 +331,8 @@
 .sh-sidebar--collapsed .sh-nav-label,
 .sh-sidebar--collapsed .sh-brand-text,
 .sh-sidebar--collapsed .sh-assistant-copy,
-.sh-sidebar--collapsed .sh-assistant-btn-label {
+.sh-sidebar--collapsed .sh-assistant-btn-label,
+.sh-sidebar--collapsed .sh-account-meta {
   display: none;
 }
 
@@ -344,6 +345,81 @@
   padding-top: var(--sh-gap-md, 12px);
   min-width: 0;
   max-width: 100%;
+}
+
+.sh-account {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sh-account-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.sh-account-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.14);
+  color: #e0e7ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sh-account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c7d2fe;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sh-logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #fecaca;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sh-logout-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fee2e2;
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.sh-logout-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.sh-sidebar--collapsed .sh-logout-btn {
+  justify-content: center;
+  padding: 10px;
+}
+
+.sh-sidebar--collapsed .sh-logout-btn .sh-nav-label {
+  display: none;
 }
 
 .sh-assistant {
