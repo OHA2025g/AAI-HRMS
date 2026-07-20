@@ -813,6 +813,11 @@
   color: #b91c1c;
 }
 
+.hiring-dashboard-root .badge--empty {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .hiring-dashboard-root .hero-updated {
   color: #475569;
   margin: 28px 0 0;
@@ -1088,6 +1093,10 @@
 
 .hiring-dashboard-root .kpi-health--critical {
   color: #dc2626 !important;
+}
+
+.hiring-dashboard-root .kpi-health--empty {
+  color: #64748b !important;
 }
 
 .hiring-dashboard-root .tab {

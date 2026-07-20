@@ -25,15 +25,18 @@ function formatDeltaPct(pct, windowDays) {
 }
 
 function healthLabel(status) {
+  if (status == null) return 'No data';
   if (status === 'ok') return 'Healthy';
   if (status === 'critical') return 'Critical';
-  return 'Moderate Risk';
+  if (status === 'watch') return 'Moderate Risk';
+  return 'No data';
 }
 
 function healthClass(status) {
   if (status === 'ok') return 'kpi-health--ok';
   if (status === 'critical') return 'kpi-health--critical';
-  return 'kpi-health--watch';
+  if (status === 'watch') return 'kpi-health--watch';
+  return 'kpi-health--empty';
 }
 
 function EmptySection({ message }) {
@@ -104,8 +107,14 @@ export default function OverviewTabContent({ pack, trends, windowDays = 30 }) {
         <div className="card kpi">
           <h3>Hiring Health</h3>
           <div className="num">
-            {pack?.health_score ?? '—'}
-            <small>/100</small>
+            {pack?.health_score != null ? (
+              <>
+                {pack.health_score}
+                <small>/100</small>
+              </>
+            ) : (
+              '—'
+            )}
           </div>
           <p className={healthClass(pack?.health_status)}>{healthLabel(pack?.health_status)}</p>
         </div>

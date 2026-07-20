@@ -16,7 +16,8 @@ export default function DashboardHeroHealth({
   aiRecommendation,
   presentationMode,
 }) {
-  const badge = STATUS_BADGE[status] || STATUS_BADGE.watch;
+  const hasScore = score != null && !Number.isNaN(Number(score));
+  const badge = hasScore ? STATUS_BADGE[status] || STATUS_BADGE.watch : null;
   const risks = [
     {
       icon: '⚠️',
@@ -41,21 +42,22 @@ export default function DashboardHeroHealth({
     },
   ];
 
-  const updatedLabel = asOf
-    ? new Date(asOf).toLocaleString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      })
-    : null;
+  const updatedLabel =
+    hasScore && asOf
+      ? new Date(asOf).toLocaleString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+      : null;
 
-  const recTitle =
-    aiRecommendation?.title ||
-    aiRecommendation?.headline ||
-    'Review hiring dashboard alerts and take action on the highest-risk items.';
+  const hasRecommendation = Boolean(
+    aiRecommendation?.title || aiRecommendation?.headline || aiRecommendation?.message
+  );
+  const recTitle = aiRecommendation?.title || aiRecommendation?.headline;
   const impactDays = aiRecommendation?.impact_days;
 
   return (
@@ -66,10 +68,22 @@ export default function DashboardHeroHealth({
       <div className="hero-score">
         <h4>AI HIRING HEALTH SCORE</h4>
         <div className="score">
-          {score}
-          <span>/100</span>
+          {hasScore ? (
+            <>
+              {score}
+              <span>/100</span>
+            </>
+          ) : (
+            '—'
+          )}
         </div>
-        <span className={cn('badge', badge.className)}>{badge.prefix} {badge.label}</span>
+        {badge ? (
+          <span className={cn('badge', badge.className)}>
+            {badge.prefix} {badge.label}
+          </span>
+        ) : (
+          <span className="badge badge--empty">No hiring data yet</span>
+        )}
         {updatedLabel ? <p className="hero-updated">Updated {updatedLabel}</p> : null}
       </div>
 
@@ -92,17 +106,23 @@ export default function DashboardHeroHealth({
 
       <div className="ai hero-ai">
         <h4>🧠 AI RECOMMENDATION</h4>
-        <b>{recTitle}</b>
-        <p>Expected hiring delay reduction</p>
-        {impactDays != null ? <div className="impact">{impactDays} days</div> : null}
-        {aiRecommendation?.action_path ? (
-          <Link to={aiRecommendation.action_path} className="primary">
-            View Recommendation →
-          </Link>
+        {hasRecommendation ? (
+          <>
+            <b>{recTitle}</b>
+            <p>Expected hiring delay reduction</p>
+            {impactDays != null ? <div className="impact">{impactDays} days</div> : null}
+            {aiRecommendation?.action_path ? (
+              <Link to={aiRecommendation.action_path} className="primary">
+                View Recommendation →
+              </Link>
+            ) : (
+              <button type="button" className="primary">
+                View Recommendation →
+              </button>
+            )}
+          </>
         ) : (
-          <button type="button" className="primary">
-            View Recommendation →
-          </button>
+          <p className="muted">No recommendations until hiring activity starts.</p>
         )}
       </div>
     </section>

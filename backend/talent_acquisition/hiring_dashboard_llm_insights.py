@@ -103,9 +103,9 @@ async def enhance_insights_with_llm(
     *,
     llm_chat: Callable[..., Any],
     context: Dict[str, Any],
-    fallback_rec: AiRecommendation,
+    fallback_rec: Optional[AiRecommendation],
     fallback_insights: List[AiInsightItem],
-) -> Tuple[AiRecommendation, List[AiInsightItem], str]:
+) -> Tuple[Optional[AiRecommendation], List[AiInsightItem], str]:
     """Returns (recommendation, insights, source) where source is llm or rule_based."""
     try:
         user_text = json.dumps(context, default=str)
@@ -165,12 +165,11 @@ async def apply_llm_insights_to_hiring_pack(
         logger.warning("LLM insights enabled but MISTRAL_API_KEY is not set")
         return pack
 
-    fallback_rec = pack.ai_recommendation or AiRecommendation(
-        title="Review pipeline health",
-        message="",
-        impact_days=0,
-        action_path="/pipeline",
-    )
+    # Empty / no-signal dashboards: do not invent recommendation copy via LLM.
+    if pack.health_score is None and not (pack.alerts or []) and not (pack.ai_insights or []):
+        return pack
+
+    fallback_rec = pack.ai_recommendation
     fallback_insights = list(pack.ai_insights or [])
 
     if cache_key:

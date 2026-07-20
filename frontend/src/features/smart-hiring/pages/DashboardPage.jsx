@@ -143,8 +143,8 @@ const DashboardPage = () => {
       ) : null}
 
       <DashboardHeroHealth
-          score={pack?.health_score ?? 0}
-          status={pack?.health_status || 'watch'}
+          score={pack?.health_score ?? null}
+          status={pack?.health_status ?? null}
           asOf={pack?.as_of}
           heroRisk={pack?.hero_risk_metrics}
           aiRecommendation={pack?.ai_recommendation}

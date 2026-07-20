@@ -167,7 +167,20 @@ def compute_health_score(
     req_aging_over_60: int,
     open_jobs: int,
     stuck_total: int,
-) -> tuple[int, str]:
+) -> tuple[int | None, str | None]:
+    """Return (score, status). When there is no hiring activity, return (None, None)
+    so empty databases do not show a fabricated baseline of 72 / Moderate Risk.
+    """
+    has_activity = (
+        funnel_conversion_to_interview is not None
+        or avg_fit is not None
+        or open_jobs > 0
+        or stuck_total > 0
+        or req_aging_over_60 > 0
+    )
+    if not has_activity:
+        return None, None
+
     score = 72
     if funnel_conversion_to_interview is not None:
         if funnel_conversion_to_interview >= 15:

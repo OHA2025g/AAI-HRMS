@@ -76,12 +76,7 @@ def build_hero_risk_metrics(
 
 def build_ai_recommendation(alerts: List[Dict[str, Any]], impact_days: int = 14) -> Optional[AiRecommendation]:
     if not alerts:
-        return AiRecommendation(
-            title="Maintain current hiring velocity",
-            message="No critical alerts detected. Continue monitoring pipeline health.",
-            impact_days=0,
-            action_path="/pipeline",
-        )
+        return None
     top = alerts[0]
     return AiRecommendation(
         title=str(top.get("title") or "Take action on hiring pipeline"),
@@ -138,6 +133,9 @@ def compute_expected_hires(
     interview_ready: int,
     monthly_target: Optional[int] = None,
 ) -> int:
+    # Empty pipeline: do not invent expected hires from the monthly target alone.
+    if hires_in_window <= 0 and pending_offers <= 0 and interview_ready <= 0:
+        return 0
     target = monthly_target if monthly_target is not None else get_monthly_hire_target()
     prorated = max(hires_in_window, int(round(target * window_days / 30.0)))
     forecast = pending_offers + max(0, int(interview_ready * 0.35))
@@ -527,4 +525,4 @@ def recruiter_health_score(stuck: int, over_60: int) -> int:
         open_jobs=max(1, stuck),
         stuck_total=stuck,
     )
-    return score
+    return int(score if score is not None else 70)

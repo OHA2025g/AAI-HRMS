@@ -64,9 +64,11 @@ export function computeHealthPct({ avgFit, pipeline, openDays }) {
 }
 
 export function healthBadge(status) {
+  if (status == null) return { className: 'badge--empty', label: 'No hiring data yet' };
   if (status === 'ok') return { className: 'badge--ok', label: 'Healthy' };
   if (status === 'critical') return { className: 'badge--critical', label: 'Critical Risk' };
-  return { className: 'badge--watch', label: 'Moderate Risk' };
+  if (status === 'watch') return { className: 'badge--watch', label: 'Moderate Risk' };
+  return { className: 'badge--empty', label: 'No hiring data yet' };
 }
 
 export function computeCommandMetrics(jobs = [], pack = null) {

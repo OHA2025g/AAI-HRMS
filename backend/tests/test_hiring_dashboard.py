@@ -257,6 +257,39 @@ def test_health_score_funnel_bonus():
     assert score_high > score_low
 
 
+def test_health_score_empty_db_has_no_fabricated_baseline():
+    score, status = compute_health_score(
+        funnel_conversion_to_interview=None,
+        avg_fit=None,
+        req_aging_over_60=0,
+        open_jobs=0,
+        stuck_total=0,
+    )
+    assert score is None
+    assert status is None
+
+
+def test_expected_hires_zero_without_activity():
+    from talent_acquisition.hiring_dashboard_insights import compute_expected_hires
+
+    assert (
+        compute_expected_hires(
+            window_days=30,
+            hires_in_window=0,
+            pending_offers=0,
+            interview_ready=0,
+            monthly_target=10,
+        )
+        == 0
+    )
+
+
+def test_build_ai_recommendation_none_when_no_alerts():
+    from talent_acquisition.hiring_dashboard_insights import build_ai_recommendation
+
+    assert build_ai_recommendation([]) is None
+
+
 def test_application_stage_dwell_rows():
     rows = [
         {"to_stage": "SOURCED", "changed_at": "2026-01-01T00:00:00+00:00"},

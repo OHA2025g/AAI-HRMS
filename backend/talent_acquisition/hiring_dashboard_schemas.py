@@ -396,8 +396,8 @@ class HiringDashboardPack(BaseModel):
     project_id: str | None = None
     job_id: str | None = None
     owner_id: str | None = None
-    health_score: int
-    health_status: Literal["ok", "watch", "critical"]
+    health_score: int | None = None
+    health_status: Literal["ok", "watch", "critical"] | None = None
     headline: HiringDashboardHeadline
     pipeline_by_stage: Dict[str, int]
     pipeline_by_stage_window: Dict[str, int] = Field(default_factory=dict)
