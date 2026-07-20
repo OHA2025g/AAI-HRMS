@@ -164,10 +164,15 @@ main {
   }
 }
 
-/* Large desktops: keep content readable */
+/* Large desktops: keep content readable while preserving full-width shell alignment */
 @media (min-width: 1600px) {
-  .hd-mock-main,
   .page-container {
     max-width: 1600px;
+    margin-inline: auto;
+  }
+
+  /* Do not cap .hd-mock-main — sidebar + fluid grids should span the laptop content band */
+  .hd-mock-main {
+    max-width: calc(100% - var(--sh-sidebar-width, 245px));
   }
 }

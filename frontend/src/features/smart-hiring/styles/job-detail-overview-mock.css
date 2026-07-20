@@ -925,7 +925,7 @@
   font-size: 14px;
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1023px) {
   .job-detail-root .jd-cand-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -935,7 +935,7 @@
   }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .job-detail-root .jd-hero {
     grid-template-columns: 80px 1fr;
   }
@@ -1761,7 +1761,7 @@
   color: #ef4444;
 }
 
-@media (max-width: 1350px) {
+@media (max-width: 1023px) {
   .job-detail-root .jd-match-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2275,7 +2275,7 @@
   padding-top: 0;
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1023px) {
   .candidate-detail-root .cd-hero {
     grid-template-columns: 78px 1fr;
   }
@@ -2776,7 +2776,7 @@
   color: #64748b;
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1023px) {
   .candidate-detail-root .cda-main-grid {
     grid-template-columns: 1fr;
   }
@@ -3480,7 +3480,7 @@
   gap: 10px;
 }
 
-@media (max-width: 1240px) {
+@media (max-width: 1023px) {
   .candidate-detail-root .cde-metric-grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -4375,7 +4375,7 @@
   padding: 5px 8px;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 1023px) {
   .candidate-detail-root .cdas-metric-grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -5659,7 +5659,7 @@
   border: 0;
 }
 
-@media (max-width: 1360px) {
+@media (max-width: 1023px) {
   .candidate-detail-root .cdt-summary-strip {
     grid-template-columns: 1fr;
   }

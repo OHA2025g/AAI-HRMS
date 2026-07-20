@@ -193,21 +193,29 @@ export function computeCommandMetrics({
   }
 
   const packHighFit = pack?.talent_quality?.high_fit_count;
-  const packTalentPool = pack?.tab_kpis?.pipeline?.total;
+  const packTalentPool = pack?.talent_quality?.talent_pool_count;
   const coverage = pack?.career_trajectory_coverage?.coverage_pct;
   const avgFitFromPack = pack?.tab_kpis?.analytics?.avg_fit_pct;
   const avgFit =
     fitScores.length > 0
       ? Math.round(fitScores.reduce((a, b) => a + b, 0) / fitScores.length)
-      : avgFitFromPack ?? 86;
+      : avgFitFromPack != null
+        ? Math.round(Number(avgFitFromPack))
+        : null;
 
-  const shortlistQuality = Math.min(99, Math.max(55, avgFit));
-  const profilesAnalyzedPct =
-    coverage != null
-      ? Math.round(Number(coverage) * 100)
-      : candidates.length
-        ? Math.round((analyzed / candidates.length) * 100)
-        : 72;
+  // Empty pool: never invent shortlist / analyzed / duplicate percentages.
+  const isEmpty = Number(totalCount) <= 0 && candidates.length === 0;
+
+  const shortlistQuality = avgFit != null ? Math.min(100, Math.max(0, avgFit)) : null;
+  let profilesAnalyzedPct = null;
+  if (coverage != null) {
+    const cov = Number(coverage);
+    profilesAnalyzedPct = Math.round(cov <= 1 ? cov * 100 : cov);
+  } else if (candidates.length > 0) {
+    profilesAnalyzedPct = Math.round((analyzed / candidates.length) * 100);
+  } else if (isEmpty) {
+    profilesAnalyzedPct = null;
+  }
 
   const funnel = pack?.funnel || [];
   const sourced = funnel.find((f) => f.stage === 'SOURCED')?.count ?? pack?.tab_kpis?.pipeline?.sourced ?? 0;
@@ -217,37 +225,52 @@ export function computeCommandMetrics({
     funnel.find((f) => f.stage === 'INTERVIEW_1')?.count ??
     0;
 
+  const resolvedHighFit = packHighFit ?? highFit90;
+
   return {
     totalCount,
-    highFit90: packHighFit ?? highFit90,
-    talentPool: packTalentPool ?? Math.max(talentPool, Math.round(totalCount * 0.41)),
+    highFit90: resolvedHighFit,
+    talentPool: packTalentPool ?? talentPool,
     profilesAnalyzedPct,
-    duplicateRiskPct: 2.1,
+    duplicateRiskPct: isEmpty ? null : estimateDuplicateRiskPct(candidates),
     avgFit,
     shortlistQuality,
-    activeCount: pack?.tab_kpis?.pipeline?.total ?? activePipeline ?? Math.round(totalCount * 0.29),
+    shortlistDeltaPct: null,
+    totalDeltaPct: null,
+    activeCount: pack?.tab_kpis?.pipeline?.total ?? activePipeline,
     aiEnriched: totalCount,
     bestAppMap,
     pipelineStages: computePipelineStages({
       pack,
-      totalCount,
       sourced,
       screened,
-      highFit: packHighFit ?? highFit90,
+      highFit: resolvedHighFit,
       interviewReady,
     }),
-    recommendations: buildRecommendations(pack, highFit90),
+    recommendations: buildRecommendations(pack, resolvedHighFit, isEmpty),
     talentSegments: computeTalentSegments(candidates, pack),
     reviewHighFitCount: pack?.smart_actions?.find((a) => a.id === 'review-high-fit')?.count ?? highFit90,
   };
 }
 
-function computePipelineStages({ pack, totalCount, sourced, screened, highFit, interviewReady }) {
+function estimateDuplicateRiskPct(candidates = []) {
+  if (!candidates.length) return null;
+  const emails = candidates
+    .map((c) => String(c?.email || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!emails.length) return null;
+  const unique = new Set(emails);
+  const dupes = emails.length - unique.size;
+  if (dupes <= 0) return 0;
+  return Math.round((dupes / emails.length) * 1000) / 10;
+}
+
+function computePipelineStages({ pack, sourced, screened, highFit, interviewReady }) {
   const pipeline = pack?.pipeline_by_stage || {};
-  const newProfiles = pipeline.SOURCED ?? sourced ?? Math.round(totalCount * 0.067);
-  const aiScreened = pipeline.SCREENING ?? screened ?? Math.round(newProfiles * 0.56);
-  const highFitCount = highFit ?? Math.round(aiScreened * 0.34);
-  const ready = interviewReady ?? Math.round(highFitCount * 0.4);
+  const newProfiles = Number(pipeline.SOURCED ?? sourced ?? 0);
+  const aiScreened = Number(pipeline.SCREENING ?? screened ?? 0);
+  const highFitCount = Number(highFit ?? 0);
+  const ready = Number(interviewReady ?? 0);
   const max = Math.max(newProfiles, aiScreened, highFitCount, ready, 1);
 
   return [
@@ -258,9 +281,11 @@ function computePipelineStages({ pack, totalCount, sourced, screened, highFit, i
   ];
 }
 
-function buildRecommendations(pack, highFitCount) {
+function buildRecommendations(pack, highFitCount, isEmpty = false) {
+  if (isEmpty) return [];
+
   const fromPack = (pack?.signal_recommendations || pack?.ai_insights || []).slice(0, 3);
-  if (fromPack.length >= 2) {
+  if (fromPack.length) {
     return fromPack.map((item, i) => ({
       icon: i === 0 ? '✦' : i === 1 ? '⚠' : '↗',
       title: item.title,
@@ -269,26 +294,18 @@ function buildRecommendations(pack, highFitCount) {
     }));
   }
 
-  return [
-    {
-      icon: '✦',
-      title: 'Prioritize Python candidates',
-      message: `${Math.max(12, Math.round(highFitCount * 0.34))} profiles match urgent engineering roles.`,
-      actionPath: '/candidates?q=Python',
-    },
-    {
-      icon: '⚠',
-      title: 'Incomplete profiles',
-      message: `${Math.max(50, Math.round(highFitCount * 2.5))} candidates need resume or skills enrichment.`,
-      actionPath: '/candidates',
-    },
-    {
-      icon: '↗',
-      title: 'Fast-track interviews',
-      message: `${Math.max(8, Math.round(highFitCount * 0.15))} high-fit candidates are ready this week.`,
-      actionPath: '/candidates?fit_min=90',
-    },
-  ];
+  if (highFitCount > 0) {
+    return [
+      {
+        icon: '↗',
+        title: 'Review high-fit candidates',
+        message: `${highFitCount} profile${highFitCount === 1 ? '' : 's'} scored 90%+ and may be ready for screening.`,
+        actionPath: '/candidates?fit_min=90',
+      },
+    ];
+  }
+
+  return [];
 }
 
 function computeTalentSegments(candidates = [], pack = null) {
@@ -300,6 +317,8 @@ function computeTalentSegments(candidates = [], pack = null) {
     }));
   }
 
+  if (!candidates.length) return [];
+
   const counts = new Map();
   for (const c of candidates) {
     for (const skill of topSkillNames(c?.skills, 8)) {
@@ -308,13 +327,12 @@ function computeTalentSegments(candidates = [], pack = null) {
     }
   }
 
-  return [...counts.values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 4)
-    .map((row, i) => ({
-      label: row.label,
-      score: Math.max(60, 92 - i * 5),
-    }));
+  const ranked = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 4);
+  const max = Math.max(...ranked.map((r) => r.count), 1);
+  return ranked.map((row) => ({
+    label: row.label,
+    score: Math.round((row.count / max) * 100),
+  }));
 }
 
 export function collectSkillOptions(candidates = []) {

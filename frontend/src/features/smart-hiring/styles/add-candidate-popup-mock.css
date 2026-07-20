@@ -953,7 +953,7 @@
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1023px) {
   .anc-modal-root .anc-upload-grid {
     grid-template-columns: 1fr;
   }

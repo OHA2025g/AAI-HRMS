@@ -1095,7 +1095,7 @@
   color: #64748b;
 }
 
-@media (max-width: 1220px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='create-job-command-root'] .cj-builder-grid {
     grid-template-columns: 1fr;
   }

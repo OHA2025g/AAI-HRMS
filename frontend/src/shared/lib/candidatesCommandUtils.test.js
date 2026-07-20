@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   estimateProfileReadinessScore,
   resolveCandidateFitScore,
+  computeCommandMetrics,
 } from './candidatesCommandUtils';
 
 describe('resolveCandidateFitScore', () => {
@@ -41,5 +42,23 @@ describe('resolveCandidateFitScore', () => {
 describe('estimateProfileReadinessScore', () => {
   it('returns null for missing candidate', () => {
     expect(estimateProfileReadinessScore(null)).toBeNull();
+  });
+});
+
+describe('computeCommandMetrics empty pool', () => {
+  it('does not invent shortlist, analyzed, or duplicate percentages', () => {
+    const metrics = computeCommandMetrics({
+      totalCount: 0,
+      candidates: [],
+      applications: [],
+      pack: null,
+      trajSummaries: {},
+    });
+    expect(metrics.shortlistQuality).toBeNull();
+    expect(metrics.profilesAnalyzedPct).toBeNull();
+    expect(metrics.duplicateRiskPct).toBeNull();
+    expect(metrics.recommendations).toEqual([]);
+    expect(metrics.talentSegments).toEqual([]);
+    expect(metrics.pipelineStages.every((s) => s.count === 0)).toBe(true);
   });
 });

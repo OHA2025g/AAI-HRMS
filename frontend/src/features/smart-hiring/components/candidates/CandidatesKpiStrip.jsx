@@ -2,18 +2,31 @@ import React from 'react';
 import { fmtNum, fmtPct } from '@/shared/lib/candidatesCommandUtils';
 
 export default function CandidatesKpiStrip({ metrics }) {
+  const totalDelta = metrics.totalDeltaPct;
+  const analyzed = metrics.profilesAnalyzedPct;
+  const duplicateRisk = metrics.duplicateRiskPct;
+  const hasCandidates = Number(metrics.totalCount) > 0;
+
   return (
     <section className="cand-kpis" data-testid="candidates-kpi-strip">
       <div className="cand-kpi">
         <h3>Total Candidates</h3>
         <b>{fmtNum(metrics.totalCount)}</b>
-        <p className="up">↑ 9.4% this month</p>
-        <div className="cand-spark" aria-hidden />
+        {totalDelta != null ? (
+          <p className={totalDelta >= 0 ? 'up' : 'down'}>
+            {totalDelta >= 0 ? '↑' : '↓'} {Math.abs(totalDelta)}% this month
+          </p>
+        ) : (
+          <p className="cand-muted">{hasCandidates ? 'Live pool size' : 'No candidates yet'}</p>
+        )}
+        {hasCandidates && totalDelta != null ? <div className="cand-spark" aria-hidden /> : null}
       </div>
       <div className="cand-kpi">
         <h3>High Fit 90%+</h3>
         <b>{fmtNum(metrics.highFit90)}</b>
-        <p className="up">Ready for shortlist</p>
+        <p className={metrics.highFit90 > 0 ? 'up' : 'cand-muted'}>
+          {metrics.highFit90 > 0 ? 'Ready for shortlist' : 'No high-fit profiles yet'}
+        </p>
       </div>
       <div className="cand-kpi">
         <h3>Talent Pool</h3>
@@ -22,13 +35,17 @@ export default function CandidatesKpiStrip({ metrics }) {
       </div>
       <div className="cand-kpi">
         <h3>Profiles Analyzed</h3>
-        <b>{fmtPct(metrics.profilesAnalyzedPct, 0)}</b>
-        <p className="up">AI trajectory done</p>
+        <b>{analyzed != null ? fmtPct(analyzed, 0) : '—'}</b>
+        <p className={analyzed != null && analyzed > 0 ? 'up' : 'cand-muted'}>
+          {analyzed != null && analyzed > 0 ? 'AI trajectory done' : 'No AI analysis yet'}
+        </p>
       </div>
       <div className="cand-kpi">
         <h3>Duplicate Risk</h3>
-        <b>{metrics.duplicateRiskPct}%</b>
-        <p className="down">Needs cleanup</p>
+        <b>{duplicateRisk != null ? `${duplicateRisk}%` : '—'}</b>
+        <p className={duplicateRisk != null && duplicateRisk > 0 ? 'down' : 'cand-muted'}>
+          {duplicateRisk != null && duplicateRisk > 0 ? 'Needs cleanup' : 'No duplicates detected'}
+        </p>
       </div>
     </section>
   );

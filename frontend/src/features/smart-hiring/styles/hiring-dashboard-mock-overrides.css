@@ -5,8 +5,8 @@
 .hd-mock-layout {
   --sh-sidebar-width: 245px;
   --sh-sidebar-width-collapsed: 72px;
-  --sh-page-pad-y: 20px;
-  --sh-page-pad-x: 24px;
+  --sh-page-pad-y: clamp(16px, 1.4vw, 20px);
+  --sh-page-pad-x: clamp(16px, 1.6vw, 24px);
   --sh-gap-xs: 4px;
   --sh-gap-sm: 8px;
   --sh-gap-md: 12px;
@@ -1029,7 +1029,7 @@
   padding: 0;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root .hero {
     width: 100%;
     height: auto;
@@ -1133,13 +1133,13 @@
 /* Pipeline tab — restore mock parity (wins over analytics/interviews cascade in mock-exact.css) */
 .hiring-dashboard-root [data-testid='dash-funnel'] .pipeline-kpis {
   display: grid;
-  grid-template-columns: repeat(4, 347.25px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
 
 .hiring-dashboard-root [data-testid='dash-funnel'] .pipeline-kpis > .card.pkpi {
-  width: 347.25px;
+  width: 100%; max-width: 100%;
   height: 131px;
   box-sizing: border-box;
   padding: 16px 20px;
@@ -1372,7 +1372,7 @@
   color: #111827;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root [data-testid='dash-funnel'] .content-grid,
   .hiring-dashboard-root [data-testid='dash-funnel'] .pipeline-bottom {
     grid-template-columns: 1fr;
@@ -1495,7 +1495,7 @@
 /* Offers tab — hero cards sized to mock (455.85 / 580.17 / 372.97) */
 .hiring-dashboard-root [data-testid='dash-offers'] .offers-hero {
   display: grid;
-  grid-template-columns: minmax(0, 455.85px) minmax(0, 580.17px) minmax(0, 372.97px);
+  grid-template-columns: 455.85fr 580.17fr 372.97fr;
   gap: 18px;
   align-items: stretch;
   margin-bottom: 18px;
@@ -1895,7 +1895,7 @@
 /* Interviews tab — KPI row (4 cards @ 348.25 × 125.5) */
 .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-kpis {
   display: grid;
-  grid-template-columns: repeat(4, 348.25px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -1966,7 +1966,7 @@
 /* Interviews tab — performance + bottleneck row (745.38 / 677.33 × 344) */
 .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-grid-row {
   display: grid;
-  grid-template-columns: 745.38px 677.33px;
+  grid-template-columns: 745.38fr 677.33fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2098,7 +2098,7 @@
 
 .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-insights {
   display: grid;
-  grid-template-columns: repeat(3, 469.66px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2167,7 +2167,7 @@
 /* Interviews tab — bottom row (830.08 / 592.91 × 260) */
 .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-bottom-row {
   display: grid;
-  grid-template-columns: 830.08px 592.91px;
+  grid-template-columns: 830.08fr 592.91fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2381,7 +2381,7 @@
 /* Signals tab — hero row (555.95 / 400.29 / 444.77 × 260.5) */
 .hiring-dashboard-root [data-testid='dash-signals'] .signals-hero-row {
   display: grid;
-  grid-template-columns: 555.95px 400.29px 444.77px;
+  grid-template-columns: 555.95fr 400.29fr 444.77fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2510,7 +2510,7 @@
 /* Signals tab — KPI row (3 cards @ 469.66 × 140) */
 .hiring-dashboard-root [data-testid='dash-signals'] .signals-kpi-row {
   display: grid;
-  grid-template-columns: repeat(3, 469.66px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2560,7 +2560,7 @@
 /* Signals tab — grid2 row (838.5 / 580.5 × 355.06) */
 .hiring-dashboard-root [data-testid='dash-signals'] .signals-grid2-row {
   display: grid;
-  grid-template-columns: 838.5px 580.5px;
+  grid-template-columns: 838.5fr 580.5fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2686,7 +2686,7 @@
 /* Signals tab — assessment row (774 / 645 × 226.5) */
 .hiring-dashboard-root [data-testid='dash-signals'] .signals-assessment-row {
   display: grid;
-  grid-template-columns: 774px 645px;
+  grid-template-columns: 774fr 645fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2827,7 +2827,7 @@
 /* Analytics tab — KPI row (5 cards @ 275.4 × 122) */
 .hiring-dashboard-root [data-testid='dash-charts'] .analytics-kpi-row {
   display: grid;
-  grid-template-columns: repeat(5, 275.4px);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -2901,7 +2901,7 @@
 /* Analytics tab — grid2 row (812.87 / 602.13 × 441.5) */
 .hiring-dashboard-root [data-testid='dash-charts'] .analytics-grid2-row {
   display: grid;
-  grid-template-columns: 812.87px 602.13px;
+  grid-template-columns: 812.87fr 602.13fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -3104,7 +3104,7 @@
 /* Analytics tab — source row (707.5 / 707.5 × 357.72) */
 .hiring-dashboard-root [data-testid='dash-charts'] .analytics-source-row {
   display: grid;
-  grid-template-columns: 707.5px 707.5px;
+  grid-template-columns: 707.5fr 707.5fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -3218,7 +3218,7 @@
 /* Analytics tab — fit / aging row (707.5 / 707.5 × 360.44) */
 .hiring-dashboard-root [data-testid='dash-charts'] .analytics-fit-aging-row {
   display: grid;
-  grid-template-columns: 707.5px 707.5px;
+  grid-template-columns: 707.5fr 707.5fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -3331,7 +3331,7 @@
 /* Analytics tab — req / top jobs row (733 / 682 × 348.22) */
 .hiring-dashboard-root [data-testid='dash-charts'] .analytics-req-row {
   display: grid;
-  grid-template-columns: 733px 682px;
+  grid-template-columns: 733fr 682fr;
   gap: 18px;
   margin: 0 0 18px;
   align-items: stretch;
@@ -3976,7 +3976,7 @@
 
 .hiring-dashboard-root[data-testid='jobs-command-root'] .jobs-content {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 24%);
   gap: 18px;
   align-items: start;
 }
@@ -4370,7 +4370,7 @@
   padding: 18px;
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='jobs-command-root'] .jobs-content {
     grid-template-columns: 1fr;
   }
@@ -4598,7 +4598,7 @@
 
 .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-content {
   display: grid;
-  grid-template-columns: 1fr 330px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 22%);
   gap: 18px;
   align-items: start;
 }
@@ -4985,7 +4985,7 @@
   margin: 0 auto;
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-content {
     grid-template-columns: 1fr;
   }
@@ -5570,7 +5570,7 @@
   font-size: 14px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='bulk-upload-root'] .bu-hero-grid,
   .hiring-dashboard-root[data-testid='bulk-upload-root'] .bu-grid {
     grid-template-columns: 1fr;
@@ -6067,7 +6067,7 @@
 /* Board — sourced */
 .hiring-dashboard-root[data-testid='pipeline-command-root'] .pl-board {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(240px, 28%) minmax(0, 1fr);
   gap: 22px;
 }
 
@@ -6417,7 +6417,7 @@
 
 .hiring-dashboard-root[data-testid='pipeline-command-root'] .pl-layout-screening {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(240px, 28%) minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -7028,7 +7028,7 @@
 
 .hiring-dashboard-root[data-testid='pipeline-command-root'] .pl-grid-salary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -7237,7 +7237,7 @@
   margin: 0 0 12px;
 }
 
-@media (max-width: 1300px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='pipeline-command-root'] .pl-cards,
   .hiring-dashboard-root[data-testid='pipeline-command-root'] .pl-grid-assessment {
     grid-template-columns: 1fr 1fr;
@@ -7880,7 +7880,7 @@
   background: #f1f5f9;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='interviews-command-root'] .iv-kpis,
   .hiring-dashboard-root[data-testid='interviews-command-root'] .iv-command,
   .hiring-dashboard-root[data-testid='interviews-command-root'] .iv-interviews,
@@ -8365,7 +8365,7 @@
   color: #d97706;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='referrals-command-root'] .rf-kpis,
   .hiring-dashboard-root[data-testid='referrals-command-root'] .rf-grid {
     grid-template-columns: 1fr 1fr;
@@ -8919,7 +8919,7 @@
 }
 .hiring-dashboard-root[data-testid='assessments-command-root'] .as-calib-list { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--as-muted); }
 
-@media (max-width: 1300px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='assessments-command-root'] .as-kpis { grid-template-columns: repeat(3, 1fr); }
   .hiring-dashboard-root[data-testid='assessments-command-root'] .as-health-row,
   .hiring-dashboard-root[data-testid='assessments-command-root'] .as-grid2,
@@ -8938,7 +8938,7 @@
   .hiring-dashboard-root[data-testid='assessments-command-root'] .as-result-hero { grid-template-columns: 1fr 1fr; }
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='assessments-command-root'] .as-tabs {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -9516,7 +9516,7 @@
 }
 .as-rev-qa-grid {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: minmax(240px, 26%) minmax(0, 1fr);
   gap: 20px;
 }
 .as-rev-question-nav {
@@ -10080,7 +10080,7 @@
 }
 .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .ct-phase-wrap { margin-top: 0; }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .ct-metrics { grid-template-columns: repeat(2, 1fr); }
   .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .ct-grid2,
   .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .ct-signal-grid,
@@ -10300,7 +10300,7 @@
   width: 32px; height: 32px; animation: spin 1s linear infinite; color: #5b4bff;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='compare-trajectories-command-root'] .ctc-select-card,
   .hiring-dashboard-root[data-testid='compare-trajectories-command-root'] .ctc-comparison,
   .hiring-dashboard-root[data-testid='compare-trajectories-command-root'] .ctc-timeline { grid-template-columns: 1fr; }
@@ -10770,7 +10770,7 @@
   .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .p2-phase-wrap
 ) .p2-exports { display: flex; flex-wrap: wrap; gap: 10px; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1023px) {
   :is(
     .hiring-dashboard-root[data-testid='phase2-fit-command-root'],
     .hiring-dashboard-root[data-testid='career-trajectory-command-root'] .p2-phase-wrap
@@ -11326,7 +11326,7 @@
   margin: 0;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='admin-hiring-config-page'] .hdc-grid,
   .hiring-dashboard-root[data-testid='admin-hiring-config-page'] .hdc-rule-grid,
   .hiring-dashboard-root[data-testid='admin-hiring-config-page'] .hdc-rule-grid-extended {
@@ -11839,7 +11839,7 @@
   color: var(--ctw-purple);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='career-traj-config-command-root'] .ctw-tabs {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -12410,7 +12410,7 @@
   padding: 32px 16px;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='admin-integrations-command-root'] .aic-tabs {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -12980,7 +12980,7 @@
   gap: 10px;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='admin-role-management-command-root'] .arm-summary,
   .hiring-dashboard-root[data-testid='admin-role-management-command-root'] .arm-grid {
     grid-template-columns: 1fr;
@@ -13458,7 +13458,7 @@
   justify-content: flex-end;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1023px) {
   .hiring-dashboard-root[data-testid='admin-database-command-root'] .dbm-grid,
   .hiring-dashboard-root[data-testid='admin-database-command-root'] .dbm-status-grid {
     grid-template-columns: 1fr 1fr;
@@ -13485,5 +13485,99 @@
   }
   .hiring-dashboard-root[data-testid='admin-database-command-root'] .dbm-alert {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+ * Desktop composition lock (13"–16"+ laptops)
+ * --------------------------------------------------------------------------
+ * Root cause previously: mock CSS targeted ~1430px content (~16" @1728 CSS px)
+ * and viewport collapses at 1200/1300 stacked layouts on many 13" machines.
+ * Keep one multi-column desktop composition for all laptops (>=1024px).
+ * ========================================================================== */
+@media (min-width: 1024px) {
+  .hd-mock-main,
+  .hd-mock-main .hiring-dashboard-root,
+  .hiring-dashboard-root {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hiring-dashboard-root .hero,
+  .hiring-dashboard-root .kpis,
+  .hiring-dashboard-root .cand-hero,
+  .hiring-dashboard-root .cand-kpis,
+  .hiring-dashboard-root .cand-content,
+  .hiring-dashboard-root .cand-grid,
+  .hiring-dashboard-root .jobs-content,
+  .hiring-dashboard-root .jobs-grid {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .hiring-dashboard-root .hero {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr) minmax(0, 0.95fr) !important;
+    height: auto !important;
+    min-height: 280px;
+  }
+
+  .hiring-dashboard-root .kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+
+  .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-content {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 22%) !important;
+  }
+
+  .hiring-dashboard-root[data-testid='candidates-command-root'] .cand-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .hiring-dashboard-root[data-testid='jobs-command-root'] .jobs-content {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 24%) !important;
+  }
+
+  .hiring-dashboard-root [data-testid='dash-funnel'] .pipeline-kpis,
+  .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-kpis,
+  .hiring-dashboard-root [data-testid='dash-signals'] .signals-kpi-row,
+  .hiring-dashboard-root [data-testid='dash-charts'] .analytics-kpi-row {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+
+  .hiring-dashboard-root [data-testid='dash-offers'] .offers-hero {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.45fr) minmax(0, 0.95fr) !important;
+  }
+
+  .hiring-dashboard-root [data-testid='dash-charts'] .analytics-grid2-row,
+  .hiring-dashboard-root [data-testid='dash-interviews'] .interviews-grid-row,
+  .hiring-dashboard-root [data-testid='dash-signals'] .signals-grid2-row {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) !important;
+  }
+
+  /* Prefer flexible card heights over fixed mock canvas heights */
+  .hiring-dashboard-root [data-testid='dash-funnel'] .pipeline-kpis > .card.pkpi,
+  .hiring-dashboard-root [data-testid='dash-offers'] :is(.offers-command-card, .offers-lifecycle-card, .offers-insight-card),
+  .hiring-dashboard-root [data-testid='dash-charts'] :is(.analytics-grid2-row > *, .analytics-source-row > *) {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0;
+  }
+
+  .hiring-dashboard-root .card,
+  .hiring-dashboard-root .cand-kpi,
+  .hiring-dashboard-root .cand-hero-card,
+  .hiring-dashboard-root .cand-panel {
+    min-width: 0;
+    box-sizing: border-box;
   }
 }
